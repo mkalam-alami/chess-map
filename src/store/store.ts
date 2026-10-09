@@ -6,7 +6,7 @@ import {
 import { DEFAULT_BOARD_ZOOM, effectiveBoardZoom } from '../model/scale';
 import { cursorBack, cursorEnd, cursorForward, rootCursor } from '../model/cursor';
 import { exportMap, importMap, newId } from '../model/serialize';
-import { saveLibrary } from './persist';
+import { loadMode, saveLibrary, saveMode } from './persist';
 
 export type Mode = 'explore' | 'edit';
 
@@ -26,6 +26,12 @@ export interface State {
   pin: boolean;
   /** Bumped by focus(): the view should ease the map to the cursor node. */
   recenter: number;
+  /** The board is shown on the map. Closing it leaves only pins; focus() reopens it. UI-only. */
+  boardOpen: boolean;
+  /** Centered mode: the map view follows the board (zoom stays on it). Panning the map leaves it; any board switch restores it. UI-only. */
+  centered: boolean;
+  /** Set with `recenter` by back()/forward(): keep the board's on-screen size instead of fitting the children. */
+  keepSize: boolean;
   /** Bumped when forward had nowhere to go: children pins should pulse. */
   pulse: number;
   placing: Placing | null;
@@ -54,7 +60,7 @@ function initial(library: Library): State {
   const map = library.maps[library.activeMapId] as ChessMap;
   return {
     library, activeMapId: library.activeMapId, cursor: rootCursor(map),
-    mode: 'explore', overview: false, pin: false, recenter: 0, pulse: 0, placing: null, relocating: null,
+    mode: map.nodes[map.rootId]?.children.length ? loadMode() ?? 'explore' : 'edit', overview: true, pin: false, recenter: 0, boardOpen: true, centered: true, keepSize: false, pulse: 0, placing: null, relocating: null,
   };
 }
 
@@ -90,29 +96,41 @@ export function init(library: Library): void {
 
 // ---- navigation / modes ----
 
-export function focus(cursor: Cursor): void {
+export function focus(cursor: Cursor, keepSize = false): void {
   if (state.placing || state.relocating) return;
   getNode(activeMap(), cursor.nodeId);
-  set({ cursor, recenter: state.recenter + 1 });
+  set({ cursor, recenter: state.recenter + 1, keepSize, boardOpen: true, centered: true });
+}
+
+/** Enters or leaves centered mode (leaving happens when the user pans the map). */
+export function setCentered(centered: boolean): void {
+  if (state.centered !== centered) set({ centered });
+}
+
+/** Hides the board; every board may be closed, the root included. */
+export function closeBoard(): void {
+  if (!state.placing && !state.relocating) set({ boardOpen: false });
 }
 
 export function back(): void {
   if (state.placing || state.relocating) return;
   const c = cursorBack(activeMap(), state.cursor);
-  if (c) focus(c);
+  if (c) focus(c, true);
 }
 
 /** Returns false (and pulses the children pins) when there is nowhere to go. */
 export function forward(): boolean {
   if (state.placing || state.relocating) return false;
   const c = cursorForward(activeMap(), state.cursor);
-  if (c) focus(c);
+  if (c) focus(c, true);
   else set({ pulse: state.pulse + 1 });
   return c !== null;
 }
 
 export const setMode = (mode: Mode): void => {
-  if (!state.placing && !state.relocating) set({ mode });
+  if (state.placing || state.relocating) return;
+  saveMode(mode);
+  set({ mode });
 };
 export const toggleMode = (): void => setMode(state.mode === 'edit' ? 'explore' : 'edit');
 export const togglePin = (): void => set({ pin: !state.pin });
@@ -151,7 +169,7 @@ export function playMove(san: string, spots: LngLat[]): void {
 
   if (exists) {
     const r = branchAt(map, cursor, san, spot);
-    commit(r.map, { cursor: r.cursor, recenter: state.recenter + 1 });
+    commit(r.map, { cursor: r.cursor, recenter: state.recenter + 1, keepSize: false, centered: true });
     return;
   }
   if (pin && atEnd && node.parentId !== null && node.children.length === 0) {
@@ -165,7 +183,7 @@ export function playMove(san: string, spots: LngLat[]): void {
     next = moveNode(next, tailId, spawnAt(spots[1] ?? spot, limit), { withSubtree: true });
   }
   const created = r.cursor.nodeId;
-  if (pin) commit(setPinned(next, created, true), { cursor: r.cursor, recenter: state.recenter + 1 });
+  if (pin) commit(setPinned(next, created, true), { cursor: r.cursor, recenter: state.recenter + 1, keepSize: false, centered: true });
   else commit(next); // cursor stays: the user can keep spawning alternatives
   hooks.onNodePlaced(created, spot);
 }
@@ -245,8 +263,6 @@ export const endRelocate = (): void => {
 
 /** Absolute log2 board size relative to the parent (snapped to 0.25). */
 export const setBoardSize = (nodeId: NodeId, delta: number): void => commit(setSizeDelta(activeMap(), nodeId, delta));
-export const nudgeBoardSize = (nodeId: NodeId, step: number): void =>
-  setBoardSize(nodeId, (getNode(activeMap(), nodeId).sizeDelta ?? 0) + step);
 
 export const setNote = (nodeId: NodeId, note: string): void => commit(setNoteOnMap(activeMap(), nodeId, note));
 export const setPlace = (nodeId: NodeId, place: { label: string; country?: string } | undefined): void =>
@@ -262,14 +278,17 @@ export function deleteNode(nodeId: NodeId): void {
 
 // ---- maps ----
 
+/** Opens the board; an empty repertoire has nothing to explore, so it switches to Edit (otherwise the mode is left alone). */
+const onEnterMap = (map: ChessMap): Partial<State> => ({ boardOpen: true, centered: true, ...(getNode(map, map.rootId).children.length ? {} : { mode: 'edit' as const }) });
+
 export function switchMap(id: MapId): void {
   const map = state.library.maps[id];
   if (!map) return;
-  commitLibrary({ ...state.library, activeMapId: id }, { cursor: rootCursor(map), pin: false, placing: null, relocating: null });
+  commitLibrary({ ...state.library, activeMapId: id }, { cursor: rootCursor(map), pin: false, placing: null, relocating: null, ...onEnterMap(map) });
 }
 
 function addMap(map: ChessMap): void {
-  commitLibrary({ ...state.library, maps: { ...state.library.maps, [map.id]: map }, activeMapId: map.id }, { cursor: rootCursor(map), pin: false, placing: null, relocating: null });
+  commitLibrary({ ...state.library, maps: { ...state.library.maps, [map.id]: map }, activeMapId: map.id }, { cursor: rootCursor(map), pin: false, placing: null, relocating: null, ...onEnterMap(map) });
 }
 
 export const newMap = (name: string, orientation: 'white' | 'black', at: LngLat = DEFAULT_CENTER): void =>
@@ -289,7 +308,7 @@ export function deleteMap(id: MapId = state.library.activeMapId): boolean {
   if (Object.keys(state.library.maps).length <= 1 || !state.library.maps[id]) return false;
   const { [id]: _gone, ...maps } = state.library.maps;
   const activeMapId = id === state.library.activeMapId ? (Object.keys(maps)[0] as MapId) : state.library.activeMapId;
-  commitLibrary({ ...state.library, maps, activeMapId }, { cursor: rootCursor(maps[activeMapId] as ChessMap), pin: false, placing: null, relocating: null });
+  commitLibrary({ ...state.library, maps, activeMapId }, { cursor: rootCursor(maps[activeMapId] as ChessMap), pin: false, placing: null, relocating: null, ...onEnterMap(maps[activeMapId] as ChessMap) });
   return true;
 }
 

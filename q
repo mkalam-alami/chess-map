@@ -1,0 +1,26 @@
+feat: minor UI improvements
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Date:      Fri Oct 9 21:59:26 2026 +0000
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	new file:   AGENTS.md
+#	modified:   README.md
+#	modified:   index.html
+#	new file:   public/favicon.svg
+#	modified:   src/main.ts
+#	modified:   src/map/boardMarker.ts
+#	modified:   src/map/mapView.ts
+#	modified:   src/map/pinMarker.ts
+#	modified:   src/map/placing.ts
+#	modified:   src/store/store.ts
+#	modified:   src/style.css
+#	modified:   src/ui/icons.ts
+#	modified:   src/ui/topBar.ts
+#	modified:   tests/e2e/smoke.spec.ts
+#

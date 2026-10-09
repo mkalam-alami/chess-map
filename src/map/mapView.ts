@@ -4,7 +4,7 @@ import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
 import type { LngLat, SavedView } from '../model/types';
-import { activeMap, getState, saveView, subscribe } from '../store/store';
+import { activeMap, getState, saveView, setCentered, subscribe } from '../store/store';
 import { getNode } from '../model/types';
 import { comfortPx, effectiveBoardZoom, focusZoom, maxZoomToFit } from '../model/scale';
 
@@ -38,6 +38,7 @@ export function createMapView(container: HTMLElement): maplibregl.Map {
     pitchWithRotate: false,
     doubleClickZoom: true,
     clickTolerance: 5,
+    keyboard: false, // arrow keys navigate the repertoire instead of panning
     attributionControl: { compact: true },
   });
   map.touchZoomRotate.disableRotation();
@@ -62,19 +63,53 @@ export function createMapView(container: HTMLElement): maplibregl.Map {
     }, 500);
   });
 
+  // Centered mode: zooming keeps the board in the middle; panning the map leaves it.
+  map.on('dragstart', () => setCentered(false));
+  map.on('boxzoomend', () => setCentered(false));
+  map.on('dblclick', () => getState().centered && map.zoomIn({ duration: 300 })); // MapLibre's own double-click zoom is off while centered
+  const anchorZoom = (centered: boolean): void => {
+    const opts = centered ? { around: 'center' as const } : undefined;
+    map.scrollZoom.disable();
+    map.scrollZoom.enable(opts);
+    map.touchZoomRotate.disable();
+    map.touchZoomRotate.enable(opts);
+    if (centered) map.doubleClickZoom.disable();
+    else map.doubleClickZoom.enable();
+  };
+  /** After a view restore: centered only if the board really is in the middle. */
+  const syncCentered = (): void => {
+    const at = map.project(getNode(activeMap(), getState().cursor.nodeId).lngLat);
+    const mid = map.project(map.getCenter());
+    setCentered(Math.abs(at.x - mid.x) < 2 && Math.abs(at.y - mid.y) < 2);
+  };
+  syncCentered();
+  let lastCentered = getState().centered;
+  anchorZoom(lastCentered);
+
   // Follow focus() and map switches.
   let lastRecenter = getState().recenter;
   let lastMapId = getState().activeMapId;
+  let lastBoardZoom = effectiveBoardZoom(activeMap(), getState().cursor.nodeId);
   subscribe(() => {
     const s = getState();
+    const prevBoardZoom = lastBoardZoom;
+    lastBoardZoom = effectiveBoardZoom(activeMap(), s.cursor.nodeId);
     if (s.activeMapId !== lastMapId) {
       lastMapId = s.activeMapId;
       lastRecenter = s.recenter;
       const v = viewOfActive();
       map.jumpTo({ center: v.center, zoom: v.zoom });
+      syncCentered();
     } else if (s.recenter !== lastRecenter) {
       lastRecenter = s.recenter;
-      focusView(map);
+      // Arrow-key navigation keeps the board the same size on screen rather than fitting the children, and jumps without easing.
+      focusView(map, s.keepSize ? map.getZoom() - prevBoardZoom + lastBoardZoom : undefined, s.keepSize);
+    } else if (s.centered && !lastCentered) {
+      easeToNode(map, getNode(activeMap(), s.cursor.nodeId).lngLat); // "Back to board"
+    }
+    if (s.centered !== lastCentered) {
+      lastCentered = s.centered;
+      anchorZoom(lastCentered);
     }
   });
   return map;
@@ -114,10 +149,11 @@ export function targetZoom(map: maplibregl.Map): number {
   });
 }
 
-/** Centers the cursor node below the top bar at the zoom given by targetZoom. */
-export function focusView(map: maplibregl.Map): void {
+/** Centers the cursor node below the top bar at `zoom`, by default the one given by targetZoom. `instant` skips the animation. */
+export function focusView(map: maplibregl.Map, zoom?: number, instant = false): void {
   const at = getNode(activeMap(), getState().cursor.nodeId).lngLat;
-  map.easeTo({ center: [wrapNear(at[0], map.getCenter().lng), at[1]], zoom: targetZoom(map), padding: padding(), duration: 400 });
+  const z = zoom === undefined ? targetZoom(map) : Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom));
+  map.easeTo({ center: [wrapNear(at[0], map.getCenter().lng), at[1]], zoom: z, padding: padding(), duration: instant ? 0 : 400 });
 }
 
 /** Centers a point in the visible area (below the top bar), keeping the zoom. */

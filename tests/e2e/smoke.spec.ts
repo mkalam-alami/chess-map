@@ -83,12 +83,16 @@ const activeId = (page: Page) =>
 async function twoLevels(page: Page): Promise<void> {
   await edit(page);
   await spawn(page, 'e2', 'e4');
-  await page.getByTestId('pin').getByTestId('pin-enter').click();
+  await page.getByTestId('pin').locator('.pin-label').click();
   await spawn(page, 'e7', 'e5');
   await expect(page.getByTestId('pin')).toHaveCount(1);
   await page.getByTestId('btn-back').click();
   await expect(line(page)).toHaveText('');
 }
+
+test('an empty repertoire starts in Edit mode', async ({ page }) => {
+  await expect(page.getByTestId('mode-edit')).toHaveAttribute('aria-checked', 'true');
+});
 
 test('initial board is visible with an empty line and a geocoded place', async ({ page }) => {
   await expect(page.locator('[data-testid="board"] cg-board')).toBeVisible();
@@ -107,7 +111,7 @@ test('edit: a move spawns a pin; enter, back and forward navigate', async ({ pag
   await expect(pin).toHaveAttribute('data-label', '1.e4');
   await expect(page.getByTestId('board')).toHaveAttribute('data-fen', /^rnbqkbnr\/pppppppp\/8\/8\/8\/8\/PPPPPPPP/); // board did not advance
 
-  await pin.getByTestId('pin-enter').click();
+  await pin.locator('.pin-label').click();
   await expect(line(page)).toHaveText('1. e4');
   await expect(page.getByTestId('board')).toHaveAttribute('data-fen', / b KQkq /);
 
@@ -122,13 +126,89 @@ test('edit: a move spawns a pin; enter, back and forward navigate', async ({ pag
   await expect(line(page)).toHaveText('1. e4');
 });
 
-test('double-click enters a pin and leaves no popover behind', async ({ page }) => {
+test('note editor: clicking inside moves the caret, Enter closes, Shift+Enter adds a line', async ({ page }) => {
+  await edit(page);
+  await page.getByTestId('board-note').click();
+  const input = page.getByTestId('note-input');
+  await input.fill('hello world');
+  const box = (await input.boundingBox())!;
+  await page.mouse.click(box.x + 30, box.y + 10); // inside the text
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await page.keyboard.type('X');
+  await expect(input).toHaveValue(/^hel?.*X.+/); // inserted mid-text, not appended
+  await page.keyboard.press('Shift+Enter');
+  await expect(input).toBeVisible();
+  expect(await input.inputValue()).toContain('\n');
+  await page.keyboard.press('Enter');
+  await expect(input).toBeHidden();
+  await expect(page.getByTestId('note-text')).toContainText('world');
+});
+
+test('centered mode: zoom stays on the board; panning leaves it, Back to board and board switches restore it', async ({ page }) => {
+  const center = () => page.evaluate(() => { const c = (window as unknown as { __chessMap: { map: { getCenter(): { lng: number; lat: number } } } }).__chessMap.map.getCenter(); return [c.lng, c.lat]; });
+  await expect(page.getByTestId('back-to-board')).toBeHidden();
+  await settled(page);
+  const c0 = await center();
+  await page.mouse.move(60, 300);
+  await page.mouse.wheel(0, -300); // zoom in with the pointer far from the board
+  await page.waitForTimeout(500);
+  const c1 = await center();
+  expect(c1[0]).toBeCloseTo(c0[0]!, 5);
+  expect(c1[1]).toBeCloseTo(c0[1]!, 5);
+  await page.mouse.move(60, 300);
+  await page.mouse.down();
+  await page.mouse.move(160, 330, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('back-to-board')).toBeVisible();
+  await page.getByTestId('back-to-board').click();
+  await expect(page.getByTestId('back-to-board')).toBeHidden();
+  await page.waitForTimeout(600);
+  const c2 = await center();
+  expect(c2[0]).toBeCloseTo(c0[0]!, 3);
+  await page.mouse.move(60, 300);
+  await page.mouse.down();
+  await page.mouse.move(160, 330, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('back-to-board')).toBeVisible();
   await edit(page);
   await spawn(page, 'e2', 'e4');
-  await page.getByTestId('pin').locator('.pin-label').dblclick();
+  await page.getByTestId('pin').locator('.pin-label').click(); // switching boards restores it
+  await expect(page.getByTestId('back-to-board')).toBeHidden();
+});
+
+test('the Explore / Edit choice is remembered across reloads', async ({ page }) => {
+  await edit(page);
+  await spawn(page, 'e2', 'e4'); // a non-empty repertoire, so the empty-map default does not apply
+  await page.waitForTimeout(700); // debounced autosave
+  await page.getByTestId('mode-explore').click();
+  await page.reload();
+  await expect(page.getByTestId('mode-explore')).toHaveAttribute('aria-checked', 'true');
+  await edit(page);
+  await page.reload();
+  await expect(page.getByTestId('mode-edit')).toHaveAttribute('aria-checked', 'true');
+});
+
+test('every board can be closed, the root included; its pin reopens it', async ({ page }) => {
+  await expect(page.getByTestId('board-card')).toBeVisible();
+  await page.getByTestId('board-close').click();
+  await expect(page.getByTestId('board-card')).toBeHidden();
+  await page.getByTestId('pin-root').click();
+  await expect(page.getByTestId('board-card')).toBeVisible();
+  await edit(page);
+  await spawn(page, 'e2', 'e4');
+  await page.getByTestId('pin').locator('.pin-label').click();
+  await page.getByTestId('board-close').click();
+  await expect(page.getByTestId('board-card')).toBeHidden();
+  await page.keyboard.press('ArrowLeft'); // navigating reopens it
+  await expect(page.getByTestId('board-card')).toBeVisible();
+});
+
+test('clicking a pin enters it', async ({ page }) => {
+  await edit(page);
+  await spawn(page, 'e2', 'e4');
+  await page.getByTestId('pin').locator('.pin-label').click();
   await expect(line(page)).toHaveText('1. e4');
-  await page.waitForTimeout(500);
-  await expect(page.getByTestId('popover')).toHaveCount(0);
 });
 
 test('back-to-back moves with no waits are not dropped', async ({ page }) => {
@@ -186,42 +266,57 @@ test('pin mode records a segment, replays it and undoes the last ply', async ({ 
 });
 
 test('explore: a move outside the repertoire snaps back with a toast', async ({ page }) => {
+  await page.getByTestId('mode-explore').click(); // an empty repertoire starts in Edit
   await play(page, 'd2', 'd4');
   await expect(page.getByTestId('toast')).toHaveText('Not in repertoire');
   await expect(page.getByTestId('board')).toHaveAttribute('data-fen', /^rnbqkbnr\/pppppppp\/8\/8\/8\/8\/PPPPPPPP/);
   await expect(line(page)).toHaveText('');
 });
 
-test('a note saved in the popover persists', async ({ page }) => {
+test('a note edited from the board header persists and shows under the board', async ({ page }) => {
   await edit(page);
   await spawn(page, 'e2', 'e4');
-  await page.getByTestId('pin').locator('.pin-label').click();
-  await page.getByTestId('pop-note').fill('King pawn, Lisbon trip');
+  await page.getByTestId('pin').locator('.pin-label').click(); // a click enters the pin
+  await expect(line(page)).toHaveText('1. e4');
+  await page.getByTestId('board-note').click();
+  await page.getByTestId('note-input').fill('King pawn, Lisbon trip');
+  await page.getByTestId('board').click({ position: { x: 5, y: 5 }, force: true }); // losing focus closes the editor
+  await expect(page.getByTestId('note-input')).toBeHidden();
+  await expect(page.getByTestId('note-text')).toContainText('King pawn, Lisbon trip');
+  await page.getByTestId('note-edit').click(); // the pencil reopens it
+  await expect(page.getByTestId('note-input')).toBeFocused();
   await page.keyboard.press('Escape');
+  await page.getByTestId('btn-back').click();
   await expect(page.getByTestId('pin').locator('.pin-note')).toBeVisible();
-  await page.waitForTimeout(700); // autosave debounce
-  await page.reload();
-  await expect(page.getByTestId('pin').locator('.pin-note')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('note-text')).toContainText('King pawn, Lisbon trip');
 });
 
 test('deleting a pin removes its subtree after confirmation', async ({ page }) => {
   await twoLevels(page);
   expect(await nodeCount(page)).toBe(3);
   await page.getByTestId('pin').locator('.pin-label').click();
-  await page.getByTestId('pop-delete').click();
+  await page.getByTestId('board-delete').click();
   await expect(page.getByTestId('dialog')).toContainText('1 below');
   await page.getByTestId('dialog-ok').click();
   await expect(page.getByTestId('pin')).toHaveCount(0);
   expect(await nodeCount(page)).toBe(1);
 });
 
+test('the board header opens the current line in Lichess', async ({ page }) => {
+  await edit(page);
+  const popup = page.waitForEvent('popup');
+  await page.getByTestId('board-lichess').click();
+  expect((await popup).url()).toContain('lichess.org');
+});
+
 test('overview shows the whole tree faded', async ({ page }) => {
   await twoLevels(page);
+  await expect(page.getByTestId('pin-overview')).toHaveCount(1); // on by default
+  await page.getByTestId('overview-toggle').click();
   await expect(page.getByTestId('pin-overview')).toHaveCount(0);
   await page.getByTestId('overview-toggle').click();
   await expect(page.getByTestId('pin-overview')).toHaveCount(1);
-  await page.getByTestId('overview-toggle').click();
-  await expect(page.getByTestId('pin-overview')).toHaveCount(0);
 });
 
 test('transposition chip links to the other route', async ({ page }) => {
@@ -279,6 +374,7 @@ const nodeAt = (page: Page, which: 'root' | 'first-child') =>
   }, which);
 
 test('set location: place label opens the sheet, Enter moves the board and sets the place', async ({ page }) => {
+  await page.getByTestId('mode-explore').click(); // an empty repertoire starts in Edit
   await expect(page.getByTestId('place-label')).toBeDisabled(); // Explore: no relocation
   await edit(page);
   const before = (await nodeAt(page, 'root')).lngLat;
@@ -309,12 +405,12 @@ test('set location: Escape cancels and leaves everything unchanged', async ({ pa
   expect(await nodeAt(page, 'root')).toEqual(before);
 });
 
-test('set location: a pin can be moved with its branch from its popover', async ({ page }) => {
+test('set location: a pin can be moved with its branch from the board header', async ({ page }) => {
   await twoLevels(page);
   const root0 = await nodeAt(page, 'root');
   const child0 = await nodeAt(page, 'first-child');
   await page.getByTestId('pin').locator('.pin-label').click();
-  await page.getByTestId('pop-locate').click();
+  await page.getByTestId('board-locate').click();
   await expect(page.getByTestId('locate-title')).toHaveText('Move 1.e4 to…');
   await page.getByTestId('locate-input').fill('Lisbon');
   await page.getByTestId('locate-result').first().hover();
@@ -345,6 +441,7 @@ test('go to place is available in the menu without changing anything', async ({ 
 });
 
 test('explore: the board handle shows no drag hint or edit buttons', async ({ page }) => {
+  await page.getByTestId('mode-explore').click(); // an empty repertoire starts in Edit
   await expect(page.getByTestId('board-locate')).toBeHidden();
   await expect(page.locator('.board-handle .grip')).toBeHidden();
   await edit(page);
@@ -354,26 +451,16 @@ test('explore: the board handle shows no drag hint or edit buttons', async ({ pa
   await expect(page.getByTestId('pin-toggle')).toBeHidden();
 });
 
-test('board resize: + grows the board and re-focus zooms out accordingly', async ({ page }) => {
-  const zoom = () => page.evaluate(() => (window as unknown as { __chessMap: { map: { getZoom(): number } } }).__chessMap.map.getZoom());
-  const width = async () => (await page.getByTestId('board').boundingBox())!.width;
-  await expect(page.getByTestId('board-grip')).toBeHidden(); // Explore: no grip
-  await edit(page);
-  await expect(page.getByTestId('board-grip')).toBeVisible();
-  await spawn(page, 'e2', 'e4');
-  await page.getByTestId('pin').getByTestId('pin-enter').click(); // focus -> comfortable size
-  await settled(page);
-  const w0 = await width();
-  const z0 = await zoom();
-  await page.getByTestId('board-bigger').click();
-  await page.getByTestId('board-bigger').click();
-  await expect.poll(width).toBeGreaterThan(w0 * 1.3); // immediately larger at the same zoom
-  await page.getByTestId('btn-back').click();
-  await page.getByTestId('btn-forward').click(); // re-focus the resized board
-  await settled(page);
-  await page.waitForTimeout(300);
-  expect(await zoom()).toBeCloseTo(z0 - 0.5, 1); // bigger board -> lower zoom for the same on-screen size
-  expect(Math.abs((await width()) - w0)).toBeLessThan(w0 * 0.1);
+test('board header trash and the Delete key remove a position after confirmation', async ({ page }) => {
+  await twoLevels(page);
+  expect(await nodeCount(page)).toBe(3);
+  await page.getByTestId('pin').locator('.pin-label').click();
+  await page.getByTestId('board-delete').click();
+  await page.getByTestId('dialog-cancel').click();
+  expect(await nodeCount(page)).toBe(3);
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('Enter'); // the confirm button has focus
+  await expect.poll(() => nodeCount(page)).toBe(1);
 });
 
 test('resize grip never hits a wall: past the max the camera zooms out instead', async ({ page }) => {

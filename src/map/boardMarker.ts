@@ -7,11 +7,12 @@ import { fenAt, legalDests, sanPath, tryMove, turnColor } from '../chess/replay'
 import { cursorBack } from '../model/cursor';
 import { getNode, type Cursor, type LngLat } from '../model/types';
 import { NOMINAL_PX, boardPx, effectiveBoardZoom, gripResize } from '../model/scale';
-import { activeMap, beginPlacing, exploreMove, getState, moveExists, moveNodeTo, nudgeBoardSize, beginRelocate, playMove, setBoardSize } from '../store/store';
+import { activeMap, beginPlacing, closeBoard, hooks, setNote, exploreMove, getState, moveExists, moveNodeTo, beginRelocate, playMove, setBoardSize } from '../store/store';
 import { button, el, shieldFromMap } from '../ui/dom';
 import { icon } from '../ui/icons';
 import { toast } from '../ui/toast';
 import { makeDraggable } from './drag';
+import { confirmDeleteNode } from './pinMarker';
 import { clearPreview, onOverride, overrides, previewMove } from './live';
 import { isMobile, padding, wrapNear } from './mapView';
 
@@ -24,23 +25,80 @@ const angDist = (a: number, b: number): number => {
 export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
   const card = el('div', 'board-card', '', { 'data-testid': 'board-card' });
   const handle = el('div', 'board-handle');
-  const smaller = button('−', 'board-smaller', 'size-btn');
-  const bigger = button('+', 'board-bigger', 'size-btn');
-  smaller.title = 'Smaller board';
-  bigger.title = 'Bigger board';
-  smaller.addEventListener('click', () => nudgeBoardSize(getState().cursor.nodeId, -0.25));
-  bigger.addEventListener('click', () => nudgeBoardSize(getState().cursor.nodeId, 0.25));
+  let noteEditing = false;
+  let noteNode = getState().cursor.nodeId;
+  const noteBtn = button('', 'board-note', 'size-btn');
+  noteBtn.append(icon('note', 14));
+  noteBtn.title = 'Edit the note';
+  const trash = button('', 'board-delete', 'size-btn');
+  trash.append(icon('trash', 14));
+  trash.title = 'Delete this position (Del)';
+  trash.addEventListener('click', () => void confirmDeleteNode(getState().cursor.nodeId));
   const locate = button('', 'board-locate', 'size-btn locate-btn');
   locate.append(icon('mapPin', 14));
   locate.title = 'Set location by city (L)';
   locate.addEventListener('click', () => beginRelocate(getState().cursor.nodeId));
-  handle.append(smaller, el('span', 'grip', '⠇⠇⠇'), locate, bigger);
+  const closeBtn = button('', 'board-close', 'size-btn');
+  closeBtn.append(icon('close', 14));
+  closeBtn.title = 'Close the board';
+  closeBtn.addEventListener('click', closeBoard);
+  const lichess = button('', 'board-lichess', 'size-btn');
+  lichess.append(icon('external', 14));
+  lichess.title = 'Open this line in Lichess';
+  lichess.addEventListener('click', () => hooks.menu['open-lichess']?.());
+  // Equal-width side groups keep the grip hint centred whatever icons are shown.
+  const left = el('div', 'handle-side');
+  const right = el('div', 'handle-side right');
+  left.append(noteBtn, locate, lichess);
+  right.append(trash, closeBtn);
+  handle.append(left, el('span', 'grip', '⠇⠇⠇'), right);
   const wrap = el('div', 'board-wrap', '', { 'data-testid': 'board' });
   const grip = el('div', 'board-grip', '', { 'data-testid': 'board-grip', title: 'Drag to resize' });
   card.append(handle, wrap, grip);
-  shieldFromMap(card);
 
-  const marker = new maplibregl.Marker({ element: card, anchor: 'center' }).setLngLat(getNode(activeMap(), getState().cursor.nodeId).lngLat).addTo(map);
+  // The note sits below the board, outside the card (which clips) and out of flow, so the board stays centred on its position.
+  const noteBox = el('div', 'board-note-box');
+  const noteText = el('div', 'board-note-text', '', { 'data-testid': 'note-text' });
+  const noteInput = el('textarea', 'board-note-input', '', { rows: '3', placeholder: 'Note…', 'data-testid': 'note-input' });
+  const noteSpan = el('span');
+  const notePencil = button('', 'note-edit', 'note-pencil');
+  notePencil.append(icon('edit', 12));
+  notePencil.title = 'Edit the note';
+  noteText.append(noteSpan, notePencil);
+  noteBox.append(noteText, noteInput);
+  const root = el('div', 'board-root');
+  root.append(card, noteBox);
+  shieldFromMap(root);
+  const setEditing = (on: boolean): void => {
+    noteEditing = on;
+    update();
+    if (on) noteInput.focus();
+  };
+  noteBtn.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus, so the toggle is not preceded by a blur that closes it
+  noteBtn.addEventListener('click', () => setEditing(!noteEditing));
+  notePencil.addEventListener('click', () => setEditing(true));
+  // MapLibre handles presses in the capture phase and cancels their default (caret placement, text selection), so keep them away from it.
+  for (const t of ['mousedown', 'pointerdown', 'touchstart', 'dblclick']) {
+    document.addEventListener(t, (e) => {
+      if (e.target instanceof Node && noteBox.contains(e.target)) e.stopPropagation();
+    }, true);
+  }
+  // Map and board swallow mousedown (no blur), so also close on any press outside the note.
+  document.addEventListener('pointerdown', (e) => {
+    if (noteEditing && e.target instanceof Node && !noteBox.contains(e.target) && !noteBtn.contains(e.target)) setEditing(false);
+  }, true);
+  noteInput.addEventListener('blur', () => {
+    if (noteEditing) setEditing(false);
+  });
+  noteInput.addEventListener('input', () => setNote(getState().cursor.nodeId, noteInput.value));
+  noteInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey && !e.isComposing)) {
+      e.preventDefault(); // Enter closes the editor, Shift+Enter adds a line
+      setEditing(false);
+    }
+  });
+
+  const marker = new maplibregl.Marker({ element: root, anchor: 'center' }).setLngLat(getNode(activeMap(), getState().cursor.nodeId).lngLat).addTo(map);
 
   const cg: Api = Chessground(wrap, {
     coordinates: true,
@@ -273,6 +331,17 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
     marker.setLngLat(overrides.get(node.id) ?? node.lngLat);
     wrap.dataset.fen = fen;
     card.dataset.mode = s.mode;
+    if (node.id !== noteNode || s.mode !== 'edit') noteEditing = false;
+    noteNode = node.id;
+    const note = node.note ?? '';
+    noteSpan.textContent = note;
+    if (noteInput.value !== note) noteInput.value = note;
+    noteInput.hidden = !noteEditing;
+    noteText.hidden = noteEditing || !note;
+    noteBox.hidden = noteInput.hidden && noteText.hidden;
+    noteBtn.classList.toggle('active', noteEditing);
+    trash.style.visibility = node.parentId === null ? 'hidden' : '';
+    root.style.display = s.boardOpen ? '' : 'none';
     card.classList.toggle('placing', !!s.placing);
     card.classList.toggle('relocating', s.relocating?.nodeId === node.id);
     handle.title = s.mode === 'edit' ? 'Drag to move the board' : '';

@@ -79,8 +79,8 @@ export function createPlacing(map: maplibregl.Map, app: HTMLElement): void {
       ghost.classList.toggle('touch', touch);
       bar.hidden = !touch;
       marker = new maplibregl.Marker({ element: ghost, anchor: 'bottom' }).setLngLat(p.lngLat).addTo(map);
-      // Ease out a little so there is room around the board.
-      map.easeTo({ zoom: Math.max(map.getMinZoom(), map.getZoom() - 1), padding: padding(), duration: 400 });
+      // Ease out well so there is room around the board.
+      map.easeTo({ zoom: Math.max(map.getMinZoom(), map.getZoom() - 2), padding: padding(), duration: 400 });
     } else if (!p && active) {
       active = false;
       bar.hidden = true;

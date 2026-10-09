@@ -53,6 +53,7 @@ export const confirmDialog = (message: string, okLabel = 'OK'): Promise<boolean>
   modal<boolean>((done) => {
     const body = el('div', 'dialog-body');
     const ok = button(okLabel, 'dialog-ok', 'primary');
+    ok.autofocus = true; // Enter confirms
     const cancel = button('Cancel', 'dialog-cancel');
     ok.addEventListener('click', () => done(true));
     cancel.addEventListener('click', () => done(null));

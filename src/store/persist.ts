@@ -54,3 +54,23 @@ export function saveLibrary(lib: Library, storage: KV | undefined = defaultStora
   clearTimeout(timer);
   timer = setTimeout(flushSave, delayMs);
 }
+
+const MODE_KEY = 'chess-map:mode';
+
+/** The remembered Explore / Edit preference, or null when none (or storage is unavailable). */
+export function loadMode(storage: KV | undefined = defaultStorage()): 'explore' | 'edit' | null {
+  try {
+    const v = storage?.getItem(MODE_KEY);
+    return v === 'explore' || v === 'edit' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveMode(mode: 'explore' | 'edit', storage: KV | undefined = defaultStorage()): void {
+  try {
+    storage?.setItem(MODE_KEY, mode);
+  } catch {
+    /* storage full or blocked: the preference just is not remembered */
+  }
+}

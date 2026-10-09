@@ -162,3 +162,20 @@ export function findTranspositions(map: ChessMap, cursor: Cursor): Cursor[] {
   }
   return out;
 }
+
+/** Number of nodes (markers) between `from` and every node of the tree, walking up and down: parent and children are 1 away. */
+export function nodeDistances(map: ChessMap, from: NodeId): Map<NodeId, number> {
+  const out = new Map<NodeId, number>([[from, 0]]);
+  const queue: NodeId[] = [from];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i] as NodeId;
+    const node = getNode(map, id);
+    const d = (out.get(id) as number) + 1;
+    for (const next of node.parentId === null ? node.children : [node.parentId, ...node.children]) {
+      if (out.has(next)) continue;
+      out.set(next, d);
+      queue.push(next);
+    }
+  }
+  return out;
+}

@@ -3,12 +3,13 @@ import { flushSave, loadLibrary } from './store/persist';
 import { activeMap, back, beginRelocate, forward, getState, init, subscribe, toggleMode, togglePin, undoPly, canUndoPly } from './store/store';
 import { createMapView } from './map/mapView';
 import { createBoardMarker } from './map/boardMarker';
-import { createPinMarkers } from './map/pinMarker';
+import { confirmDeleteNode, createPinMarkers } from './map/pinMarker';
 import { createCurveLayer } from './map/curveLayer';
 import { createNavButtons, createTopBar } from './ui/topBar';
 import { isTyping } from './ui/dom';
 import { closePopover } from './ui/popover';
 import { createPlacing } from './map/placing';
+import { createRecenterButton } from './ui/recenter';
 import { createLocate } from './ui/locate';
 import { createRelocateGhost } from './map/relocating';
 import { loadOpenings } from './chess/openings';
@@ -32,9 +33,11 @@ const topBar = createTopBar(() => {
   return [c.lng, c.lat];
 });
 const nav = createNavButtons();
-app.append(topBar.el, nav.el);
+const recenter = createRecenterButton();
+app.append(topBar.el, nav.el, recenter.el);
 topBar.update();
 nav.update();
+recenter.update();
 
 // Markers are added right away so board and pins work even before tiles/style load.
 const map = createMapView(mapEl);
@@ -53,6 +56,7 @@ subscribe(() => {
   lastCursor = c;
   topBar.update();
   nav.update();
+  recenter.update();
   board.update();
   pins.update();
 });
@@ -65,13 +69,14 @@ void loadOpenings().then(() => {
 
 window.addEventListener('keydown', (e) => {
   if (getState().placing || getState().relocating || isTyping(e.target) || e.altKey || document.querySelector('dialog[open]')) return;
-  const edit = getState().mode === 'edit';
+  const edit = getState().mode === 'edit' && getState().boardOpen; // board tools need a visible board
   const key = e.key.toLowerCase();
   if (e.key === 'ArrowLeft') back();
   else if (e.key === 'ArrowRight') forward();
   else if (!e.ctrlKey && !e.metaKey && key === 'e') toggleMode();
   else if (!e.ctrlKey && !e.metaKey && key === 'p' && edit) togglePin();
   else if (!e.ctrlKey && !e.metaKey && key === 'l' && edit) beginRelocate(getState().cursor.nodeId);
+  else if (edit && e.key === 'Delete') void confirmDeleteNode(getState().cursor.nodeId);
   else if (edit && ((key === 'z' && (e.ctrlKey || e.metaKey)) || e.key === 'Backspace')) {
     if (canUndoPly()) undoPly();
   } else return;

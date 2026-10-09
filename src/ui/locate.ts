@@ -2,7 +2,7 @@ import type maplibregl from 'maplibre-gl';
 import { searchPlaces, type PlaceHit } from '../geo/search';
 import { isMobile, padding } from '../map/mapView';
 import { pinLabel } from '../map/pinMarker';
-import { activeMap, endRelocate, focus, getState, moveNodeTo, previewRelocate, subscribe } from '../store/store';
+import { activeMap, endRelocate, focus, getState, moveNodeTo, previewRelocate, setCentered, subscribe } from '../store/store';
 import { button, el, shieldFromMap } from './dom';
 import { icon } from './icons';
 import { toast } from './toast';
@@ -42,7 +42,7 @@ export function createLocate(app: HTMLElement, map: maplibregl.Map): void {
   let hits: PlaceHit[] = [];
   let rows: HTMLButtonElement[] = [];
   let active = -1;
-  let saved = { center: map.getCenter(), zoom: map.getZoom() };
+  let saved = { center: map.getCenter(), zoom: map.getZoom(), centered: getState().centered };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hover: ReturnType<typeof setTimeout> | undefined;
   let abort: AbortController | undefined;
@@ -85,6 +85,7 @@ export function createLocate(app: HTMLElement, map: maplibregl.Map): void {
   function cancel(): void {
     const from = saved;
     endRelocate();
+    setCentered(from.centered);
     map.easeTo({ center: from.center, zoom: from.zoom, padding: padding(), duration: 500 });
   }
 
@@ -155,7 +156,8 @@ export function createLocate(app: HTMLElement, map: maplibregl.Map): void {
     const r = getState().relocating;
     if (r && !open) {
       open = true;
-      saved = { center: map.getCenter(), zoom: map.getZoom() };
+      saved = { center: map.getCenter(), zoom: map.getZoom(), centered: getState().centered };
+      setCentered(false); // the map flies around to preview places
       const m = activeMap();
       const node = r.nodeId ? m.nodes[r.nodeId] : undefined;
       title.textContent = node ? (node.parentId === null ? 'Move the start board to…' : `Move ${pinLabel(m, node)} to…`) : 'Go to place';

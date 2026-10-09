@@ -51,7 +51,11 @@ html[data-mode='edit'] #app::after {
 }
 html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var(--edit); }
 .tb-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.spacer { flex: 1 1 0; }
+.tb-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+@media (min-width: 768px) {
+  .tb-main { display: grid; grid-template-columns: 1fr auto 1fr; }
+  .tb-main .map-pick { justify-self: start; }
+}
 .topbar button { min-height: 34px; }
 
 .map-pick {
@@ -100,13 +104,15 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
 .line .ply { font: inherit; padding: 1px 5px; border: 0; background: none; border-radius: 5px; color: var(--walnut); }
 .line .ply:hover { background: var(--wood-light); }
 .line .ply.current { background: var(--walnut); color: var(--cream); }
-.opening { display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; padding: 0 5px; font-size: 0.88rem; color: var(--walnut-2); }
+.opening {
+  flex: 0 1 auto; min-width: 0; max-width: 42%; display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 6px; font-size: 0.95rem; color: var(--muted);
+}
 .opening[hidden] { display: none; }
-.opening .eco { flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; color: var(--muted); }
+.opening::before { content: ''; width: 14px; height: 14px; flex: none; background: currentColor; -webkit-mask: var(--book-svg) center / contain no-repeat; mask: var(--book-svg) center / contain no-repeat; }
+:root { --book-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/><path d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/></svg>"); }
 .opening .opening-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .opening.inexact .opening-name { font-style: italic; font-weight: 500; color: var(--muted); }
-.pop-opening { font-size: 0.85rem; }
-.pop-opening.inexact { font-style: italic; }
 .place {
   flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
   border: 0; background: none; color: var(--muted); font-size: 0.95rem; padding: 2px 6px; border-radius: 8px;
@@ -126,6 +132,10 @@ html[data-mode='edit'] .place:hover { background: var(--edit); color: var(--waln
 }
 
 /* ---- nav buttons ---- */
+.recenter { position: absolute; z-index: 25; left: 12px; bottom: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 2px solid var(--walnut-2); border-radius: 999px; background: var(--cream); color: var(--walnut); font-weight: 600; box-shadow: var(--shadow); cursor: pointer; }
+.recenter:hover { background: #fff; }
+.recenter[hidden], html[data-locating] .recenter { display: none; }
+@media (max-width: 767px) { .recenter .label { display: none; } .recenter { left: 8px; padding: 8px; } }
 .nav-buttons { position: absolute; z-index: 25; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; }
 html[data-locating] .nav-buttons { display: none; }
 .nav-buttons .nav {
@@ -141,8 +151,14 @@ html[data-locating] .nav-buttons { display: none; }
 @media (max-width: 767px) { .maplibregl-ctrl-bottom-right { display: none; } }
 
 /* ---- board marker ---- */
+.board-root { z-index: 5; }
+.board-note-box { position: absolute; top: 100%; left: 0; width: 100%; margin-top: 8px; }
+.board-note-text { padding: 6px 8px; border-radius: 8px; background: var(--cream); color: var(--walnut); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-pencil { display: none; margin-left: 6px; padding: 0 3px; border: 0; background: none; color: var(--edit-strong); cursor: pointer; vertical-align: middle; }
+html[data-mode='edit'] .note-pencil { display: inline-flex; }
+.board-note-input { box-sizing: border-box; width: 100%; resize: vertical; border: 2px solid var(--edit); border-radius: 8px; padding: 6px 8px; background: #fff; color: var(--walnut); font: inherit; font-size: 0.9rem; box-shadow: var(--shadow); }
 .board-card {
-  z-index: 5; width: var(--board-size); background: var(--wood-dark); border-radius: 10px; overflow: hidden;
+  width: var(--board-size); background: var(--wood-dark); border-radius: 10px; overflow: hidden;
   box-shadow: var(--shadow); border: 3px solid var(--walnut-2);
 }
 html[data-mode='edit'] .board-card { border-color: var(--edit); }
@@ -171,16 +187,26 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
 .pin.editable { cursor: grab; }
 .pin-label { padding-right: 2px; }
 .pin-note { font-size: 12px; color: var(--edit-strong); }
-.pin-enter { border: 0; background: var(--accent); color: #fff; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; padding: 0; line-height: 1; }
 .pin.dragging { opacity: 0.8; cursor: grabbing; }
 .pin.subtree { border-color: var(--edit); }
 .pin.relocating { border-color: var(--edit); animation: glow 1.2s ease-in-out infinite; }
 .pin-ancestor, .pin-overview { opacity: 0.45; z-index: 2; background: var(--wood-light); }
 .pin-ancestor::after { background: var(--wood-light); }
-.pin-ancestor .pin-enter, .pin-root .pin-enter { display: none; }
 .pin-ancestor { padding-right: 10px; }
 .pin-overview { opacity: 0.5; font-size: 12px; }
 .pin-root { opacity: 0.6; padding: 2px 8px; font-size: 16px; z-index: 2; background: var(--wood-light); }
+/* Pins are coloured by who played the move: White keeps the light pin, Black is dark. */
+.pin.pin-black, .pin.pin-black.pin-ancestor, .pin.pin-black.pin-overview { background: var(--walnut); color: var(--cream); }
+.pin.pin-black::after, .pin.pin-black.pin-ancestor::after { background: var(--walnut); }
+.pin.pin-black .pin-note { color: var(--edit); }
+/* Overview distance in markers: 2-3 away a dot in the player colour (no move name), 4 a smaller one, 5+ a small solid one. */
+.pin.pin-d2, .pin.pin-d4, .pin.pin-d5 { box-sizing: border-box; padding: 0; gap: 0; }
+.pin.pin-d2 > *, .pin.pin-d4 > *, .pin.pin-d5 > *, .pin.pin-d2::after, .pin.pin-d4::after, .pin.pin-d5::after { display: none; }
+.pin.pin-d2, .pin.pin-d4 { background: var(--wood-light); }
+.pin.pin-d2.pin-black, .pin.pin-d4.pin-black { background: var(--walnut); }
+.pin.pin-d2 { width: 16px; height: 16px; }
+.pin.pin-d4 { width: 11px; height: 11px; }
+.pin.pin-d5 { width: 7px; height: 7px; border-width: 3px; background: var(--walnut-2); }
 .pin.pulse { animation: pulse 0.45s ease-in-out 2; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(217, 144, 42, 0.6); background: var(--edit-soft); } }
 .maplibregl-marker { will-change: transform; }
@@ -190,10 +216,6 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
   position: fixed; z-index: 60; background: var(--cream); border: 1px solid var(--line); border-radius: 12px;
   box-shadow: var(--shadow); padding: 10px; max-width: calc(100vw - 16px); min-width: 180px;
 }
-.pin-popover { display: flex; flex-direction: column; gap: 8px; width: 240px; max-width: 100%; }
-.pin-popover textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: #fff; }
-.pop-place { display: flex; align-items: center; gap: 6px; text-align: left; background: var(--edit-soft) !important; border-color: var(--edit) !important; color: var(--edit-strong); font-weight: 600; }
-.pop-place span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu { display: flex; flex-direction: column; min-width: 210px; }
 .menu-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 3px; border-top: 1px solid var(--line); margin-top: 4px; }
 .menu-label:first-child { border-top: 0; margin-top: 0; padding-top: 2px; }
@@ -229,10 +251,11 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 .promo-choice piece { display: block; width: 100%; height: 100%; position: static; background-size: cover; }
 
 /* ---- board size controls (Edit mode only) ---- */
-.board-handle { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; gap: 2px; }
-.board-handle .grip { flex: 1; }
+.board-handle { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 2px; gap: 2px; }
+.handle-side { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.handle-side.right { justify-content: flex-end; }
 .board-handle .size-btn { min-width: 24px; height: 18px; padding: 0 4px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, 0.35); color: var(--walnut); line-height: 1; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
-.board-handle .size-btn:hover { background: rgba(255, 255, 255, 0.7); }
+.board-handle .size-btn:hover, .board-handle .size-btn.active { background: rgba(255, 255, 255, 0.7); }
 .board-card[data-mode='explore'] .size-btn, .board-card[data-mode='explore'] .board-grip { display: none; }
 .board-grip {
   position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; cursor: nwse-resize; touch-action: none; z-index: 12;
@@ -289,6 +312,7 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 /* ---- mobile top bar ---- */
 @media (max-width: 767px) {
   .tb-main { gap: 6px; }
+  .tb-right { display: contents; }
   .tb-main .map-pick { flex: 1 1 0; max-width: none; }
   .map-select { max-width: 100%; font-size: 1rem; }
   .mode-seg .seg { padding: 3px 8px; }

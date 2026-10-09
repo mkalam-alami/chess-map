@@ -2,14 +2,20 @@ import maplibregl from 'maplibre-gl';
 import { openingAt } from '../chess/openings';
 import { moveLabel, sanPath } from '../chess/replay';
 import { cursorEnd } from '../model/cursor';
-import { pathTo, subtreeSize } from '../model/tree';
+import { nodeDistances, pathTo, subtreeSize } from '../model/tree';
 import { getNode, type ChessMap, type MapNode, type NodeId } from '../model/types';
-import { activeMap, beginRelocate, deleteNode, focus, getState, moveNodeTo, setNote } from '../store/store';
-import { button, el, shieldFromMap } from '../ui/dom';
-import { icon } from '../ui/icons';
-import { closePopover, confirmDialog, openPopover } from '../ui/popover';
+import { activeMap, deleteNode, focus, getState, moveNodeTo } from '../store/store';
+import { el, shieldFromMap } from '../ui/dom';
+import { confirmDialog } from '../ui/popover';
 import { makeDraggable } from './drag';
 import { clearPreview, onOverride, overrides, previewMove } from './live';
+
+/** Asks for confirmation (with the number of positions that go with it), then deletes the node and its subtree. Never the root. */
+export async function confirmDeleteNode(id: NodeId): Promise<void> {
+  if (getNode(activeMap(), id).parentId === null) return;
+  const n = subtreeSize(activeMap(), id);
+  if (await confirmDialog(n > 1 ? `Delete this position and ${n - 1} below it?` : 'Delete this position?', 'Delete')) deleteNode(id);
+}
 
 type Kind = 'child' | 'ancestor' | 'root' | 'overview';
 const TESTID: Record<Kind, string> = { child: 'pin', ancestor: 'pin-ancestor', root: 'pin-root', overview: 'pin-overview' };
@@ -30,6 +36,10 @@ export function pinLabel(map: ChessMap, node: MapNode): string {
   return node.plies.length > 1 ? `${first} … (+${node.plies.length - 1})` : first;
 }
 
+/** True when the node's first ply is played by Black (it starts on an odd ply count). */
+const playedByBlack = (map: ChessMap, node: MapNode): boolean =>
+  node.parentId !== null && sanPath(map, cursorEnd(map, node.parentId)).length % 2 === 1;
+
 export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
   const entries = new Map<NodeId, Entry>();
   let lastPulse = getState().pulse;
@@ -43,78 +53,23 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
     for (const id of pathTo(m, node.id)) out.set(id, id === m.rootId ? 'root' : 'ancestor');
     if (s.cursor.ply === node.plies.length) for (const c of node.children) out.set(c, 'child');
     out.delete(node.id); // the board stands there
+    if (!s.boardOpen) out.set(node.id, node.id === m.rootId ? 'root' : 'ancestor'); // closed: its pin is the way back
     return out;
-  }
-
-  function openFor(entry: Entry, id: NodeId): void {
-    const m = activeMap();
-    const node = getNode(m, id);
-    if (entry.kind === 'ancestor' || entry.kind === 'root') {
-      focus(cursorEnd(m, id));
-      return;
-    }
-    openPopover(entry.root, (close) => {
-      const editing = getState().mode === 'edit';
-      const box = el('div', 'pin-popover');
-      box.append(el('strong', '', pinLabel(m, node)));
-      const op = openingAt(m, cursorEnd(m, id));
-      if (op) box.append(el('div', `pop-opening muted${op.exact ? '' : ' inexact'}`, `${op.eco} · ${op.exact ? op.name : `${op.name} +${op.pliesSince}`}`, { 'data-testid': 'pop-opening' }));
-      if (editing) {
-        const loc = button('', 'pop-locate', 'pop-place');
-        loc.append(icon('mapPin', 14), el('span', '', node.place?.label ?? 'Set location…'), icon('edit', 14));
-        loc.title = 'Set location by city';
-        loc.addEventListener('click', () => {
-          close();
-          beginRelocate(id);
-        });
-        box.append(loc);
-      } else if (node.place?.label) box.append(el('div', 'muted', node.place.label));
-      const note = el('textarea', '', '', { rows: '3', placeholder: editing ? 'Note…' : 'No note', 'data-testid': 'pop-note' });
-      note.value = node.note ?? '';
-      note.readOnly = !editing;
-      if (editing || node.note) note.addEventListener('input', () => setNote(id, note.value));
-      const row = el('div', 'dialog-actions');
-      const enter = button('Enter ▸', 'pop-enter', 'primary');
-      enter.addEventListener('click', () => {
-        close();
-        focus({ nodeId: id, ply: 1 });
-      });
-      row.append(enter);
-      if (editing) {
-        const del = button('Delete', 'pop-delete', 'danger');
-        del.addEventListener('click', async () => {
-          close();
-          const n = subtreeSize(activeMap(), id);
-          if (await confirmDialog(n > 1 ? `Delete this position and ${n - 1} below it?` : 'Delete this position?', 'Delete')) deleteNode(id);
-        });
-        row.append(del);
-      }
-      box.append(note, row);
-      return box;
-    });
   }
 
   function create(id: NodeId, kind: Kind): Entry {
     const root = el('div', 'pin');
     const label = el('span', 'pin-label');
     const note = el('span', 'pin-note', '✎');
-    const enterBtn = button('▸', 'pin-enter', 'pin-enter');
-    root.append(label, note, enterBtn);
+    root.append(label, note);
     shieldFromMap(root);
     const marker = new maplibregl.Marker({ element: root, anchor: 'bottom' }).setLngLat([0, 0]).addTo(map);
     const entry: Entry = { marker, root, label, note, kind };
-    const enter = (): void => focus(entry.kind === 'ancestor' || entry.kind === 'root' ? cursorEnd(activeMap(), id) : { nodeId: id, ply: 1 });
-    enterBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      enter();
-    });
-    // Single click opens the popover after a short delay so a double click can enter instead.
-    let clickTimer: ReturnType<typeof setTimeout> | undefined;
-    root.addEventListener('dblclick', () => {
-      clearTimeout(clickTimer);
-      closePopover();
-      enter();
-    });
+    const enter = (): void => {
+      const { cursor } = getState();
+      if (cursor.nodeId === id) focus(cursor); // the closed board's own pin: reopen where it was
+      else focus(entry.kind === 'ancestor' || entry.kind === 'root' ? cursorEnd(activeMap(), id) : { nodeId: id, ply: 1 });
+    };
     const dragged = makeDraggable({
       map,
       handle: root,
@@ -133,9 +88,7 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
     });
     root.addEventListener('click', () => {
       if (dragged() || getState().placing) return;
-      clearTimeout(clickTimer);
-      if (entry.kind === 'ancestor' || entry.kind === 'root') openFor(entry, id);
-      else clickTimer = setTimeout(() => openFor(entry, id), 250);
+      enter();
     });
     return entry;
   }
@@ -152,6 +105,8 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
     const pulse = getState().pulse !== lastPulse;
     lastPulse = getState().pulse;
     const editing = getState().mode === 'edit';
+    // Overview: the further from the cursor (in markers), the smaller the pin.
+    const dist = getState().overview ? nodeDistances(m, getState().cursor.nodeId) : null;
     for (const [id, kind] of want) {
       const node = getNode(m, id);
       let e = entries.get(id);
@@ -166,6 +121,11 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.note.hidden = !node.note;
       e.root.classList.remove('pin-child', 'pin-ancestor', 'pin-root', 'pin-overview');
       e.root.classList.add('pin', `pin-${kind}`);
+      const d = dist?.get(id) ?? 0;
+      e.root.classList.toggle('pin-black', playedByBlack(m, node));
+      e.root.classList.toggle('pin-d2', d === 2 || d === 3);
+      e.root.classList.toggle('pin-d4', d === 4);
+      e.root.classList.toggle('pin-d5', d >= 5);
       e.root.classList.toggle('editable', editing);
       e.root.classList.toggle('relocating', getState().relocating?.nodeId === id);
       e.root.dataset.testid = TESTID[kind];

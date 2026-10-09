@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fenAt, formatLine, legalDests, moveLabel, sanPath, tryMove, turnColor } from '../src/chess/replay';
 import { cursorBack, cursorEnd, cursorForward, rootCursor } from '../src/model/cursor';
 import {
-  addChild, appendPly, branchAt, createMap, deleteSubtree, findTranspositions, moveNode, pathTo, setLastChild,
+  addChild, appendPly, branchAt, createMap, deleteSubtree, findTranspositions, moveNode, nodeDistances, pathTo, setLastChild,
   setNote, setPinned, splitSegment, subtreeSize, undoLastPly,
 } from '../src/model/tree';
 import { getNode, type ChessMap } from '../src/model/types';
@@ -212,5 +212,23 @@ describe('transpositions', () => {
     const t = findTranspositions(map, { nodeId: ca, ply: 1 });
     expect(t).toEqual([{ nodeId: cb, ply: 1 }]);
     expect(findTranspositions(map, { nodeId: map.rootId, ply: 0 })).toEqual([]);
+  });
+});
+
+describe('nodeDistances', () => {
+  it('counts markers up and down the tree', () => {
+    let map = createMap('m', 'white', O);
+    const e4 = addChild(map, map.rootId, 'e4', O);
+    const d4 = addChild(e4.map, map.rootId, 'd4', O);
+    const e5 = addChild(d4.map, e4.nodeId, 'e5', O);
+    const nf3 = addChild(e5.map, e5.nodeId, 'Nf3', O);
+    map = nf3.map;
+    const d = nodeDistances(map, e4.nodeId);
+    expect(d.get(e4.nodeId)).toBe(0);
+    expect(d.get(map.rootId)).toBe(1);
+    expect(d.get(e5.nodeId)).toBe(1);
+    expect(d.get(d4.nodeId)).toBe(2); // sibling via the root
+    expect(d.get(nf3.nodeId)).toBe(2);
+    expect(nodeDistances(map, nf3.nodeId).get(d4.nodeId)).toBe(4);
   });
 });

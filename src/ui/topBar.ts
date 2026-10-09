@@ -82,7 +82,9 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
   menuBtn.title = 'Map, import / export, Lichess';
 
   const main = el('div', 'tb-main');
-  main.append(mapPick, modeSeg, tools, el('span', 'spacer'), overviewBtn, menuBtn);
+  const right = el('div', 'tb-right');
+  right.append(tools, overviewBtn, menuBtn);
+  main.append(mapPick, modeSeg, right); // the mode toggle sits in the middle, the sides share the rest equally
 
   // Context: the line (primary), where it is (secondary), and its transpositions.
   const ctx = el('div', 'tb-context');
@@ -90,17 +92,16 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
   const line = el('div', 'line', '', { 'data-testid': 'line' });
   const opening = el('div', 'opening', '', { 'data-testid': 'opening' });
   opening.hidden = true;
-  const openingEco = el('span', 'eco');
   const openingName = el('span', 'opening-name', '', { 'data-testid': 'opening-name' });
-  opening.append(openingEco, openingName);
+  opening.append(openingName);
   const chip = button('', 'transposition', 'chip');
   chip.hidden = true;
   let chipTarget: Cursor | undefined;
   chip.addEventListener('click', () => chipTarget && focus(chipTarget));
-  lineCol.append(line, opening, chip);
+  lineCol.append(line, chip);
   const place = button('', 'place-label', 'place');
   place.addEventListener('click', () => getState().mode === 'edit' && beginRelocate(getState().cursor.nodeId));
-  ctx.append(lineCol, place);
+  ctx.append(lineCol, opening, place);
   bar.append(main, ctx);
   new ResizeObserver(() => document.documentElement.style.setProperty('--bar-h', `${bar.offsetHeight}px`)).observe(bar);
 
@@ -208,7 +209,6 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
     const op = openingAt(m, s.cursor);
     opening.hidden = !op;
     if (op) {
-      openingEco.textContent = op.eco;
       openingName.textContent = openingText(op);
       opening.classList.toggle('inexact', !op.exact);
       opening.title = `${op.eco} · ${openingText(op)}`;
