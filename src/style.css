@@ -21,6 +21,9 @@
   --board-size: clamp(240px, min(26vw, 42vh), 480px);
   --gutter: 16px;
   --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  /* masks for the small icons drawn in CSS (::before) */
+  --book-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/><path d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/></svg>");
+  --pin-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z'/><circle cx='12' cy='10' r='3'/></svg>");
 }
 @media (max-width: 767px) {
   :root { --board-size: min(86vw, 46vh); --gutter: 12px; }
@@ -108,9 +111,13 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
   flex: 0 1 auto; min-width: 0; max-width: 42%; display: inline-flex; align-items: center; gap: 6px;
   padding: 2px 6px; font-size: 0.95rem; color: var(--muted);
 }
-.opening[hidden] { display: none; }
-.opening::before { content: ''; width: 14px; height: 14px; flex: none; background: currentColor; -webkit-mask: var(--book-svg) center / contain no-repeat; mask: var(--book-svg) center / contain no-repeat; }
-:root { --book-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/><path d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/></svg>"); }
+/* 14px icon in the text colour before the opening name and the place */
+.opening::before, .place::before {
+  content: ''; width: 14px; height: 14px; flex: none; background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat;
+}
+.opening { --icon: var(--book-svg); }
+.place { --icon: var(--pin-svg); }
 .opening .opening-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .opening.inexact .opening-name { font-style: italic; font-weight: 500; color: var(--muted); }
 .place {
@@ -118,8 +125,6 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
   border: 0; background: none; color: var(--muted); font-size: 0.95rem; padding: 2px 6px; border-radius: 8px;
 }
 .place:empty { display: none; }
-.place::before { content: ''; width: 14px; height: 14px; flex: none; background: currentColor; -webkit-mask: var(--pin-svg) center / contain no-repeat; mask: var(--pin-svg) center / contain no-repeat; }
-:root { --pin-svg: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z'/><circle cx='12' cy='10' r='3'/></svg>"); }
 .place:disabled { cursor: default; color: var(--muted); }
 html[data-mode='edit'] .place { color: var(--edit-strong); font-weight: 600; background: var(--edit-soft); }
 html[data-mode='edit'] .place:empty { display: inline-flex; }
@@ -165,6 +170,7 @@ html[data-mode='edit'] .board-card { border-color: var(--edit); }
 .board-card.relocating { animation: glow 1.2s ease-in-out infinite; }
 @keyframes glow { 50% { box-shadow: 0 0 0 6px rgba(217, 144, 42, 0.55), var(--shadow); } }
 .board-handle {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 2px; gap: 2px;
   height: 22px; background: var(--grain), linear-gradient(#6b4423, #4d3019); color: var(--wood-light); text-align: center; font-size: 12px;
   line-height: 22px; cursor: default; touch-action: none; user-select: none;
 }
@@ -191,22 +197,20 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
 .pin.subtree { border-color: var(--edit); }
 .pin.relocating { border-color: var(--edit); animation: glow 1.2s ease-in-out infinite; }
 .pin-ancestor, .pin-overview { opacity: 0.45; z-index: 2; background: var(--wood-light); }
-.pin-ancestor::after { background: var(--wood-light); }
 .pin-ancestor { padding-right: 10px; }
+.pin-ancestor::after { background: var(--wood-light); }
 .pin-overview { opacity: 0.5; font-size: 12px; }
 .pin-root { opacity: 0.6; padding: 2px 8px; font-size: 16px; z-index: 2; background: var(--wood-light); }
 /* Pins are coloured by who played the move: White keeps the light pin, Black is dark. */
-.pin.pin-black, .pin.pin-black.pin-ancestor, .pin.pin-black.pin-overview { background: var(--walnut); color: var(--cream); }
-.pin.pin-black::after, .pin.pin-black.pin-ancestor::after { background: var(--walnut); }
+.pin.pin-black { background: var(--walnut); color: var(--cream); }
+.pin.pin-black::after { background: var(--walnut); }
 .pin.pin-black .pin-note { color: var(--edit); }
-/* Overview distance in markers: 2-3 away a dot in the player colour (no move name), 4 a smaller one, 5+ a small solid one. */
-.pin.pin-d2, .pin.pin-d4, .pin.pin-d5 { box-sizing: border-box; padding: 0; gap: 0; }
-.pin.pin-d2 > *, .pin.pin-d4 > *, .pin.pin-d5 > *, .pin.pin-d2::after, .pin.pin-d4::after, .pin.pin-d5::after { display: none; }
-.pin.pin-d2, .pin.pin-d4 { background: var(--wood-light); }
-.pin.pin-d2.pin-black, .pin.pin-d4.pin-black { background: var(--walnut); }
+/* Overview distance in markers: 1-2 away full pins, 3-4 a dot in the player colour (no move name), 5+ a tiny one. */
+.pin.pin-d2, .pin.pin-d5 { box-sizing: border-box; padding: 0; gap: 0; background: var(--wood-light); }
+.pin.pin-d2.pin-black, .pin.pin-d5.pin-black { background: var(--walnut); }
+.pin.pin-d2 > *, .pin.pin-d5 > *, .pin.pin-d2::after, .pin.pin-d5::after { display: none; }
 .pin.pin-d2 { width: 16px; height: 16px; }
-.pin.pin-d4 { width: 11px; height: 11px; }
-.pin.pin-d5 { width: 7px; height: 7px; border-width: 3px; background: var(--walnut-2); }
+.pin.pin-d5 { width: 8px; height: 8px; }
 .pin.pulse { animation: pulse 0.45s ease-in-out 2; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(217, 144, 42, 0.6); background: var(--edit-soft); } }
 .maplibregl-marker { will-change: transform; }
@@ -219,15 +223,13 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
 .menu { display: flex; flex-direction: column; min-width: 210px; }
 .menu-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 3px; border-top: 1px solid var(--line); margin-top: 4px; }
 .menu-label:first-child { border-top: 0; margin-top: 0; padding-top: 2px; }
-.menu-item { text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; color: var(--walnut); }
-.menu-item:hover { background: var(--wood-light); }
 .menu-item[data-testid='menu-delete-map'] { color: var(--danger); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .popover button, .dialog button {
   min-height: 34px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--cream); color: var(--walnut);
 }
-.popover button.menu-item { border: 0; background: none; }
-.popover button.menu-item:hover { background: var(--wood-light); }
+.popover .menu-item { text-align: left; border: 0; background: none; }
+.popover .menu-item:hover { background: var(--wood-light); }
 button.primary { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; font-weight: 600; }
 button.primary:disabled { opacity: 0.45; cursor: default; }
 button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
@@ -251,7 +253,6 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 .promo-choice piece { display: block; width: 100%; height: 100%; position: static; background-size: cover; }
 
 /* ---- board size controls (Edit mode only) ---- */
-.board-handle { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 2px; gap: 2px; }
 .handle-side { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .handle-side.right { justify-content: flex-end; }
 .board-handle .size-btn { min-width: 24px; height: 18px; padding: 0 4px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, 0.35); color: var(--walnut); line-height: 1; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
@@ -291,6 +292,7 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 .locate-close:hover { background: var(--wood-light); }
 .locate-input { width: 100%; min-height: 40px; padding: 6px 12px; border: 2px solid var(--wood-dark); border-radius: 10px; background: #fff; }
 .locate-input:focus { outline: none; border-color: var(--edit); }
+.locate-input::-webkit-search-cancel-button { display: none; }
 .locate-status { font-size: 0.88rem; min-height: 1.2em; }
 .locate-status:empty { display: none; }
 .locate-results { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
@@ -313,20 +315,15 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 @media (max-width: 767px) {
   .tb-main { gap: 6px; }
   .tb-right { display: contents; }
-  .tb-main .map-pick { flex: 1 1 0; max-width: none; }
+  .tb-main .map-pick { flex: 1 1 0; max-width: none; padding: 0 4px; min-width: 72px; }
   .map-select { max-width: 100%; font-size: 1rem; }
   .mode-seg .seg { padding: 3px 8px; }
   .view-tool .label { display: none; }
   .tb-edit { order: 10; flex: 1 1 100%; justify-content: center; }
   .tb-edit .tool { flex: 1; }
-  .place { max-width: 45%; }
+  .place { flex: 0 1 auto; max-width: 45%; }
   .tb-context { flex-wrap: wrap; gap: 2px 8px; }
   .tb-linecol { flex: 1 1 100%; }
-  .place { flex: 0 1 auto; }
   .line { font-size: 1.1rem; }
-}
-.locate-input::-webkit-search-cancel-button { display: none; }
-@media (max-width: 767px) {
   .map-pick > .icon:first-child { display: none; }
-  .map-pick { padding: 0 4px; min-width: 72px; }
 }

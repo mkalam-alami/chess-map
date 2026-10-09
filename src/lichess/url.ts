@@ -1,4 +1,4 @@
-import { sanPath } from '../chess/replay';
+import { formatLine, sanPath } from '../chess/replay';
 import { exportPgn } from '../pgn/export';
 import type { ChessMap, Cursor } from '../model/types';
 
@@ -11,8 +11,7 @@ export const LICHESS_STUDY_URL = 'https://lichess.org/study';
  * parameter (verified: the page's embedded data has orientation "black").
  */
 export function lichessAnalysisUrl(sans: string[], orientation: 'white' | 'black'): string {
-  const pgn = sans.map((s, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${s}` : s)).join(' ');
-  const base = `https://lichess.org/analysis/pgn/${encodeURIComponent(pgn)}`;
+  const base = `https://lichess.org/analysis/pgn/${encodeURIComponent(formatLine(sans))}`;
   return orientation === 'black' ? `${base}?color=black` : base;
 }
 

@@ -1,7 +1,7 @@
 import type maplibregl from 'maplibre-gl';
 import { searchPlaces, type PlaceHit } from '../geo/search';
 import { isMobile, padding } from '../map/mapView';
-import { pinLabel } from '../map/pinMarker';
+import { pinLabel } from '../chess/replay';
 import { activeMap, endRelocate, focus, getState, moveNodeTo, previewRelocate, setCentered, subscribe } from '../store/store';
 import { button, el, shieldFromMap } from './dom';
 import { icon } from './icons';

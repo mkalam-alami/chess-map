@@ -32,6 +32,39 @@ export function fenAt(map: ChessMap, cursor: Cursor): string {
   return fen;
 }
 
+/** FENs from the start position up to the cursor (one more than sanPath), from the per-node cache. */
+export function fenPath(map: ChessMap, cursor: Cursor): string[] {
+  let node = getNode(map, cursor.nodeId);
+  let out = fensOf(map, node).slice(1, cursor.ply + 1);
+  while (node.parentId !== null) {
+    node = getNode(map, node.parentId);
+    out = [...fensOf(map, node).slice(1), ...out];
+  }
+  return [START_FEN, ...out];
+}
+
+/** FEN fields 1-4 (placement, turn, castling, en passant): identifies a position regardless of move counters. */
+export const epd = (fen: string): string => fen.split(' ').slice(0, 4).join(' ');
+
+export const inCheck = (fen: string): boolean => new Chess(fen).inCheck();
+
+/** The mover's colour if moving `from` -> `to` is a pawn promotion, else null. */
+export function promotionColor(fen: string, from: string, to: string): 'white' | 'black' | null {
+  const piece = new Chess(fen).get(from as Square);
+  if (piece?.type !== 'p' || (to[1] !== '1' && to[1] !== '8')) return null;
+  return piece.color === 'w' ? 'white' : 'black';
+}
+
+/** From / to squares of `san` played at `fen`, for highlighting. */
+export function moveSquares(fen: string, san: string): [Square, Square] | undefined {
+  try {
+    const m = new Chess(fen).move(san);
+    return [m.from, m.to];
+  } catch {
+    return undefined;
+  }
+}
+
 /** All plies from the root up to the cursor. */
 export function sanPath(map: ChessMap, cursor: Cursor): string[] {
   let node = getNode(map, cursor.nodeId);
@@ -85,4 +118,18 @@ export function formatLine(sans: string[], startPly = 0): string {
 export function moveLabel(plyIndexFromStart: number, san: string): string {
   const n = Math.floor(plyIndexFromStart / 2) + 1;
   return `${n}${plyIndexFromStart % 2 === 0 ? '.' : '…'}${san}`;
+}
+
+/** Game ply index of the node's first ply (0 = White's first move). */
+export function firstPlyIndex(map: ChessMap, node: MapNode): number {
+  if (node.parentId === null) return 0;
+  const parent = getNode(map, node.parentId);
+  return sanPath(map, { nodeId: parent.id, ply: parent.plies.length }).length;
+}
+
+/** `3.Nf3 … (+4)` for multi-ply segments; the start marker is a board icon. */
+export function pinLabel(map: ChessMap, node: MapNode): string {
+  if (node.parentId === null) return '♟';
+  const first = moveLabel(firstPlyIndex(map, node), node.plies[0] as string);
+  return node.plies.length > 1 ? `${first} … (+${node.plies.length - 1})` : first;
 }

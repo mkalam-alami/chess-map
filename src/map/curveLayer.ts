@@ -2,6 +2,7 @@ import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
 import { getNode, type LngLat, type MapNode } from '../model/types';
 import { pathTo } from '../model/tree';
 import { activeMap, getState, subscribe, subscribePlacing } from '../store/store';
+import { sameLngLat } from '../geo/lngLat';
 import { curveCoords } from './curves';
 import { onOverride, overrides } from './live';
 
@@ -62,7 +63,7 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
     const features = edges().flatMap(({ a, b, kind }) => {
       const pa = pos(a);
       const pb = pos(b);
-      if (Math.abs(pa[0] - pb[0]) + Math.abs(pa[1] - pb[1]) < 1e-6) return [];
+      if (sameLngLat(pa, pb)) return [];
       return [{ type: 'Feature' as const, properties: { kind }, geometry: { type: 'LineString' as const, coordinates: curveCoords(pa, pb) } }];
     });
     (map.getSource(SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });

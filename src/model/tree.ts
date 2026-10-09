@@ -1,5 +1,7 @@
-import { fenAt } from '../chess/replay';
+import { epd, fenAt } from '../chess/replay';
+import { minPly } from './cursor';
 import { newId } from './id';
+import { LIBRARY_VERSION } from './serialize';
 import { getNode, type ChessMap, type Cursor, type LngLat, type Library, type MapNode, type NodeId } from './types';
 
 const put = (map: ChessMap, ...nodes: MapNode[]): ChessMap => {
@@ -11,12 +13,18 @@ const put = (map: ChessMap, ...nodes: MapNode[]): ChessMap => {
 const update = (map: ChessMap, id: NodeId, patch: Partial<MapNode>): ChessMap =>
   put(map, { ...getNode(map, id), ...patch });
 
+/** Sets an optional field, or removes it when `value` is undefined (absent means default). */
+function withOptional<K extends 'note' | 'place' | 'sizeDelta'>(map: ChessMap, id: NodeId, key: K, value: MapNode[K] | undefined): ChessMap {
+  const { [key]: _old, ...rest } = getNode(map, id);
+  return put(map, (value === undefined ? rest : { ...rest, [key]: value }) as MapNode);
+}
+
 export function createMap(name: string, orientation: 'white' | 'black', lngLat: LngLat): ChessMap {
   const root: MapNode = { id: newId(), parentId: null, plies: [], pinned: false, lngLat, children: [] };
   return { id: newId(), name, orientation, rootId: root.id, nodes: { [root.id]: root } };
 }
 
-export const createLibrary = (map: ChessMap): Library => ({ version: 1, maps: { [map.id]: map }, activeMapId: map.id });
+export const createLibrary = (map: ChessMap): Library => ({ version: LIBRARY_VERSION, maps: { [map.id]: map }, activeMapId: map.id });
 
 /** Adds a 1-ply child at the end of `parentId`. Returns the existing child if one starts with `san`. */
 export function addChild(map: ChessMap, parentId: NodeId, san: string, lngLat: LngLat): { map: ChessMap; nodeId: NodeId } {
@@ -38,7 +46,7 @@ export function appendPly(map: ChessMap, nodeId: NodeId, san: string): ChessMap 
 /** Undo rules: leaf nodes only, and a non-root node keeps at least 1 ply (use deleteSubtree to remove it). */
 export function canUndoLastPly(map: ChessMap, nodeId: NodeId): boolean {
   const node = getNode(map, nodeId);
-  return node.children.length === 0 && node.plies.length > (node.parentId === null ? 0 : 1);
+  return node.children.length === 0 && node.plies.length > minPly(node);
 }
 
 /** Drops the last ply if allowed (see canUndoLastPly), otherwise returns the map unchanged. */
@@ -68,7 +76,7 @@ export function splitSegment(map: ChessMap, nodeId: NodeId, atPly: number): { ma
 /** Plays `san` at the cursor, splitting a segment mid-way if needed. Existing moves are reused. */
 export function branchAt(map: ChessMap, cursor: Cursor, san: string, lngLat: LngLat): { map: ChessMap; cursor: Cursor } {
   const node = getNode(map, cursor.nodeId);
-  if (cursor.ply > node.plies.length || (cursor.ply < 1 && node.parentId !== null)) throw new Error('branchAt: bad cursor');
+  if (cursor.ply > node.plies.length || cursor.ply < minPly(node)) throw new Error('branchAt: bad cursor');
   if (cursor.ply < node.plies.length) {
     if (node.plies[cursor.ply] === san) return { map, cursor: { nodeId: node.id, ply: cursor.ply + 1 } };
     map = splitSegment(map, node.id, cursor.ply).map;
@@ -117,29 +125,16 @@ export function moveNode(map: ChessMap, nodeId: NodeId, lngLat: LngLat, opts: { 
 }
 
 /** Empty/blank note removes it. */
-export function setNote(map: ChessMap, nodeId: NodeId, note: string | undefined): ChessMap {
-  const { note: _old, ...rest } = getNode(map, nodeId);
-  return put(map, note?.trim() ? { ...rest, note } : rest);
-}
+export const setNote = (map: ChessMap, nodeId: NodeId, note: string | undefined): ChessMap =>
+  withOptional(map, nodeId, 'note', note?.trim() ? note : undefined);
 
-export function setPlace(map: ChessMap, nodeId: NodeId, place: MapNode['place']): ChessMap {
-  const { place: _old, ...rest } = getNode(map, nodeId);
-  return put(map, place ? { ...rest, place } : rest);
-}
+export const setPlace = (map: ChessMap, nodeId: NodeId, place: MapNode['place']): ChessMap => withOptional(map, nodeId, 'place', place);
 
 /** Board size relative to the parent, in log2 steps of 0.25. 0 removes the field (inherit). */
-export function setSizeDelta(map: ChessMap, nodeId: NodeId, delta: number): ChessMap {
-  const { sizeDelta: _old, ...rest } = getNode(map, nodeId);
-  const d = Math.round(delta * 4) / 4;
-  return put(map, d ? { ...rest, sizeDelta: d } : rest);
-}
+export const setSizeDelta = (map: ChessMap, nodeId: NodeId, delta: number): ChessMap =>
+  withOptional(map, nodeId, 'sizeDelta', Math.round(delta * 4) / 4 || undefined);
 
 export const setPinned = (map: ChessMap, nodeId: NodeId, pinned: boolean): ChessMap => update(map, nodeId, { pinned });
-
-export function setLastChild(map: ChessMap, nodeId: NodeId, childId: NodeId): ChessMap {
-  if (!getNode(map, nodeId).children.includes(childId)) throw new Error('setLastChild: not a child');
-  return update(map, nodeId, { lastChild: childId });
-}
 
 /** Node ids from the root down to `nodeId`. */
 export function pathTo(map: ChessMap, nodeId: NodeId): NodeId[] {
@@ -148,16 +143,14 @@ export function pathTo(map: ChessMap, nodeId: NodeId): NodeId[] {
   return out;
 }
 
-const posKey = (fen: string): string => fen.split(' ').slice(0, 4).join(' ');
-
 /** Other cursors in the map reaching the same position (FEN fields 1-4). */
 export function findTranspositions(map: ChessMap, cursor: Cursor): Cursor[] {
-  const target = posKey(fenAt(map, cursor));
+  const target = epd(fenAt(map, cursor));
   const out: Cursor[] = [];
   for (const node of Object.values(map.nodes)) {
-    for (let ply = node.parentId === null ? 0 : 1; ply <= node.plies.length; ply++) {
+    for (let ply = minPly(node); ply <= node.plies.length; ply++) {
       if (node.id === cursor.nodeId && ply === cursor.ply) continue;
-      if (posKey(fenAt(map, { nodeId: node.id, ply })) === target) out.push({ nodeId: node.id, ply });
+      if (epd(fenAt(map, { nodeId: node.id, ply })) === target) out.push({ nodeId: node.id, ply });
     }
   }
   return out;

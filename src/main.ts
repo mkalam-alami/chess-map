@@ -1,11 +1,13 @@
 import './style.css';
 import { flushSave, loadLibrary } from './store/persist';
-import { activeMap, back, beginRelocate, forward, getState, init, subscribe, toggleMode, togglePin, undoPly, canUndoPly } from './store/store';
+import { activeMap, back, beginRelocate, canUndoPly, forward, getState, init, subscribe, toggleMode, togglePin, undoPly } from './store/store';
+import { sameCursor } from './model/cursor';
 import { createMapView } from './map/mapView';
 import { createBoardMarker } from './map/boardMarker';
-import { confirmDeleteNode, createPinMarkers } from './map/pinMarker';
+import { createPinMarkers } from './map/pinMarker';
 import { createCurveLayer } from './map/curveLayer';
 import { createNavButtons, createTopBar } from './ui/topBar';
+import { confirmDeleteNode } from './ui/confirmDelete';
 import { isTyping } from './ui/dom';
 import { closePopover } from './ui/popover';
 import { createPlacing } from './map/placing';
@@ -28,20 +30,16 @@ const mapEl = document.createElement('div');
 mapEl.id = 'map';
 app.append(mapEl);
 
+// Every view subscribes to the store itself and re-reads it on each change.
 const topBar = createTopBar(() => {
   const c = map.getCenter();
   return [c.lng, c.lat];
 });
-const nav = createNavButtons();
-const recenter = createRecenterButton();
-app.append(topBar.el, nav.el, recenter.el);
-topBar.update();
-nav.update();
-recenter.update();
+app.append(topBar.el, createNavButtons().el, createRecenterButton());
 
 // Markers are added right away so board and pins work even before tiles/style load.
 const map = createMapView(mapEl);
-const board = createBoardMarker(map);
+createBoardMarker(map);
 const pins = createPinMarkers(map);
 createCurveLayer(map);
 createPlacing(map, app);
@@ -51,14 +49,8 @@ wireIntegrations(map);
 
 let lastCursor = getState().cursor;
 subscribe(() => {
-  const c = getState().cursor;
-  if (c.nodeId !== lastCursor.nodeId || c.ply !== lastCursor.ply) closePopover();
-  lastCursor = c;
-  topBar.update();
-  nav.update();
-  recenter.update();
-  board.update();
-  pins.update();
+  if (!sameCursor(getState().cursor, lastCursor)) closePopover();
+  lastCursor = getState().cursor;
 });
 
 // Opening names load lazily (separate chunk); refresh the UI once available.
@@ -71,17 +63,18 @@ window.addEventListener('keydown', (e) => {
   if (getState().placing || getState().relocating || isTyping(e.target) || e.altKey || document.querySelector('dialog[open]')) return;
   const edit = getState().mode === 'edit' && getState().boardOpen; // board tools need a visible board
   const key = e.key.toLowerCase();
+  const plain = !e.ctrlKey && !e.metaKey;
   if (e.key === 'ArrowLeft') back();
   else if (e.key === 'ArrowRight') forward();
-  else if (!e.ctrlKey && !e.metaKey && key === 'e') toggleMode();
-  else if (!e.ctrlKey && !e.metaKey && key === 'p' && edit) togglePin();
-  else if (!e.ctrlKey && !e.metaKey && key === 'l' && edit) beginRelocate(getState().cursor.nodeId);
+  else if (plain && key === 'e') toggleMode();
+  else if (plain && key === 'p' && edit) togglePin();
+  else if (plain && key === 'l' && edit) beginRelocate(getState().cursor.nodeId);
   else if (edit && e.key === 'Delete') void confirmDeleteNode(getState().cursor.nodeId);
-  else if (edit && ((key === 'z' && (e.ctrlKey || e.metaKey)) || e.key === 'Backspace')) {
+  else if (edit && ((key === 'z' && !plain) || e.key === 'Backspace')) {
     if (canUndoPly()) undoPly();
   } else return;
   e.preventDefault();
 });
 
-// Test/debug handle.
+// Test/debug handle (typed in tests/e2e/helpers.ts).
 (window as unknown as Record<string, unknown>).__chessMap = { map, activeMap, getState };

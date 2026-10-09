@@ -1,72 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { addChild, appendPly, branchAt, createLibrary, createMap, setPinned, setSizeDelta } from '../src/model/tree';
-import { DEFAULT_BOARD_ZOOM, NOMINAL_PX, boardPx, comfortPx, effectiveBoardZoom, focusZoom, maxZoomToFit } from '../src/model/scale';
-import { deserializeLibrary, serializeLibrary, ValidationError } from '../src/model/serialize';
+import { branchAt, setSizeDelta } from '../src/model/tree';
+import { DEFAULT_BOARD_ZOOM, NOMINAL_PX, boardPx, comfortPx, effectiveBoardZoom, focusZoom, gripResize, maxZoomToFit } from '../src/model/scale';
 import { getNode } from '../src/model/types';
-import { exportPgn } from '../src/pgn/export';
-import { importPgn } from '../src/pgn/import';
-
-const base = () => {
-  const m = createMap('t', 'white', [0, 0]);
-  const a = addChild(m, m.rootId, 'e4', [1, 1]);
-  const b = addChild(a.map, a.nodeId, 'e5', [2, 2]);
-  return { m: b.map, a: a.nodeId, b: b.nodeId };
-};
+import { lineOf, pinnedOf } from './fixtures';
 
 describe('board scale model', () => {
+  const { map: m, ids } = lineOf(['e4', 'e5']);
+  const [root, a, b] = ids as [string, string, string];
+
   it('effectiveBoardZoom sums deltas from the root', () => {
-    const { m, a, b } = base();
     expect(effectiveBoardZoom(m, b)).toBe(DEFAULT_BOARD_ZOOM);
     const m2 = setSizeDelta(setSizeDelta(m, a, 1), b, -0.5);
     expect(effectiveBoardZoom(m2, a)).toBe(DEFAULT_BOARD_ZOOM - 1);
     expect(effectiveBoardZoom(m2, b)).toBe(DEFAULT_BOARD_ZOOM - 0.5);
-    expect(effectiveBoardZoom({ ...m2, boardZoom: 3 }, m.rootId)).toBe(3);
+    expect(effectiveBoardZoom({ ...m2, boardZoom: 3 }, root)).toBe(3);
   });
 
   it('setSizeDelta rounds to 0.25 and clears zero', () => {
-    const { m, a } = base();
     expect(getNode(setSizeDelta(m, a, 0.4), a).sizeDelta).toBe(0.5);
     expect('sizeDelta' in getNode(setSizeDelta(setSizeDelta(m, a, 1), a, 0.1), a)).toBe(false);
   });
 
   it('a split tail keeps the same effective board size', () => {
-    let m = createMap('t', 'white', [0, 0]);
-    const a = addChild(m, m.rootId, 'e4', [1, 1]);
-    m = setPinned(a.map, a.nodeId, true);
-    m = appendPly(appendPly(m, a.nodeId, 'e5'), a.nodeId, 'Nf3');
-    m = setSizeDelta(m, a.nodeId, 1);
-    const r = branchAt(m, { nodeId: a.nodeId, ply: 2 }, 'Nc3', [3, 3]);
-    const tail = getNode(r.map, a.nodeId).children[0] as string;
+    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    const r = branchAt(setSizeDelta(map, id, 1), { nodeId: id, ply: 2 }, 'Nc3', [3, 3]);
+    const tail = getNode(r.map, id).children[0] as string;
     expect(getNode(r.map, tail).sizeDelta).toBeUndefined();
-    expect(effectiveBoardZoom(r.map, tail)).toBe(effectiveBoardZoom(r.map, a.nodeId));
-  });
-
-  it('serialization validates the optional numbers', () => {
-    const { m, a } = base();
-    const ok = { ...setSizeDelta(m, a, 0.75), boardZoom: 2 };
-    const back = deserializeLibrary(serializeLibrary(createLibrary(ok)));
-    expect(back.maps[ok.id]?.boardZoom).toBe(2);
-    expect(getNode(back.maps[ok.id]!, a).sizeDelta).toBe(0.75);
-    const bad = JSON.parse(serializeLibrary(createLibrary(ok)));
-    bad.maps[ok.id].nodes[a].sizeDelta = 'big';
-    expect(() => deserializeLibrary(bad)).toThrow(ValidationError);
-  });
-
-  it('survives a PGN round trip', () => {
-    const { m, a, b } = base();
-    const sized = { ...setSizeDelta(setSizeDelta(m, a, 0.5), b, -1.25), boardZoom: 2.5 };
-    const [back] = importPgn(exportPgn(sized));
-    expect(back?.boardZoom).toBe(2.5);
-    const ids = Object.values(back!.nodes).filter((n) => n.parentId);
-    expect(ids.map((n) => n.sizeDelta)).toEqual([0.5, -1.25]);
+    expect(effectiveBoardZoom(r.map, tail)).toBe(effectiveBoardZoom(r.map, id));
   });
 });
 
-describe('board px and focus zoom', () => {
+describe('boardPx', () => {
   const view = { width: 1280, height: 630 };
   it('renders at nominal size at the board zoom and doubles per zoom level', () => {
     expect(boardPx(1.5, 1.5, view, 200)).toBe(NOMINAL_PX);
-    expect(boardPx(2.5 - 1, 1.5, view, 200)).toBe(NOMINAL_PX);
+    expect(boardPx(2.5, 1.5, { width: 2000, height: 2000 }, 200)).toBe(NOMINAL_PX * 2);
     expect(boardPx(0.5, 1.5, view, 100)).toBe(NOMINAL_PX / 2);
   });
   it('clamps to [min, 90% of the smaller side]', () => {
@@ -74,6 +42,9 @@ describe('board px and focus zoom', () => {
     expect(boardPx(10, 1.5, view, 200)).toBeCloseTo(567);
     expect(boardPx(10, 1.5, { width: 300, height: 900 }, 200)).toBeCloseTo(270);
   });
+});
+
+describe('focus zoom', () => {
   it('comfort size follows the desktop and mobile formulas', () => {
     expect(comfortPx({ width: 1280, height: 720 }, false)).toBeCloseTo(302.4);
     expect(comfortPx({ width: 3000, height: 3000 }, false)).toBe(480);
@@ -94,10 +65,11 @@ describe('board px and focus zoom', () => {
   });
 });
 
-import { gripResize } from '../src/model/scale';
-
 describe('gripResize', () => {
   const o = { z0: 3, bz0: 3, minPx: 200, maxPx: 500, minZoom: 0, maxZoom: 22 };
+  /** Width the board renders at after the resize. */
+  const rendered = (r: { mapZoom: number; extra: number }): number => NOMINAL_PX * 2 ** (r.mapZoom - (o.bz0 - r.extra));
+
   it('keeps the camera inside the clamp range', () => {
     const r = gripResize({ ...o, desiredPx: 400 });
     expect(r.mapZoom).toBe(3);
@@ -106,14 +78,13 @@ describe('gripResize', () => {
   it('zooms out when growing past the max, keeping the rendered size pinned', () => {
     const r = gripResize({ ...o, desiredPx: 2000 });
     expect(r.mapZoom).toBeCloseTo(3 - 2); // log2(2000/500)
-    const rendered = NOMINAL_PX * 2 ** (r.mapZoom - (o.bz0 - r.extra));
-    expect(rendered).toBeCloseTo(500);
+    expect(rendered(r)).toBeCloseTo(500);
     expect(r.extra).toBeCloseTo(Math.log2(2000 / NOMINAL_PX));
   });
   it('zooms in when shrinking past the min', () => {
     const r = gripResize({ ...o, desiredPx: 50 });
     expect(r.mapZoom).toBeCloseTo(3 + 2);
-    expect(NOMINAL_PX * 2 ** (r.mapZoom - (o.bz0 - r.extra))).toBeCloseTo(200);
+    expect(rendered(r)).toBeCloseTo(200);
   });
   it('stops changing the size once the camera hits its zoom limit', () => {
     const a = gripResize({ ...o, minZoom: 2, desiredPx: 1000 });

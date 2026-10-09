@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { parseGames, type ParseTree } from '@mliebelt/pgn-parser';
-import { START_FEN } from '../chess/replay';
+import { START_FEN, tryMove } from '../chess/replay';
+import { DEFAULT_CENTER, wrapLng } from '../geo/lngLat';
 import { newId } from '../model/id';
 import type { ChessMap, LngLat, MapNode, NodeId } from '../model/types';
 import { unescapeArg } from './export';
@@ -12,7 +13,6 @@ export class PgnImportError extends Error {
   }
 }
 
-export const DEFAULT_ORIGIN: LngLat = [2.35, 48.85];
 /** Auto-placement step in degrees of latitude (~400 km). */
 export const FAN_STEP = 3.5;
 
@@ -98,7 +98,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
   const rootMeta = metaOf(tree.gameComment as Record<string, unknown> | undefined);
   const root: MapNode = {
     id: newId(), parentId: null, plies: [], pinned: rootMeta.pinned === true,
-    lngLat: rootMeta.geo ?? opts.origin ?? DEFAULT_ORIGIN, children: [],
+    lngLat: rootMeta.geo ?? opts.origin ?? DEFAULT_CENTER, children: [],
   };
   const rootPlace = placeOf(rootMeta);
   if (rootPlace) root.place = rootPlace;
@@ -106,16 +106,8 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
   if (rootMeta.size) root.sizeDelta = rootMeta.size;
   const drafts = new Map<NodeId, Draft>([[root.id, { node: root, hasGeo: true }]]);
 
-  const play = (m: PgnMoveLike, fen: string): { san: string; fen: string } => {
-    const raw = m.notation.notation;
-    try {
-      const c = new Chess(fen);
-      const r = c.move(raw);
-      return { san: r.san, fen: c.fen() };
-    } catch {
-      return fail(index + 1, raw, fen);
-    }
-  };
+  const play = (m: PgnMoveLike, fen: string): { san: string; fen: string } =>
+    tryMove(fen, m.notation.notation) ?? fail(index + 1, m.notation.notation, fen);
 
   const metaOfMove = (m: PgnMoveLike): Meta => {
     const meta = metaOf(m.commentDiag);
@@ -196,9 +188,7 @@ export function fan(parent: LngLat, baseAngle: number, k: number, taken: LngLat[
     let lat = parent[1] + FAN_STEP * Math.sin(angle);
     lat = Math.max(-80, Math.min(80, lat));
     const cos = Math.max(Math.cos((lat * Math.PI) / 180), 0.2);
-    let lng = parent[0] + (FAN_STEP * Math.cos(angle)) / cos;
-    lng = ((((lng + 180) % 360) + 360) % 360) - 180;
-    lng = Number(lng.toFixed(5));
+    const lng = Number(wrapLng([parent[0] + (FAN_STEP * Math.cos(angle)) / cos, lat])[0].toFixed(5));
     lat = Number(lat.toFixed(5));
     if (!taken.some((t) => Math.abs(t[0] - lng) < 0.01 && Math.abs(t[1] - lat) < 0.01)) return [lng, lat];
   }

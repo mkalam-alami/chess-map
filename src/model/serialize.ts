@@ -2,8 +2,6 @@ import { START_FEN, tryMove } from '../chess/replay';
 import { newId } from './id';
 import type { ChessMap, Library, LngLat, MapNode, NodeId } from './types';
 
-export { newId };
-
 export const LIBRARY_VERSION = 1;
 
 export class ValidationError extends Error {

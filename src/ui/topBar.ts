@@ -1,13 +1,14 @@
-import { openingAt, type OpeningInfo } from '../chess/openings';
+import { openingAt, openingText } from '../chess/openings';
 import { formatLine, sanPath } from '../chess/replay';
-import { findTranspositions, pathTo } from '../model/tree';
+import { lineCursors } from '../model/cursor';
+import { findTranspositions } from '../model/tree';
 import { ValidationError } from '../model/serialize';
 import { getNode, type Cursor, type LngLat } from '../model/types';
 import {
   activeMap, back, beginRelocate, canUndoPly, deleteMap, duplicateMap, exportActiveMapJson, flipOrientation, focus, forward,
-  getState, hooks, importMapJson, newMap, renameMap, setMode, switchMap, toggleOverview, togglePin, undoPly,
+  getState, hooks, importMapJson, newMap, renameMap, setMode, subscribe, switchMap, toggleOverview, togglePin, undoPly,
 } from '../store/store';
-import { button, el } from './dom';
+import { button, download, el, iconButton } from './dom';
 import { icon } from './icons';
 import { confirmDialog, formDialog, openPopover } from './popover';
 import { toast } from './toast';
@@ -15,28 +16,6 @@ import { toast } from './toast';
 export interface TopBar {
   el: HTMLElement;
   update: () => void;
-}
-
-/** `+n` suffix text for out-of-book positions. */
-export const openingText = (o: OpeningInfo): string => (o.exact ? o.name : `${o.name} +${o.pliesSince}`);
-
-export function download(name: string, text: string, type = 'application/json'): void {
-  const a = el('a', '', '', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-/** One cursor per ply of the line leading to `cursor` (parallel to sanPath). */
-function lineCursors(cursor: Cursor): Cursor[] {
-  const m = activeMap();
-  const out: Cursor[] = [];
-  for (const id of pathTo(m, cursor.nodeId)) {
-    const upto = id === cursor.nodeId ? cursor.ply : getNode(m, id).plies.length;
-    for (let ply = 1; ply <= upto; ply++) out.push({ nodeId: id, ply });
-  }
-  return out;
 }
 
 export function createTopBar(getCenter: () => LngLat): TopBar {
@@ -76,10 +55,8 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
   overviewBtn.append(icon('layers', 18), el('span', 'label', 'Overview'));
   overviewBtn.title = 'Show the whole tree, faded';
   overviewBtn.addEventListener('click', toggleOverview);
-  const menuBtn = button('', 'menu-button', 'tool menu-button');
-  menuBtn.append(icon('more', 18));
+  const menuBtn = iconButton('more', 'menu-button', 'Map, import / export, Lichess', 'tool menu-button', 18);
   menuBtn.setAttribute('aria-label', 'Menu');
-  menuBtn.title = 'Map, import / export, Lichess';
 
   const main = el('div', 'tb-main');
   const right = el('div', 'tb-right');
@@ -120,7 +97,7 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
   });
   bar.append(fileInput);
 
-  const placeholder = (id: 'export-pgn' | 'import-pgn' | 'open-lichess') => (): void => (hooks.menu[id] ?? (() => toast('Coming soon')))();
+  const menuHook = (id: keyof typeof hooks.menu) => (): void => hooks.menu[id]?.();
 
   menuBtn.addEventListener('click', () => {
     openPopover(menuBtn, (close) => {
@@ -139,10 +116,10 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
       section('Import / export');
       item('Export JSON', 'menu-export-json', () => download(`${activeMap().name}.chessmap.json`, exportActiveMapJson()));
       item('Import JSON…', 'menu-import-json', () => fileInput.click());
-      item('Export PGN', 'menu-export-pgn', placeholder('export-pgn'));
-      item('Import PGN…', 'menu-import-pgn', placeholder('import-pgn'));
+      item('Export PGN', 'menu-export-pgn', menuHook('export-pgn'));
+      item('Import PGN…', 'menu-import-pgn', menuHook('import-pgn'));
       section('Share');
-      item('Open in Lichess', 'menu-open-lichess', placeholder('open-lichess'));
+      item('Open in Lichess', 'menu-open-lichess', menuHook('open-lichess'));
       section('Map');
       item('New map…', 'menu-new-map', async () => {
         const r = await formDialog('New map', [
@@ -195,10 +172,10 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
 
     // line
     const sans = sanPath(m, s.cursor);
-    const cursors = lineCursors(s.cursor);
+    const cursors = lineCursors(m, s.cursor);
     line.replaceChildren();
     sans.forEach((san, i) => {
-      const text = i % 2 === 0 || i === 0 ? formatLine([san], i) : san;
+      const text = i % 2 === 0 ? formatLine([san], i) : san;
       const span = el('button', `ply${i === sans.length - 1 ? ' current' : ''}`, text, { type: 'button', 'data-testid': 'line-ply' });
       span.addEventListener('click', () => focus(cursors[i] as Cursor));
       if (i) line.append(' ');
@@ -225,20 +202,18 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
     if (chipTarget) chip.textContent = `⇄ also reached via ${formatLine(sanPath(m, chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`;
   }
 
+  update();
+  subscribe(update);
   return { el: bar, update };
 }
 
 export function createNavButtons(): { el: HTMLElement; update: () => void } {
   const nav = el('div', 'nav-buttons');
-  const prev = button('', 'btn-back', 'nav');
-  prev.append(icon('chevron', 22));
+  const prev = iconButton('chevron', 'btn-back', 'Back (←)', 'nav', 22);
   prev.setAttribute('aria-label', 'Back');
-  prev.title = 'Back (←)';
   prev.addEventListener('click', back);
-  const next = button('', 'btn-forward', 'nav');
-  next.append(icon('chevron', 22));
+  const next = iconButton('chevron', 'btn-forward', 'Forward (→)', 'nav', 22);
   next.setAttribute('aria-label', 'Forward');
-  next.title = 'Forward (→)';
   next.addEventListener('click', () => void forward());
   const count = el('span', 'ply-count', '', { 'data-testid': 'ply-count' });
   nav.append(prev, count, next);
@@ -246,5 +221,7 @@ export function createNavButtons(): { el: HTMLElement; update: () => void } {
     const n = sanPath(activeMap(), getState().cursor).length;
     count.textContent = n ? `Ply ${n}` : 'Start';
   };
+  update();
+  subscribe(update);
   return { el: nav, update };
 }

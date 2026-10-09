@@ -49,17 +49,23 @@ function modal<T>(build: (done: (v: T | null) => void) => HTMLElement): Promise<
   });
 }
 
+/** Cancel + OK row; OK is returned so the caller can wire it (click or submit). */
+function actionsRow(okLabel: string, cancel: () => void): { row: HTMLElement; ok: HTMLButtonElement } {
+  const ok = button(okLabel, 'dialog-ok', 'primary');
+  const cancelBtn = button('Cancel', 'dialog-cancel');
+  cancelBtn.addEventListener('click', cancel);
+  const row = el('div', 'dialog-actions');
+  row.append(cancelBtn, ok);
+  return { row, ok };
+}
+
 export const confirmDialog = (message: string, okLabel = 'OK'): Promise<boolean> =>
   modal<boolean>((done) => {
     const body = el('div', 'dialog-body');
-    const ok = button(okLabel, 'dialog-ok', 'primary');
+    const { row, ok } = actionsRow(okLabel, () => done(null));
     ok.autofocus = true; // Enter confirms
-    const cancel = button('Cancel', 'dialog-cancel');
     ok.addEventListener('click', () => done(true));
-    cancel.addEventListener('click', () => done(null));
-    const actions = el('div', 'dialog-actions');
-    actions.append(cancel, ok);
-    body.append(el('p', '', message), actions);
+    body.append(el('p', '', message), row);
     return body;
   }).then((v) => v === true);
 
@@ -90,13 +96,9 @@ export const formDialog = (title: string, fields: Field[], okLabel = 'OK'): Prom
       label.append(input);
       form.append(label);
     }
-    const ok = button(okLabel, 'dialog-ok', 'primary');
+    const { row, ok } = actionsRow(okLabel, () => done(null));
     ok.type = 'submit';
-    const cancel = button('Cancel', 'dialog-cancel');
-    cancel.addEventListener('click', () => done(null));
-    const actions = el('div', 'dialog-actions');
-    actions.append(cancel, ok);
-    form.append(actions);
+    form.append(row);
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       done(Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value])));

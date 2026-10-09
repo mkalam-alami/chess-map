@@ -1,21 +1,13 @@
 import maplibregl from 'maplibre-gl';
-import { openingAt } from '../chess/openings';
-import { moveLabel, sanPath } from '../chess/replay';
+import { openingAt, openingText } from '../chess/openings';
+import { firstPlyIndex, pinLabel } from '../chess/replay';
 import { cursorEnd } from '../model/cursor';
-import { nodeDistances, pathTo, subtreeSize } from '../model/tree';
-import { getNode, type ChessMap, type MapNode, type NodeId } from '../model/types';
-import { activeMap, deleteNode, focus, getState, moveNodeTo } from '../store/store';
+import { nodeDistances, pathTo } from '../model/tree';
+import { getNode, type NodeId } from '../model/types';
+import { activeMap, focus, getState, moveNodeTo, subscribe } from '../store/store';
 import { el, shieldFromMap } from '../ui/dom';
-import { confirmDialog } from '../ui/popover';
 import { makeDraggable } from './drag';
 import { clearPreview, onOverride, overrides, previewMove } from './live';
-
-/** Asks for confirmation (with the number of positions that go with it), then deletes the node and its subtree. Never the root. */
-export async function confirmDeleteNode(id: NodeId): Promise<void> {
-  if (getNode(activeMap(), id).parentId === null) return;
-  const n = subtreeSize(activeMap(), id);
-  if (await confirmDialog(n > 1 ? `Delete this position and ${n - 1} below it?` : 'Delete this position?', 'Delete')) deleteNode(id);
-}
 
 type Kind = 'child' | 'ancestor' | 'root' | 'overview';
 const TESTID: Record<Kind, string> = { child: 'pin', ancestor: 'pin-ancestor', root: 'pin-root', overview: 'pin-overview' };
@@ -27,18 +19,6 @@ interface Entry {
   note: HTMLElement;
   kind: Kind;
 }
-
-/** `3.Nf3 … (+4)` for multi-ply segments; the start marker is a board icon. */
-export function pinLabel(map: ChessMap, node: MapNode): string {
-  if (node.parentId === null) return '♟';
-  const start = sanPath(map, cursorEnd(map, node.parentId)).length;
-  const first = moveLabel(start, node.plies[0] as string);
-  return node.plies.length > 1 ? `${first} … (+${node.plies.length - 1})` : first;
-}
-
-/** True when the node's first ply is played by Black (it starts on an odd ply count). */
-const playedByBlack = (map: ChessMap, node: MapNode): boolean =>
-  node.parentId !== null && sanPath(map, cursorEnd(map, node.parentId)).length % 2 === 1;
 
 export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
   const entries = new Map<NodeId, Entry>();
@@ -122,9 +102,8 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.root.classList.remove('pin-child', 'pin-ancestor', 'pin-root', 'pin-overview');
       e.root.classList.add('pin', `pin-${kind}`);
       const d = dist?.get(id) ?? 0;
-      e.root.classList.toggle('pin-black', playedByBlack(m, node));
-      e.root.classList.toggle('pin-d2', d === 2 || d === 3);
-      e.root.classList.toggle('pin-d4', d === 4);
+      e.root.classList.toggle('pin-black', firstPlyIndex(m, node) % 2 === 1); // played by Black
+      e.root.classList.toggle('pin-d2', d === 3 || d === 4);
       e.root.classList.toggle('pin-d5', d >= 5);
       e.root.classList.toggle('editable', editing);
       e.root.classList.toggle('relocating', getState().relocating?.nodeId === id);
@@ -132,7 +111,7 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.root.dataset.nodeId = id;
       e.root.dataset.label = text;
       const op = openingAt(m, cursorEnd(m, id));
-      e.root.title = [op && `${op.eco} ${op.exact ? op.name : `${op.name} +${op.pliesSince}`}`, node.place?.label].filter(Boolean).join(' · ');
+      e.root.title = [op && `${op.eco} ${openingText(op)}`, node.place?.label].filter(Boolean).join(' · ');
       if (pulse && kind === 'child') {
         e.root.classList.add('pulse');
         setTimeout(() => e.root.classList.remove('pulse'), 900);
@@ -141,6 +120,7 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
   }
 
   onOverride(update);
+  subscribe(update);
   update();
   return { update };
 }

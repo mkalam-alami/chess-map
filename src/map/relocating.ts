@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import { activeMap, getState, subscribe } from '../store/store';
 import { el } from '../ui/dom';
-import { pinLabel } from './pinMarker';
+import { pinLabel } from '../chess/replay';
 
 /** Ghost of the board / pin being relocated, shown at the highlighted search result (same look as the placing ghost). */
 export function createRelocateGhost(map: maplibregl.Map): void {

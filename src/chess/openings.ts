@@ -1,6 +1,5 @@
-import { Chess } from 'chess.js';
 import type { ChessMap, Cursor } from '../model/types';
-import { sanPath } from './replay';
+import { epd, fenPath } from './replay';
 
 // Data: lichess-org/chess-openings (CC0), see scripts/gen-openings.mjs. EPD -> [eco, name].
 let table: Record<string, [string, string]> | null = null;
@@ -23,21 +22,16 @@ export interface OpeningInfo {
   pliesSince: number;
 }
 
-const epdOf = (chess: Chess): string => chess.fen().split(' ').slice(0, 4).join(' ');
-
 /** Deepest named position along the path to the cursor; null if not loaded or none (e.g. the start). */
 export function openingAt(map: ChessMap, cursor: Cursor): OpeningInfo | null {
   if (!table) return null;
-  const sans = sanPath(map, cursor);
-  const chess = new Chess();
-  const epds = [epdOf(chess)];
-  for (const san of sans) {
-    chess.move(san);
-    epds.push(epdOf(chess));
-  }
-  for (let i = epds.length - 1; i >= 0; i--) {
-    const hit = table[epds[i] as string];
-    if (hit) return { eco: hit[0], name: hit[1], exact: i === epds.length - 1, pliesSince: epds.length - 1 - i };
+  const fens = fenPath(map, cursor);
+  for (let i = fens.length - 1; i >= 0; i--) {
+    const hit = table[epd(fens[i] as string)];
+    if (hit) return { eco: hit[0], name: hit[1], exact: i === fens.length - 1, pliesSince: fens.length - 1 - i };
   }
   return null;
 }
+
+/** The name, with a `+n` suffix for out-of-book positions. */
+export const openingText = (o: OpeningInfo): string => (o.exact ? o.name : `${o.name} +${o.pliesSince}`);

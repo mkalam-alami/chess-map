@@ -1,39 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { fenAt, formatLine, legalDests, moveLabel, sanPath, tryMove, turnColor } from '../src/chess/replay';
-import { cursorBack, cursorEnd, cursorForward, rootCursor } from '../src/model/cursor';
 import {
-  addChild, appendPly, branchAt, createMap, deleteSubtree, findTranspositions, moveNode, nodeDistances, pathTo, setLastChild,
-  setNote, setPinned, splitSegment, subtreeSize, undoLastPly,
+  START_FEN, epd, fenAt, fenPath, firstPlyIndex, formatLine, inCheck, legalDests, moveLabel, moveSquares, pinLabel, promotionColor,
+  sanPath, tryMove, turnColor,
+} from '../src/chess/replay';
+import { cursorBack, cursorEnd, cursorForward, lineCursors, nextCursor, rootCursor } from '../src/model/cursor';
+import {
+  addChild, appendPly, branchAt, createMap, deleteSubtree, findTranspositions, moveNode, nodeDistances, pathTo,
+  setNote, splitSegment, subtreeSize, undoLastPly,
 } from '../src/model/tree';
-import { getNode, type ChessMap } from '../src/model/types';
-
-const O: [number, number] = [0, 0];
-
-/** root -> e4 -> e5 (markers) */
-function line(sans: string[]) {
-  let map = createMap('t', 'white', O);
-  let id = map.rootId;
-  const ids: string[] = [id];
-  sans.forEach((s, i) => {
-    const r = addChild(map, id, s, [i + 1, i + 1]);
-    map = r.map;
-    id = r.nodeId;
-    ids.push(id);
-  });
-  return { map, ids };
-}
-
-/** root -> pinned [e4 e5 Nf3 Nc6] */
-function pinnedLine(sans: string[]) {
-  const { map: m0, ids } = line([sans[0] as string]);
-  let map = setPinned(m0, ids[1] as string, true);
-  for (const s of sans.slice(1)) map = appendPly(map, ids[1] as string, s);
-  return { map, id: ids[1] as string };
-}
+import { getNode } from '../src/model/types';
+import { O, childOf, lineOf, patchNode, pinnedOf, treeOf } from './fixtures';
 
 describe('addChild', () => {
   it('dedupes by first ply', () => {
-    const { map, ids } = line(['e4']);
+    const { map, ids } = lineOf(['e4']);
     const r = addChild(map, map.rootId, 'e4', [9, 9]);
     expect(r.nodeId).toBe(ids[1]);
     expect(r.map).toBe(map);
@@ -51,62 +31,59 @@ describe('addChild', () => {
 
 describe('split / branch', () => {
   it('splits a pinned segment when branching mid-way', () => {
-    const { map, id } = pinnedLine(['e4', 'e5', 'Nf3', 'Nc6']);
+    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
     const child = addChild(map, id, 'Bb5', [5, 5]);
     const r = branchAt(child.map, { nodeId: id, ply: 2 }, 'f4', [7, 7]);
     const head = getNode(r.map, id);
     expect(head.plies).toEqual(['e4', 'e5']);
     expect(head.children).toHaveLength(2);
-    const tail = getNode(r.map, head.children[0] as string);
-    expect(tail.plies).toEqual(['Nf3', 'Nc6']);
-    expect(tail.pinned).toBe(true);
-    expect(tail.lngLat).toEqual(head.lngLat);
-    expect(tail.children).toEqual([child.nodeId]);
+    const tail = childOf(r.map, id);
+    expect(tail).toMatchObject({ plies: ['Nf3', 'Nc6'], pinned: true, lngLat: head.lngLat, children: [child.nodeId] });
     expect(getNode(r.map, child.nodeId).parentId).toBe(tail.id);
-    expect(getNode(r.map, r.cursor.nodeId).plies).toEqual(['f4']);
-    expect(r.cursor.ply).toBe(1);
+    expect(r.cursor).toEqual({ nodeId: childOf(r.map, id, 1).id, ply: 1 });
     expect(sanPath(r.map, r.cursor)).toEqual(['e4', 'e5', 'f4']);
     expect(sanPath(r.map, { nodeId: child.nodeId, ply: 1 })).toEqual(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5']);
   });
-  it('reuses an existing move mid-segment and at the end', () => {
-    const { map, id } = pinnedLine(['e4', 'e5', 'Nf3']);
+  it('reuses an existing move mid-segment', () => {
+    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
     const r = branchAt(map, { nodeId: id, ply: 1 }, 'e5', O);
     expect(r.map).toBe(map);
     expect(r.cursor).toEqual({ nodeId: id, ply: 2 });
-    const { map: m2, ids } = line(['e4']);
-    const r2 = branchAt(m2, cursorEnd(m2, ids[1] as string), 'e5', O);
+  });
+  it('reuses an existing move at the end of a node', () => {
+    const { map, ids } = lineOf(['e4']);
+    const r2 = branchAt(map, cursorEnd(map, ids[1] as string), 'e5', O);
     const r3 = branchAt(r2.map, cursorEnd(r2.map, ids[1] as string), 'e5', O);
     expect(r3.cursor).toEqual(r2.cursor);
   });
-  it('splitSegment validates the ply', () => {
-    const { map, id } = pinnedLine(['e4', 'e5']);
-    expect(() => splitSegment(map, id, 0)).toThrow();
-    expect(() => splitSegment(map, id, 2)).toThrow();
+  it.each([0, 2])('splitSegment rejects ply %i', (ply) => {
+    const { map, id } = pinnedOf(['e4', 'e5']);
+    expect(() => splitSegment(map, id, ply)).toThrow();
   });
 });
 
 describe('undoLastPly', () => {
   it('drops the last ply of a pinned leaf but never below 1', () => {
-    const { map, id } = pinnedLine(['e4', 'e5']);
+    const { map, id } = pinnedOf(['e4', 'e5']);
     const m1 = undoLastPly(map, id);
     expect(getNode(m1, id).plies).toEqual(['e4']);
     expect(undoLastPly(m1, id)).toBe(m1);
   });
   it('refuses nodes with children and the root', () => {
-    const { map, id } = pinnedLine(['e4', 'e5']);
+    const { map, id } = pinnedOf(['e4', 'e5']);
     const withChild = addChild(map, id, 'Nf3', O).map;
     expect(undoLastPly(withChild, id)).toBe(withChild);
     expect(undoLastPly(map, map.rootId)).toBe(map);
   });
   it('appendPly requires a pinned leaf', () => {
-    const { map, ids } = line(['e4']);
+    const { map, ids } = lineOf(['e4']);
     expect(() => appendPly(map, ids[1] as string, 'e5')).toThrow();
   });
 });
 
-describe('delete / move', () => {
-  it('deletes a subtree and fixes the parent', () => {
-    const { map, ids } = line(['e4', 'e5', 'Nf3']);
+describe('deleteSubtree', () => {
+  it('removes the subtree and fixes the parent', () => {
+    const { map, ids } = lineOf(['e4', 'e5', 'Nf3']);
     expect(subtreeSize(map, ids[1] as string)).toBe(3);
     const r = deleteSubtree(map, ids[2] as string);
     expect(r.removed).toBe(2);
@@ -114,31 +91,48 @@ describe('delete / move', () => {
     const parent = getNode(r.map, ids[1] as string);
     expect(parent.children).toEqual([]);
     expect(parent.lastChild).toBeUndefined();
+  });
+  it('never deletes the root', () => {
+    const { map } = lineOf(['e4']);
     expect(() => deleteSubtree(map, map.rootId)).toThrow();
   });
-  it('moves a node alone or with its subtree', () => {
-    const { map, ids } = line(['e4', 'e5', 'Nf3']);
-    const alone = moveNode(map, ids[1] as string, [10, 10]);
-    expect(getNode(alone, ids[1] as string).lngLat).toEqual([10, 10]);
-    expect(getNode(alone, ids[2] as string).lngLat).toEqual([2, 2]);
-    const tree = moveNode(map, ids[1] as string, [11, 21], { withSubtree: true });
-    expect(getNode(tree, ids[1] as string).lngLat).toEqual([11, 21]);
-    expect(getNode(tree, ids[2] as string).lngLat).toEqual([12, 22]);
-    expect(getNode(tree, ids[3] as string).lngLat).toEqual([13, 23]);
-    expect(getNode(map, ids[3] as string).lngLat).toEqual([3, 3]);
+});
+
+describe('moveNode', () => {
+  const { map, ids } = lineOf(['e4', 'e5', 'Nf3']);
+  const [, e4, e5, nf3] = ids as [string, string, string, string];
+  it('moves a node alone', () => {
+    const alone = moveNode(map, e4, [10, 10]);
+    expect(getNode(alone, e4).lngLat).toEqual([10, 10]);
+    expect(getNode(alone, e5).lngLat).toEqual([2, 2]);
   });
-  it('notes and pathTo', () => {
-    const { map, ids } = line(['e4', 'e5']);
-    const n = setNote(map, ids[1] as string, 'hi');
-    expect(getNode(n, ids[1] as string).note).toBe('hi');
-    expect(getNode(setNote(n, ids[1] as string, ' '), ids[1] as string).note).toBeUndefined();
+  it('moves a node with its subtree, without touching the input', () => {
+    const moved = moveNode(map, e4, [11, 21], { withSubtree: true });
+    expect([e4, e5, nf3].map((id) => getNode(moved, id).lngLat)).toEqual([[11, 21], [12, 22], [13, 23]]);
+    expect(getNode(map, nf3).lngLat).toEqual([3, 3]);
+  });
+});
+
+describe('setNote', () => {
+  it('sets a note and removes it when blank', () => {
+    const { map, ids } = lineOf(['e4']);
+    const id = ids[1] as string;
+    const n = setNote(map, id, 'hi');
+    expect(getNode(n, id).note).toBe('hi');
+    expect('note' in getNode(setNote(n, id, ' '), id)).toBe(false);
+  });
+});
+
+describe('pathTo', () => {
+  it('lists ids from the root down', () => {
+    const { map, ids } = lineOf(['e4', 'e5']);
     expect(pathTo(map, ids[2] as string)).toEqual(ids);
   });
 });
 
 describe('cursor', () => {
   it('walks back and forward across segments', () => {
-    const { map, id } = pinnedLine(['e4', 'e5', 'Nf3']);
+    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
     const child = addChild(map, id, 'Nc6', O);
     const m = child.map;
     const c = { nodeId: child.nodeId, ply: 1 };
@@ -151,27 +145,46 @@ describe('cursor', () => {
     expect(cursorForward(m, c)).toBeNull();
   });
   it('forward follows lastChild, null when ambiguous', () => {
-    let { map, ids } = line(['e4']);
-    const d4 = addChild(map, map.rootId, 'd4', O);
-    map = d4.map;
-    expect(cursorForward(map, rootCursor(map))).toEqual({ nodeId: d4.nodeId, ply: 1 });
-    map = setLastChild(map, map.rootId, ids[1] as string);
-    expect(cursorForward(map, rootCursor(map))).toEqual({ nodeId: ids[1], ply: 1 });
-    const { lastChild: _l, ...root } = getNode(map, map.rootId);
-    const noLast: ChessMap = { ...map, nodes: { ...map.nodes, [map.rootId]: root } };
+    const { map, id } = treeOf({ e4: {}, d4: {} });
+    expect(cursorForward(map, rootCursor(map))).toEqual({ nodeId: id('d4'), ply: 1 });
+    const toE4 = patchNode(map, map.rootId, { lastChild: id('e4') });
+    expect(cursorForward(toE4, rootCursor(toE4))).toEqual({ nodeId: id('e4'), ply: 1 });
+    const noLast = patchNode(map, map.rootId, { lastChild: undefined });
     expect(cursorForward(noLast, rootCursor(noLast))).toBeNull();
+  });
+  it('nextCursor finds the next ply of a segment or a child, null for new moves', () => {
+    const { map, id } = pinnedOf(['e4', 'e5']);
+    expect(nextCursor(map, rootCursor(map), 'e4')).toEqual({ nodeId: id, ply: 1 });
+    expect(nextCursor(map, rootCursor(map), 'd4')).toBeNull();
+    expect(nextCursor(map, { nodeId: id, ply: 1 }, 'e5')).toEqual({ nodeId: id, ply: 2 });
+    expect(nextCursor(map, { nodeId: id, ply: 1 }, 'c5')).toBeNull();
+  });
+  it('lineCursors has one cursor per ply of the line', () => {
+    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    const child = addChild(map, id, 'Nc6', O);
+    const cursors = lineCursors(child.map, { nodeId: child.nodeId, ply: 1 });
+    expect(cursors).toEqual([1, 2, 3].map((ply) => ({ nodeId: id, ply })).concat({ nodeId: child.nodeId, ply: 1 }));
+    expect(lineCursors(map, { nodeId: id, ply: 2 })).toHaveLength(2);
+    expect(lineCursors(map, rootCursor(map))).toEqual([]);
   });
 });
 
 describe('replay helpers', () => {
-  it('fenAt and sanPath', () => {
-    const { map, ids } = line(['e4', 'e5']);
-    expect(fenAt(map, rootCursor(map))).toContain('rnbqkbnr/pppppppp');
-    const fen = fenAt(map, { nodeId: ids[1] as string, ply: 1 });
+  const { map, ids } = lineOf(['e4', 'e5']);
+  const e4 = { nodeId: ids[1] as string, ply: 1 };
+  const e5 = { nodeId: ids[2] as string, ply: 1 };
+  it('fenAt, fenPath and sanPath', () => {
+    expect(fenAt(map, rootCursor(map))).toBe(START_FEN);
+    const fen = fenAt(map, e4);
     expect(fen.split(' ')[0]).toBe('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR');
     expect(turnColor(fen)).toBe('black');
-    expect(sanPath(map, { nodeId: ids[2] as string, ply: 1 })).toEqual(['e4', 'e5']);
+    expect(sanPath(map, e5)).toEqual(['e4', 'e5']);
     expect(sanPath(map, rootCursor(map))).toEqual([]);
+    expect(fenPath(map, e5)).toEqual([START_FEN, fen, fenAt(map, e5)]);
+    expect(fenPath(map, rootCursor(map))).toEqual([START_FEN]);
+  });
+  it('epd drops the move counters', () => {
+    expect(epd(START_FEN)).toBe('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -');
   });
   it('formatLine and moveLabel', () => {
     expect(formatLine(['e4', 'e5', 'Nf3'])).toBe('1. e4 e5 2. Nf3');
@@ -181,54 +194,56 @@ describe('replay helpers', () => {
     expect(moveLabel(1, 'e5')).toBe('1…e5');
     expect(moveLabel(4, 'Nf3')).toBe('3.Nf3');
   });
+  it('pinLabel numbers the first ply and counts the rest of a segment', () => {
+    const { map: pm, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    expect(pinLabel(pm, getNode(pm, pm.rootId))).toBe('♟');
+    expect(pinLabel(pm, getNode(pm, id))).toBe('1.e4 … (+2)');
+    expect(pinLabel(map, getNode(map, e5.nodeId))).toBe('1…e5');
+    expect(firstPlyIndex(map, getNode(map, e5.nodeId))).toBe(1);
+  });
 });
 
-describe('tryMove / legalDests', () => {
-  const map = createMap('t', 'white', O);
-  const fen = fenAt(map, rootCursor(map));
+describe('tryMove / legalDests / board helpers', () => {
   it('plays san and from/to, rejects illegal', () => {
-    expect(tryMove(fen, 'e4')?.san).toBe('e4');
-    expect(tryMove(fen, { from: 'g1', to: 'f3' })?.san).toBe('Nf3');
-    expect(tryMove(fen, 'e5')).toBeNull();
-    expect(tryMove(fen, { from: 'e2', to: 'e5' })).toBeNull();
+    expect(tryMove(START_FEN, 'e4')?.san).toBe('e4');
+    expect(tryMove(START_FEN, { from: 'g1', to: 'f3' })?.san).toBe('Nf3');
+    expect(tryMove(START_FEN, 'e5')).toBeNull();
+    expect(tryMove(START_FEN, { from: 'e2', to: 'e5' })).toBeNull();
   });
   it('lists dests', () => {
-    const d = legalDests(fen);
+    const d = legalDests(START_FEN);
     expect(d.get('e2')).toEqual(expect.arrayContaining(['e3', 'e4']));
     expect(d.get('g1')?.sort()).toEqual(['f3', 'h3']);
     expect(d.has('e1')).toBe(false);
+  });
+  it('detects promotions, checks and move squares', () => {
+    const promo = '8/4P3/8/8/8/8/k7/4K3 w - - 0 1';
+    expect(promotionColor(promo, 'e7', 'e8')).toBe('white');
+    expect(promotionColor(START_FEN, 'e2', 'e4')).toBeNull();
+    expect(inCheck(START_FEN)).toBe(false);
+    expect(inCheck('4k3/8/8/8/8/8/8/4K2r w - - 0 1')).toBe(true);
+    expect(moveSquares(START_FEN, 'Nf3')).toEqual(['g1', 'f3']);
+    expect(moveSquares(START_FEN, 'Nf6')).toBeUndefined();
   });
 });
 
 describe('transpositions', () => {
   it('finds the same position via a different move order', () => {
-    let map = createMap('t', 'white', O);
-    const a = [...['Nf3', 'Nf6', 'Nc3']];
-    const b = ['Nc3', 'Nf6', 'Nf3'];
-    let ca = map.rootId;
-    for (const s of a) { const r = addChild(map, ca, s, O); map = r.map; ca = r.nodeId; }
-    let cb = map.rootId;
-    for (const s of b) { const r = addChild(map, cb, s, O); map = r.map; cb = r.nodeId; }
-    const t = findTranspositions(map, { nodeId: ca, ply: 1 });
-    expect(t).toEqual([{ nodeId: cb, ply: 1 }]);
-    expect(findTranspositions(map, { nodeId: map.rootId, ply: 0 })).toEqual([]);
+    const { map, id } = treeOf({ Nf3: { Nf6: { Nc3: {} } }, Nc3: { Nf6: { Nf3: {} } } });
+    expect(findTranspositions(map, { nodeId: id('Nf3 Nf6 Nc3'), ply: 1 })).toEqual([{ nodeId: id('Nc3 Nf6 Nf3'), ply: 1 }]);
+    expect(findTranspositions(map, rootCursor(map))).toEqual([]);
   });
 });
 
 describe('nodeDistances', () => {
   it('counts markers up and down the tree', () => {
-    let map = createMap('m', 'white', O);
-    const e4 = addChild(map, map.rootId, 'e4', O);
-    const d4 = addChild(e4.map, map.rootId, 'd4', O);
-    const e5 = addChild(d4.map, e4.nodeId, 'e5', O);
-    const nf3 = addChild(e5.map, e5.nodeId, 'Nf3', O);
-    map = nf3.map;
-    const d = nodeDistances(map, e4.nodeId);
-    expect(d.get(e4.nodeId)).toBe(0);
+    const { map, id } = treeOf({ e4: { e5: { Nf3: {} } }, d4: {} });
+    const d = nodeDistances(map, id('e4'));
+    expect(d.get(id('e4'))).toBe(0);
     expect(d.get(map.rootId)).toBe(1);
-    expect(d.get(e5.nodeId)).toBe(1);
-    expect(d.get(d4.nodeId)).toBe(2); // sibling via the root
-    expect(d.get(nf3.nodeId)).toBe(2);
-    expect(nodeDistances(map, nf3.nodeId).get(d4.nodeId)).toBe(4);
+    expect(d.get(id('e4 e5'))).toBe(1);
+    expect(d.get(id('d4'))).toBe(2); // sibling via the root
+    expect(d.get(id('e4 e5 Nf3'))).toBe(2);
+    expect(nodeDistances(map, id('e4 e5 Nf3')).get(id('d4'))).toBe(4);
   });
 });

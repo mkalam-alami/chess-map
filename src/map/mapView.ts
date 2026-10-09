@@ -3,22 +3,29 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
-import type { LngLat, SavedView } from '../model/types';
+import { getNode, type LngLat, type SavedView } from '../model/types';
 import { activeMap, getState, saveView, setCentered, subscribe } from '../store/store';
-import { getNode } from '../model/types';
-import { comfortPx, effectiveBoardZoom, focusZoom, maxZoomToFit } from '../model/scale';
+import { comfortPx, effectiveBoardZoom, focusZoom, maxZoomToFit, type Viewport } from '../model/scale';
+import { wrapNear } from '../geo/lngLat';
 
 export const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 export const INITIAL_ZOOM = 1.2;
 
 export const isMobile = (): boolean => window.matchMedia('(max-width: 767px)').matches;
 
-/** Shifts `lng` by multiples of 360 so it is as close as possible to `ref`. */
-export const wrapNear = (lng: number, ref: number): number => lng + 360 * Math.round((ref - lng) / 360);
+/** Smallest rendered board width (px). */
+export const minBoardPx = (): number => (isMobile() ? 80 : 100);
 
 export function padding(): maplibregl.PaddingOptions {
   const bar = document.querySelector<HTMLElement>('.topbar');
   return { top: bar?.offsetHeight ?? 0, bottom: isMobile() ? 72 : 0, left: 0, right: 0 };
+}
+
+/** Size of the map area left visible by the top bar and the bottom controls. */
+export function visibleSize(map: maplibregl.Map): Viewport {
+  const c = map.getContainer();
+  const pad = padding();
+  return { width: c.clientWidth, height: c.clientHeight - (pad.top ?? 0) - (pad.bottom ?? 0) };
 }
 
 function viewOfActive(): SavedView {
@@ -123,10 +130,9 @@ export function fitZoom(map: maplibregl.Map): number {
   const { cursor } = getState();
   const node = getNode(m, cursor.nodeId);
   if (cursor.ply !== node.plies.length) return Infinity;
-  const pad = padding();
-  const c = map.getContainer();
-  const halfW = Math.max(40, c.clientWidth / 2 - 80);
-  const halfH = Math.max(40, (c.clientHeight - (pad.top ?? 0) - (pad.bottom ?? 0)) / 2 - 30);
+  const view = visibleSize(map);
+  const halfW = Math.max(40, view.width / 2 - 80);
+  const halfH = Math.max(40, view.height / 2 - 30);
   const offsets = node.children.map((id) => {
     const ll = getNode(m, id).lngLat;
     return {
