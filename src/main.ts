@@ -6,13 +6,12 @@ import { createMapView } from './map/mapView';
 import { createBoardMarker } from './map/boardMarker';
 import { createPinMarkers } from './map/pinMarker';
 import { createCurveLayer } from './map/curveLayer';
-import { createNavButtons, createTopBar } from './ui/topBar';
+import { mountUi } from './ui/App';
 import { confirmDeleteNode } from './ui/confirmDelete';
 import { isTyping } from './ui/dom';
-import { closePopover } from './ui/popover';
+import { closePopover } from './ui/overlay';
 import { createPlacing } from './map/placing';
-import { createRecenterButton } from './ui/recenter';
-import { createLocate } from './ui/locate';
+import { openingsLoaded } from './ui/hooks';
 import { createRelocateGhost } from './map/relocating';
 import { loadOpenings } from './chess/openings';
 import { wireIntegrations } from './integration';
@@ -30,13 +29,6 @@ const mapEl = document.createElement('div');
 mapEl.id = 'map';
 app.append(mapEl);
 
-// Every view subscribes to the store itself and re-reads it on each change.
-const topBar = createTopBar(() => {
-  const c = map.getCenter();
-  return [c.lng, c.lat];
-});
-app.append(topBar.el, createNavButtons().el, createRecenterButton());
-
 // Markers are added right away so board and pins work even before tiles/style load.
 const map = createMapView(mapEl);
 createBoardMarker(map);
@@ -44,8 +36,13 @@ const pins = createPinMarkers(map);
 createCurveLayer(map);
 createPlacing(map, app);
 createRelocateGhost(map);
-createLocate(app, map);
 wireIntegrations(map);
+
+// The Preact UI re-renders itself on store changes.
+const ui = document.createElement('div');
+ui.id = 'ui';
+app.append(ui);
+mountUi(ui, map);
 
 let lastCursor = getState().cursor;
 subscribe(() => {
@@ -55,7 +52,7 @@ subscribe(() => {
 
 // Opening names load lazily (separate chunk); refresh the UI once available.
 void loadOpenings().then(() => {
-  topBar.update();
+  openingsLoaded.set(openingsLoaded.get() + 1);
   pins.update();
 });
 

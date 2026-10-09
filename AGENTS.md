@@ -17,7 +17,7 @@ Before finishing a change, run `npm run typecheck` and `npm test`. Run `npm run 
 
 ## Stack
 
-- TypeScript (strict, `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`), ES modules, Vite. No UI framework: plain DOM built with the helpers in `src/ui/dom.ts`.
+- TypeScript (strict, `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`), ES modules, Vite. UI chrome is Preact (JSX, `jsxImportSource: preact`, no `preact/compat`); the MapLibre markers and the chessground board stay imperative DOM (`src/map/`, helpers in `src/ui/dom.ts`).
 - `maplibre-gl` (OpenFreeMap tiles), `chessground` (board), `chess.js` (move legality / FEN), `@mliebelt/pgn-parser` (PGN import).
 - Vite `base` is `/chess-map/` (GitHub Pages path). Keep asset URLs relative to it.
 
@@ -29,7 +29,7 @@ Before finishing a change, run `npm run typecheck` and `npm test`. Run `npm run 
 | `src/chess/` | `replay.ts` (SAN replay, FEN, legal moves via chess.js), `openings.ts` (lazy opening-name lookup by EPD). |
 | `src/store/` | `store.ts`: single global state, `set()` + `subscribe()`, all user actions. `persist.ts`: debounced `localStorage` autosave. |
 | `src/map/` | MapLibre view and everything drawn on it: board marker, pins, curves, drag, placing ghost, relocation. |
-| `src/ui/` | Top bar, menus, popovers, toasts, location search UI, icons. |
+| `src/ui/` | Preact components: `TopBar` (+ nav), `Locate`, `Recenter`, `overlay` (popover + dialogs, promise API), `toast`, `promotion`; `App.tsx` mounts them. `hooks.ts` has `useStore` / `atom`. |
 | `src/pgn/`, `src/lichess/`, `src/geo/` | PGN import/export, Lichess analysis URLs, Nominatim / Photon geocoding. |
 | `src/integration.ts` | Connects geocoding and the PGN / Lichess menu items to `hooks` in the store. |
 | `src/main.ts` | Entry point: builds the DOM, creates views, subscribes them to the store. |
@@ -46,7 +46,9 @@ Before finishing a change, run `npm run typecheck` and `npm test`. Run `npm run 
 ## Conventions
 
 - Model functions are pure and immutable: they take a `ChessMap` and return a new one. Don't mutate nodes in place. The store applies them and calls `commitLibrary` (which saves) or `set` (UI-only state).
-- Views don't hold their own copy of the data: they read `getState()` / `activeMap()` in their `update()` and are re-run on every store change from `main.ts`.
+- Views don't hold their own copy of the data. Preact components call `useStore()` (re-renders on every store change) and read `getState()` / `activeMap()`; the imperative map views do the same in `update()` via `subscribe`. UI-only state that isn't in the store (toast, popover, dialog) lives in an `atom` read with `useAtom`.
+- Components must not keep derived copies of store data in `useState`; keep `useState` for local form/transient state (e.g. the locate panel's query). Use refs for values read by timers and async callbacks.
+- Popovers and dialogs are opened imperatively (`openPopover`, `confirmDialog`, `formDialog`) and rendered by `OverlayHost`. Dialogs open in a layout effect so keys pressed right after are not lost.
 - Keep side effects (network, clipboard, file dialogs) out of `model/` and `store/`; wire them through `hooks` in `integration.ts`.
 - Use `getNode(map, id)` instead of indexing `map.nodes` directly when the node must exist (it throws on unknown ids).
 - Match the existing style: short functions, single quotes, terse JSDoc on exported functions explaining *why* or the non-obvious contract.

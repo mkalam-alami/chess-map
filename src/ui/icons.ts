@@ -19,11 +19,15 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-/** Inline stroke icon (static markup only, so innerHTML is safe). */
+/** Inline stroke icon markup (static, so it is safe to inject as HTML). */
+export const iconSvg = (name: IconName, size: number): string =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${PATHS[name]}</svg>`;
+
+/** Icon as a DOM node, for the imperative map code. Components use `<Icon>`. */
 export function icon(name: IconName, size = 18): HTMLSpanElement {
   const s = document.createElement('span');
   s.className = 'icon';
   s.setAttribute('aria-hidden', 'true');
-  s.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${PATHS[name]}</svg>`;
+  s.innerHTML = iconSvg(name, size);
   return s;
 }

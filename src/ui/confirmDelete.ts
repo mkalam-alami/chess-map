@@ -1,7 +1,7 @@
 import { subtreeSize } from '../model/tree';
 import { getNode, type NodeId } from '../model/types';
 import { activeMap, deleteNode } from '../store/store';
-import { confirmDialog } from './popover';
+import { confirmDialog } from './overlay';
 
 /** Asks for confirmation (with the number of positions that go with it), then deletes the node and its subtree. Never the root. */
 export async function confirmDeleteNode(id: NodeId): Promise<void> {
