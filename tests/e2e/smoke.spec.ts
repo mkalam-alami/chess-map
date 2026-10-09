@@ -421,3 +421,21 @@ test.describe('touch', () => {
     expect(Math.abs(pb.x + pb.width / 2 - 60)).toBeLessThan(30);
   });
 });
+
+test('the top bar names the opening, with a +n suffix when out of book', async ({ page }) => {
+  await edit(page);
+  await page.getByTestId('pin-toggle').click();
+  const name = page.getByTestId('opening-name');
+  await expect(page.getByTestId('opening')).toBeHidden();
+  await play(page, 'e2', 'e4');
+  await expect(name).toHaveText("King's Pawn Game");
+  await play(page, 'e7', 'e5');
+  await play(page, 'g1', 'f3');
+  await expect(name).toHaveText("King's Knight Opening");
+  await play(page, 'b8', 'c6');
+  await play(page, 'f1', 'b5');
+  await expect(name).toHaveText('Ruy Lopez');
+  await play(page, 'h7', 'h6');
+  await play(page, 'h2', 'h3');
+  await expect(name).toHaveText(/^Ruy Lopez.* \+\d+$/);
+});

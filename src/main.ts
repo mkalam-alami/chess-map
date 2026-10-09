@@ -11,6 +11,7 @@ import { closePopover } from './ui/popover';
 import { createPlacing } from './map/placing';
 import { createLocate } from './ui/locate';
 import { createRelocateGhost } from './map/relocating';
+import { loadOpenings } from './chess/openings';
 import { wireIntegrations } from './integration';
 
 // Autosave is debounced: make sure the last change survives closing / reloading the tab.
@@ -53,6 +54,12 @@ subscribe(() => {
   topBar.update();
   nav.update();
   board.update();
+  pins.update();
+});
+
+// Opening names load lazily (separate chunk); refresh the UI once available.
+void loadOpenings().then(() => {
+  topBar.update();
   pins.update();
 });
 

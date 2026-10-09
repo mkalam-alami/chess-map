@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { openingAt } from '../chess/openings';
 import { moveLabel, sanPath } from '../chess/replay';
 import { cursorEnd } from '../model/cursor';
 import { pathTo, subtreeSize } from '../model/tree';
@@ -56,6 +57,8 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       const editing = getState().mode === 'edit';
       const box = el('div', 'pin-popover');
       box.append(el('strong', '', pinLabel(m, node)));
+      const op = openingAt(m, cursorEnd(m, id));
+      if (op) box.append(el('div', `pop-opening muted${op.exact ? '' : ' inexact'}`, `${op.eco} · ${op.exact ? op.name : `${op.name} +${op.pliesSince}`}`, { 'data-testid': 'pop-opening' }));
       if (editing) {
         const loc = button('', 'pop-locate', 'pop-place');
         loc.append(icon('mapPin', 14), el('span', '', node.place?.label ?? 'Set location…'), icon('edit', 14));
@@ -168,7 +171,8 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.root.dataset.testid = TESTID[kind];
       e.root.dataset.nodeId = id;
       e.root.dataset.label = text;
-      e.root.title = node.place?.label ?? '';
+      const op = openingAt(m, cursorEnd(m, id));
+      e.root.title = [op && `${op.eco} ${op.exact ? op.name : `${op.name} +${op.pliesSince}`}`, node.place?.label].filter(Boolean).join(' · ');
       if (pulse && kind === 'child') {
         e.root.classList.add('pulse');
         setTimeout(() => e.root.classList.remove('pulse'), 900);

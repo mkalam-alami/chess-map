@@ -100,6 +100,13 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
 .line .ply { font: inherit; padding: 1px 5px; border: 0; background: none; border-radius: 5px; color: var(--walnut); }
 .line .ply:hover { background: var(--wood-light); }
 .line .ply.current { background: var(--walnut); color: var(--cream); }
+.opening { display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; padding: 0 5px; font-size: 0.88rem; color: var(--walnut-2); }
+.opening[hidden] { display: none; }
+.opening .eco { flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; color: var(--muted); }
+.opening .opening-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.opening.inexact .opening-name { font-style: italic; font-weight: 500; color: var(--muted); }
+.pop-opening { font-size: 0.85rem; }
+.pop-opening.inexact { font-style: italic; }
 .place {
   flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
   border: 0; background: none; color: var(--muted); font-size: 0.95rem; padding: 2px 6px; border-radius: 8px;

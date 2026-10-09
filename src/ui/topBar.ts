@@ -1,3 +1,4 @@
+import { openingAt, type OpeningInfo } from '../chess/openings';
 import { formatLine, sanPath } from '../chess/replay';
 import { findTranspositions, pathTo } from '../model/tree';
 import { ValidationError } from '../model/serialize';
@@ -15,6 +16,9 @@ export interface TopBar {
   el: HTMLElement;
   update: () => void;
 }
+
+/** `+n` suffix text for out-of-book positions. */
+export const openingText = (o: OpeningInfo): string => (o.exact ? o.name : `${o.name} +${o.pliesSince}`);
 
 export function download(name: string, text: string, type = 'application/json'): void {
   const a = el('a', '', '', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
@@ -84,11 +88,16 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
   const ctx = el('div', 'tb-context');
   const lineCol = el('div', 'tb-linecol');
   const line = el('div', 'line', '', { 'data-testid': 'line' });
+  const opening = el('div', 'opening', '', { 'data-testid': 'opening' });
+  opening.hidden = true;
+  const openingEco = el('span', 'eco');
+  const openingName = el('span', 'opening-name', '', { 'data-testid': 'opening-name' });
+  opening.append(openingEco, openingName);
   const chip = button('', 'transposition', 'chip');
   chip.hidden = true;
   let chipTarget: Cursor | undefined;
   chip.addEventListener('click', () => chipTarget && focus(chipTarget));
-  lineCol.append(line, chip);
+  lineCol.append(line, opening, chip);
   const place = button('', 'place-label', 'place');
   place.addEventListener('click', () => getState().mode === 'edit' && beginRelocate(getState().cursor.nodeId));
   ctx.append(lineCol, place);
@@ -195,6 +204,15 @@ export function createTopBar(getCenter: () => LngLat): TopBar {
       line.append(span);
     });
     line.scrollLeft = line.scrollWidth;
+
+    const op = openingAt(m, s.cursor);
+    opening.hidden = !op;
+    if (op) {
+      openingEco.textContent = op.eco;
+      openingName.textContent = openingText(op);
+      opening.classList.toggle('inexact', !op.exact);
+      opening.title = `${op.eco} · ${openingText(op)}`;
+    }
 
     const pl = getNode(m, s.cursor.nodeId).place;
     place.textContent = pl ? (pl.country && !pl.label.includes(pl.country) ? `${pl.label}, ${pl.country}` : pl.label) : '';
