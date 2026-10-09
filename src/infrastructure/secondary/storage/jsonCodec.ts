@@ -1,7 +1,12 @@
-import { LIBRARY_VERSION, START_FEN, newId, tryMove, type ChessMapData, type LibraryData, type LngLat, type MapNodeData, type NodeId } from '../domain';
+import {
+  LIBRARY_VERSION, Library, Repertoire, START_FEN, newId, tryMove,
+  type ChessMapData, type LngLat, type MapNodeData, type NodeId,
+} from '../../../domain';
+import { ImportError } from '../../../application';
 
+/** Stored or imported JSON that does not have the expected shape; `path` points at the offending field. */
 export class ValidationError extends Error {
-  constructor(public path: string, reason: string) {
+  constructor(public path: string, public reason: string) {
     super(`Invalid data at ${path}: ${reason}`);
     this.name = 'ValidationError';
   }
@@ -10,19 +15,20 @@ export class ValidationError extends Error {
 type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const MIGRATIONS: Record<number, (raw: Json) => Json> = {
+/** Steps from version N to N + 1, keyed by N. */
+export const MIGRATIONS: Record<number, (raw: Json) => Json> = {
   // 1: (raw) => ({ ...raw, version: 2 }),  // add one entry per schema bump
 };
 
 /** Upgrades older library JSON to the current version; throws on unknown/newer versions. */
-export function migrate(raw: unknown): Json {
+export function migrate(raw: unknown, migrations: Record<number, (raw: Json) => Json> = MIGRATIONS, current = LIBRARY_VERSION): Json {
   if (!isObj(raw)) throw new ValidationError('$', 'expected an object');
   let cur: Json = raw;
   if (typeof cur.version !== 'number') throw new ValidationError('version', 'missing version');
   let v: number = cur.version;
-  if (v > LIBRARY_VERSION) throw new ValidationError('version', `unsupported version ${v}`);
-  while (v < LIBRARY_VERSION) {
-    const step = MIGRATIONS[v];
+  if (v > current) throw new ValidationError('version', `unsupported version ${v}`);
+  while (v < current) {
+    const step = migrations[v];
     if (!step) throw new ValidationError('version', `no migration from version ${v}`);
     cur = step(cur);
     v = cur.version as number;
@@ -133,10 +139,10 @@ function validateMap(raw: unknown, path: string): ChessMapData {
   return map;
 }
 
-export const serializeLibrary = (lib: LibraryData): string => JSON.stringify(lib);
+export const serializeLibrary = (library: Library): string => JSON.stringify(library.data);
 
-/** Accepts parsed JSON or a JSON string. Migrates, validates structure and replays every line. */
-export function deserializeLibrary(json: unknown): LibraryData {
+/** Accepts parsed JSON or a JSON string. Migrates, validates structure and replays every line. Throws ValidationError. */
+export function deserializeLibrary(json: unknown): Library {
   const raw = migrate(parse(json));
   if (!isObj(raw.maps)) throw new ValidationError('maps', 'expected an object');
   const maps: Record<string, ChessMapData> = {};
@@ -147,16 +153,28 @@ export function deserializeLibrary(json: unknown): LibraryData {
   }
   const activeMapId = str(raw.activeMapId, 'activeMapId');
   if (!maps[activeMapId]) throw new ValidationError('activeMapId', 'unknown map');
-  return { version: LIBRARY_VERSION, maps, activeMapId };
+  return Library.fromData({ version: LIBRARY_VERSION, maps, activeMapId });
 }
 
 const MAP_FORMAT = 'chess-map';
 
-export const exportMap = (map: ChessMapData): string => JSON.stringify({ format: MAP_FORMAT, version: LIBRARY_VERSION, map }, null, 2);
+export const serializeMap = (map: Repertoire): string => JSON.stringify({ format: MAP_FORMAT, version: LIBRARY_VERSION, map: map.data }, null, 2);
 
-/** Validates a single-map export and returns it under a fresh map id. */
-export function importMap(json: unknown): ChessMapData {
-  const raw = migrate(parse(json));
-  if (raw.format !== MAP_FORMAT) throw new ValidationError('format', `expected "${MAP_FORMAT}"`);
-  return { ...validateMap(raw.map, 'map'), id: newId() };
+/** Validates a single-map export and returns it under a fresh map id. Throws ImportError with a readable message. */
+export function deserializeMap(json: unknown): Repertoire {
+  try {
+    const raw = migrate(parse(json));
+    if (raw.format !== MAP_FORMAT) throw new ValidationError('format', `expected "${MAP_FORMAT}"`);
+    return Repertoire.fromData({ ...validateMap(raw.map, 'map'), id: newId() });
+  } catch (e) {
+    if (!(e instanceof ValidationError)) throw e;
+    throw new ImportError(readable(e));
+  }
+}
+
+function readable(e: ValidationError): string {
+  if (e.path === '$' && e.reason === 'not valid JSON') return 'This file is not valid JSON';
+  if (e.path === 'format') return 'This is not a Chess Map file';
+  if (e.path === 'version') return `This map file cannot be read: ${e.reason}`;
+  return `This map file is invalid (${e.path}: ${e.reason})`;
 }

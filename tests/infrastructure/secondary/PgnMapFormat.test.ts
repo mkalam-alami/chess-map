@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CENTER, Repertoire, type ChessMapData as ChessMap, type MapNodeData as MapNode } from '../src/domain';
-import { exportPgn } from '../src/pgn/export';
-import { fan, importPgn, PgnImportError } from '../src/pgn/import';
-import { childOf, editSession, emptyRep, patchNode, pinnedOf, spawn, treeOf } from './domain/fixtures';
+import { DEFAULT_CENTER, Repertoire, type ChessMapData as ChessMap, type MapNodeData as MapNode } from '../../../src/domain';
+import { ImportError } from '../../../src/application';
+import { PgnMapFormat } from '../../../src/infrastructure/secondary/formats/PgnMapFormat';
+import { exportPgn } from '../../../src/infrastructure/secondary/formats/pgn/export';
+import { fan, importPgn } from '../../../src/infrastructure/secondary/formats/pgn/import';
+import { childOf, editSession, emptyRep, patchNode, pinnedOf, spawn, treeOf } from '../../domain/fixtures';
 
 /** Root -> child -> ... following child indexes (`nodeAt(m)` is the root). */
 const getNode = (map: ChessMap, id: string): MapNode => Repertoire.fromData(map).node(id);
@@ -97,15 +99,15 @@ describe('importPgn', () => {
   });
 
   it('reports illegal moves with the move number', () => {
-    expect(() => importPgn('1. e4 e5 2. Ke3 *')).toThrow(PgnImportError);
+    expect(() => importPgn('1. e4 e5 2. Ke3 *')).toThrow(ImportError);
     expect(() => importPgn('1. e4 e5 2. Qh5 Nc6 3. Qxh8 *')).toThrow(/illegal move "Qxh8" at move 3\./);
     expect(() => importPgn('1. e4 e5 2. Nf3 Nf3 *')).toThrow(/at move 2\.\.\./); // black to move
   });
 
   it.each([
     ['custom start positions', '[FEN "8/8/8/8/8/8/8/K6k w - - 0 1"]\n[SetUp "1"]\n\n1. Ka2 *', /custom start positions/],
-    ['empty input', '', PgnImportError],
-    ['garbage', '1. e4 {unterminated', PgnImportError],
+    ['empty input', '', ImportError],
+    ['garbage', '1. e4 {unterminated', ImportError],
   ])('rejects %s', (_, text, error) => {
     expect(() => importPgn(text)).toThrow(error);
   });
@@ -172,5 +174,43 @@ describe('round trip', () => {
   it('handles black variations after white variations', () => {
     const { map } = treeOf({ e4: { e5: {}, c5: {} }, d4: {} });
     expect(shape(importOne(exportPgn(map)))).toEqual(shape(map));
+  });
+});
+
+describe('PgnMapFormat', () => {
+  const format = new PgnMapFormat();
+  const ctx = { name: 'games.pgn', origin: [5, 5] as [number, number] };
+
+  it('describes the file it writes', () => {
+    expect(format).toMatchObject({ id: 'pgn', extension: 'pgn', mimeType: 'application/x-chess-pgn' });
+  });
+
+  it('writes a repertoire and reads it back as repertoires', () => {
+    const rep = Repertoire.fromData(sample());
+    const [back, ...rest] = format.read(format.write(rep), ctx);
+    expect(rest).toEqual([]);
+    expect(back).toBeInstanceOf(Repertoire);
+    expect(shape((back as Repertoire).data)).toEqual(shape(rep.data));
+  });
+
+  it('names games after the file (without .pgn) when they have no Event, numbering several', () => {
+    expect(format.read('1. e4 *', ctx).map((r) => r.name)).toEqual(['games']);
+    expect(format.read('1. e4 *\n\n1. d4 *', ctx).map((r) => r.name)).toEqual(['games (1)', 'games (2)']);
+  });
+
+  it('places the first marker around the origin', () => {
+    const [rep] = format.read('1. e4 *', ctx) as [Repertoire];
+    expect(rep.node(rep.rootId).lngLat).toEqual([5, 5]);
+  });
+
+  it.each([
+    ['empty text', '   ', /No PGN data/],
+    ['text that is not PGN', '1. e4 {unterminated', /Could not parse PGN/],
+    ['an illegal move', '1. e4 e5 2. Ke3 *', /Game 1: illegal move "Ke3" at move 2\./],
+    ['a second game with an illegal move', '1. e4 *\n\n1. e5 *', /Game 2: illegal move "e5"/],
+    ['a custom start position', '[FEN "8/8/8/8/8/8/8/K6k w - - 0 1"]\n[SetUp "1"]\n\n1. Ka2 *', /custom start positions/],
+  ])('throws a readable ImportError for %s', (_, text, message) => {
+    expect(() => format.read(text, ctx)).toThrow(ImportError);
+    expect(() => format.read(text, ctx)).toThrow(message);
   });
 });

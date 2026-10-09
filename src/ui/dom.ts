@@ -36,12 +36,3 @@ export function iconButton(name: IconName, testid: string, title: string, cls = 
   b.title = title;
   return b;
 }
-
-/** Saves `text` as a file through a temporary link. */
-export function download(name: string, text: string, type = 'application/json'): void {
-  const a = el('a', '', '', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}

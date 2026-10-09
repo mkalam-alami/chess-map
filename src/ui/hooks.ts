@@ -17,7 +17,7 @@ function useSubscription<T>(subscribeTo: Subscribe, read: () => T): T {
 /** The global store state; the component re-renders on every store change (views just re-read, see AGENTS.md). */
 export const useStore = (): State => useSubscription(subscribe, getState);
 
-/** Tiny observable cell for UI-only state that does not belong in the store (toast, popover, dialog, "openings loaded"). */
+/** Tiny observable cell for UI-only state that does not belong in the store (toast, popover, dialog). */
 export interface Atom<T> {
   get: () => T;
   set: (v: T) => void;
@@ -41,6 +41,3 @@ export function atom<T>(initial: T): Atom<T> {
 }
 
 export const useAtom = <T,>(a: Atom<T>): T => useSubscription(a.subscribe, a.get);
-
-/** Bumped when the lazily loaded opening table arrives, so names appear without a store change. */
-export const openingsLoaded = atom(0);

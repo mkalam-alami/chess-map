@@ -38,7 +38,7 @@ export function tryMove(fen: string, move: MoveInput): { san: string; fen: strin
   }
 }
 
-/** Legal destinations in chessground's `movable.dests` format. */
+/** Legal destinations in the square -> target squares map board widgets expect. */
 export function legalDests(fen: string): Map<Square, Square[]> {
   const dests = new Map<Square, Square[]>();
   for (const m of new Chess(fen).moves({ verbose: true })) {

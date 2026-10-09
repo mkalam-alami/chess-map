@@ -1,6 +1,5 @@
 import './style.css';
-import { flushSave, loadLibrary } from './store/persist';
-import { activeMap, back, beginRelocate, canUndoPly, forward, getState, init, subscribe, toggleMode, togglePin, undoPly } from './store/store';
+import { activeMap, app, back, beginRelocate, canUndoPly, forward, getState, subscribe, toggleMode, togglePin, undoPly } from './store/store';
 import { sameCursor } from './domain';
 import { createMapView } from './map/mapView';
 import { createBoardMarker } from './map/boardMarker';
@@ -11,49 +10,41 @@ import { confirmDeleteNode } from './ui/confirmDelete';
 import { isTyping } from './ui/dom';
 import { closePopover } from './ui/overlay';
 import { createPlacing } from './map/placing';
-import { openingsLoaded } from './ui/hooks';
 import { createRelocateGhost } from './map/relocating';
-import { loadOpenings } from './chess/openings';
 import { wireIntegrations } from './integration';
 
 // Autosave is debounced: make sure the last change survives closing / reloading the tab.
-window.addEventListener('pagehide', flushSave);
-document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flushSave());
+window.addEventListener('pagehide', () => app.flush());
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && app.flush());
 
-const app = document.getElementById('app') as HTMLElement;
+// Load the stored library before any view reads the state; opening names and the root's place arrive later and notify.
+void app.start();
 
-const saved = loadLibrary();
-if (saved) init(saved);
+const appEl = document.getElementById('app') as HTMLElement;
 
 const mapEl = document.createElement('div');
 mapEl.id = 'map';
-app.append(mapEl);
+appEl.append(mapEl);
 
 // Markers are added right away so board and pins work even before tiles/style load.
 const map = createMapView(mapEl);
 createBoardMarker(map);
-const pins = createPinMarkers(map);
+createPinMarkers(map);
 createCurveLayer(map);
-createPlacing(map, app);
+createPlacing(map, appEl);
 createRelocateGhost(map);
 wireIntegrations(map);
 
 // The Preact UI re-renders itself on store changes.
 const ui = document.createElement('div');
 ui.id = 'ui';
-app.append(ui);
+appEl.append(ui);
 mountUi(ui, map);
 
 let lastCursor = getState().cursor;
 subscribe(() => {
   if (!sameCursor(getState().cursor, lastCursor)) closePopover();
   lastCursor = getState().cursor;
-});
-
-// Opening names load lazily (separate chunk); refresh the UI once available.
-void loadOpenings().then(() => {
-  openingsLoaded.set(openingsLoaded.get() + 1);
-  pins.update();
 });
 
 window.addEventListener('keydown', (e) => {

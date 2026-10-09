@@ -1,8 +1,8 @@
 import type maplibregl from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { searchPlaces, type PlaceHit } from '../geo/search';
+import type { PlaceHit } from '../application';
 import { isMobile, padding } from '../map/mapView';
-import { activeRepertoire, endRelocate, focus, getState, moveNodeTo, previewRelocate, setCentered } from '../store/store';
+import { activeRepertoire, endRelocate, focus, getState, moveNodeTo, previewRelocate, searchPlaces, setCentered } from '../store/store';
 import { shieldProps } from './dom';
 import { Icon } from './Icon';
 import { useStore } from './hooks';
@@ -121,7 +121,7 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
       const ctl = (timers.current.abort = new AbortController());
       let found: PlaceHit[] = [];
       try {
-        found = await searchPlaces(q, { signal: ctl.signal });
+        found = await searchPlaces(q, ctl.signal);
         setStatus(found.length ? '' : 'No results');
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;

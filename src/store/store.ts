@@ -1,12 +1,38 @@
-import {
-  DEFAULT_CENTER, Library, Repertoire, Session,
-  type ChessMapData, type Cursor, type LibraryData, type LngLat, type MapId, type Mode, type NodeId, type Orientation, type Place,
-  type Placing, type Relocating, type SavedView,
-} from '../domain';
-import { exportMap, importMap } from '../model/serialize';
-import { loadMode, saveLibrary, saveMode } from './persist';
+// TEMPORARY (phase 3 removes this): a thin facade over one ChessMapApp so src/map and src/ui keep working unchanged
+// until they are migrated to talk to the application layer directly. Only presentation-only state lives here.
+import { DEFAULT_CENTER, type ChessMapData, type Cursor, type LibraryData, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place, type Placing, type Relocating, type Repertoire, type SavedView, type Session } from '../domain';
+import { ChessMapApp, type MapFormatId } from '../application';
+import { JsonMapFormat } from '../infrastructure/secondary/formats/JsonMapFormat';
+import { PgnMapFormat } from '../infrastructure/secondary/formats/PgnMapFormat';
+import { NominatimReverseGeocoder } from '../infrastructure/secondary/geocoding/NominatimReverseGeocoder';
+import { PhotonPlaceSearch } from '../infrastructure/secondary/geocoding/PhotonPlaceSearch';
+import { LichessAnalysisBoard } from '../infrastructure/secondary/lichess/LichessAnalysisBoard';
+import { LichessOpeningBook } from '../infrastructure/secondary/openings/LichessOpeningBook';
+import { DownloadFileSaver } from '../infrastructure/secondary/browser/DownloadFileSaver';
+import { LocalStorageLibraryRepository } from '../infrastructure/secondary/storage/LocalStorageLibraryRepository';
+import { LocalStoragePreferences } from '../infrastructure/secondary/storage/LocalStoragePreferences';
+import { browserStorage } from '../infrastructure/secondary/storage/kv';
 
 export type { Mode, Placing, Relocating };
+
+const pgn = new PgnMapFormat();
+const storage = browserStorage();
+
+/** The one application instance (adapters wired here until the composition root takes over in phase 3). */
+export const app = new ChessMapApp({
+  library: new LocalStorageLibraryRepository(storage),
+  preferences: new LocalStoragePreferences(storage),
+  geocoder: new NominatimReverseGeocoder(),
+  placeSearch: new PhotonPlaceSearch(),
+  openings: new LichessOpeningBook(),
+  formats: { json: new JsonMapFormat(), pgn },
+  files: new DownloadFileSaver(),
+  analysis: new LichessAnalysisBoard({
+    open: (url) => void window.open(url, '_blank', 'noopener'),
+    writeClipboard: (text) => navigator.clipboard.writeText(text),
+    writePgn: (map) => pgn.write(map),
+  }),
+});
 
 /** Presentation-only state: not part of the domain session, never persisted. */
 interface Ui {
@@ -23,7 +49,7 @@ interface Ui {
   pulse: number;
 }
 
-/** Read model of the store: the UI state plus the session projected into plain fields. */
+/** Read model: the UI state plus the session projected into plain fields. */
 export interface State extends Ui {
   session: Session;
   library: LibraryData;
@@ -36,200 +62,99 @@ export interface State extends Ui {
   relocating: Relocating | null;
 }
 
-/** Integration points for side effects (geocoding, PGN, Lichess), wired in integration.ts. */
+/** Integration points for menu items, wired in integration.ts. */
 export const hooks = {
-  /** Called after a node was spawned or dropped at a (wrapped) position. */
-  onNodePlaced: (_nodeId: NodeId, _lngLat: LngLat): void => {},
   menu: {} as Partial<Record<'export-pgn' | 'import-pgn' | 'open-lichess', () => void>>,
 };
 
-export const defaultLibrary = (): LibraryData => Library.initial().data;
-
-const initialUi = (): Ui => ({ overview: true, recenter: 0, boardOpen: true, centered: true, keepSize: false, pulse: 0 });
-
-const project = (session: Session, ui: Ui): State => ({
-  ...ui,
-  session,
-  library: session.library.data,
-  activeMapId: session.library.activeId,
-  cursor: session.cursor,
-  mode: session.mode,
-  pin: session.recording,
-  placing: session.placing,
-  relocating: session.relocating,
-});
-
-let session = Session.empty(loadMode());
-let state: State = project(session, initialUi());
+let ui: Ui = { overview: true, recenter: 0, boardOpen: true, centered: true, keepSize: false, pulse: 0 };
+let cached: { session: Session; ui: Ui; state: State } | undefined;
 const listeners = new Set<() => void>();
 
-export const getState = (): State => state;
-/** The active map as a read-only domain model (queries for views). */
-export const activeRepertoire = (): Repertoire => session.repertoire;
-/** The active map's plain data. */
-export const activeMap = (): ChessMapData => session.repertoire.data;
+const notify = (): void => {
+  for (const fn of [...listeners]) fn();
+};
+const setUi = (patch: Partial<Ui>): void => {
+  ui = { ...ui, ...patch };
+  notify();
+};
+
+// Presentation patches for the events of an action; they run before the app notifies, so views see them.
+app.on('focused', (e) => void (ui = { ...ui, recenter: ui.recenter + 1, keepSize: e.keepSize, boardOpen: true, centered: true }));
+app.on('deadEnd', () => void (ui = { ...ui, pulse: ui.pulse + 1 }));
+app.on('mapEntered', () => void (ui = { ...ui, boardOpen: true, centered: true }));
+app.subscribe(notify);
+
+/** Rebuilt only when the session or the UI state changed, so it is stable between reads. */
+export function getState(): State {
+  const session = app.session;
+  if (cached?.session !== session || cached.ui !== ui) {
+    cached = {
+      session, ui,
+      state: {
+        ...ui, session, library: session.library.data, activeMapId: session.library.activeId, cursor: session.cursor, mode: session.mode,
+        pin: session.recording, placing: session.placing, relocating: session.relocating,
+      },
+    };
+  }
+  return cached.state;
+}
+
 export const subscribe = (fn: () => void): (() => void) => {
   listeners.add(fn);
   return () => listeners.delete(fn);
 };
+export const subscribePlacing = (fn: () => void): void => void app.subscribePlacing(fn);
 
-function notify(): void {
-  for (const fn of [...listeners]) fn();
-}
+/** The active map as a read-only domain model (queries for views). */
+export const activeRepertoire = (): Repertoire => app.session.repertoire;
+/** The active map's plain data. */
+export const activeMap = (): ChessMapData => app.session.repertoire.data;
+export const openingAt = (cursor: Cursor): OpeningInfo | null => app.openingAt(cursor);
 
-function set(patch: Partial<Ui>): void {
-  state = { ...state, ...patch };
-  notify();
-}
-
-/** Presentation patch for the events of an action (what views must do in response). */
-function uiFor(ui: Ui, session: Session): Ui {
-  let out = ui;
-  for (const e of session.events) {
-    if (e.type === 'focused') out = { ...out, recenter: out.recenter + 1, keepSize: e.keepSize, boardOpen: true, centered: true };
-    else if (e.type === 'deadEnd') out = { ...out, pulse: out.pulse + 1 };
-    else if (e.type === 'mapEntered') out = { ...out, boardOpen: true, centered: true };
-  }
-  return out;
-}
-
-/** Replaces the session: saves a changed library, translates events into UI patches, notifies, then runs side-effect events. */
-function apply(next: Session, notifyViews = true): Session {
-  if (next === session) return next;
-  if (next.library !== session.library) saveLibrary(next.library.data);
-  session = next;
-  state = project(next, uiFor(state, next));
-  if (notifyViews) notify();
-  for (const e of next.events) if (e.type === 'positionPlaced') hooks.onNodePlaced(e.nodeId, e.at);
-  return next;
-}
-
-/** Replaces the whole state (app start, tests). */
-export function init(library: LibraryData): void {
-  session = Session.start(Library.fromData(library), loadMode());
-  state = project(session, initialUi());
-  notify();
-}
-
-// ---- navigation / modes ----
-
-export function focus(cursor: Cursor, keepSize = false): void {
-  apply(session.goTo(cursor, { keepSize }));
-}
+// ---- presentation ----
 
 /** Enters or leaves centered mode (leaving happens when the user pans the map). */
 export function setCentered(centered: boolean): void {
-  if (state.centered !== centered) set({ centered });
+  if (ui.centered !== centered) setUi({ centered });
 }
 
 /** Hides the board; every board may be closed, the root included. */
 export function closeBoard(): void {
-  if (!session.busy) set({ boardOpen: false });
+  if (!app.session.busy) setUi({ boardOpen: false });
 }
 
-export const back = (): void => void apply(session.back());
+export const toggleOverview = (): void => setUi({ overview: !ui.overview });
 
-/** Returns false (and pulses the children pins) when there is nowhere to go. */
-export function forward(): boolean {
-  const next = apply(session.forward());
-  return next.events.some((e) => e.type === 'focused');
-}
+// ---- app actions ----
 
-export function setMode(mode: Mode): void {
-  const before = session.mode;
-  apply(session.switchMode(mode));
-  if (session.mode !== before) saveMode(session.mode);
-}
-export const toggleMode = (): void => setMode(session.mode === 'edit' ? 'explore' : 'edit');
-export const togglePin = (): void => void apply(session.toggleRecording());
-export const toggleOverview = (): void => set({ overview: !state.overview });
-
-// ---- playing moves ----
-
-/** True if playing `san` here would navigate to an existing position instead of creating a child. */
-export const moveExists = (san: string): boolean => session.moveExists(san);
-
-/** Plays `san` per the current mode (see `Session.play`). Returns false when Explore rejects it. */
-export function playMove(san: string, spots: LngLat[] = []): boolean {
-  return !apply(session.play(san, spots)).events.some((e) => e.type === 'rejected');
-}
-
-/** Training: follows the repertoire. Returns false if `san` is not in it. */
-export const exploreMove = (san: string): boolean => playMove(san);
-
-// ---- carry-to-place for new markers ----
-
-const placingListeners = new Set<() => void>();
-/** Light-weight notifications for ghost movement (no full re-render). */
-export const subscribePlacing = (fn: () => void): void => void placingListeners.add(fn);
-
-export function movePlacing(lngLat: LngLat): void {
-  if (!session.placing) return;
-  apply(session.movePlacing(lngLat), false);
-  for (const f of placingListeners) f();
-}
-
-export const commitPlacing = (): void => void apply(session.confirmPlacing());
-export const cancelPlacing = (): void => void apply(session.cancelPlacing());
-
-/** Only at the end of a leaf segment (see Repertoire.canTakeBack). */
-export const canUndoPly = (): boolean => session.canTakeBack;
-export const undoPly = (): void => void apply(session.takeBack());
-
-// ---- node edits ----
-
-/** With `place` (e.g. a search result) the label is set directly and no reverse geocoding is triggered. */
-export function moveNodeTo(nodeId: NodeId, lngLat: LngLat, withSubtree = false, place?: Place): void {
-  apply(session.relocate(nodeId, lngLat, { withBranch: withSubtree, ...(place ? { place } : {}) }));
-}
-
-/** Absolute log2 board size relative to the parent (snapped to 0.25). */
-export const setBoardSize = (nodeId: NodeId, delta: number): void => void apply(session.resizeBoard(nodeId, delta));
-
-export const setNote = (nodeId: NodeId, note: string): void => void apply(session.annotate(nodeId, note));
-/** Names a position; with `requestedAt` it is ignored when the node has moved since that lookup. */
-export const setPlace = (nodeId: NodeId, place: Place, requestedAt?: LngLat): void => void apply(session.nameLocation(nodeId, place, requestedAt));
-
-export const deleteNode = (nodeId: NodeId): void => void apply(session.deletePosition(nodeId));
-
-// ---- set location by city ----
-
-/** Edit mode: `nodeId` = target board / pin; null = plain "go to place" (no relocation). */
-export const beginRelocate = (nodeId: NodeId | null): void => void apply(session.startRelocating(nodeId));
-export const previewRelocate = (preview: LngLat | null): void => void apply(session.previewRelocation(preview));
-export const endRelocate = (): void => void apply(session.endRelocating());
-
-// ---- maps ----
-
-export const switchMap = (id: MapId): void => void apply(session.switchMap(id));
-
-/** Adds an already validated map (new, duplicated or imported) and switches to it. */
-export const addMap = (map: ChessMapData): void => void apply(session.addMaps([Repertoire.fromData(map)]));
-
-export const newMap = (name: string, orientation: Orientation, at: LngLat = DEFAULT_CENTER): void =>
-  void apply(session.createMap(name, orientation, at));
-
-export const renameMap = (name: string): void => void apply(session.renameMap(name));
-export const flipOrientation = (): void => void apply(session.flipOrientation());
-export const duplicateMap = (): void => void apply(session.duplicateMap());
-
-/** Never deletes the last map. */
-export function deleteMap(id: MapId = session.library.activeId): boolean {
-  const before = session;
-  apply(session.deleteMap(id));
-  return session !== before;
-}
-
-export const exportActiveMapJson = (): string => exportMap(activeMap());
-
-/** Adds the imported map as a new map and switches to it. Throws ValidationError on bad input. */
-export function importMapJson(text: string): ChessMapData {
-  const map = importMap(text);
-  addMap(map);
-  return map;
-}
-
-/** Remembers the viewport without re-rendering. */
-export function saveView(view: SavedView): void {
-  apply(session.rememberView(view), false);
-}
+export const focus = (cursor: Cursor, keepSize = false): void => app.goTo(cursor, { keepSize });
+export const back = (): void => app.back();
+export const forward = (): boolean => app.forward();
+export const setMode = (mode: Mode): void => app.switchMode(mode);
+export const toggleMode = (): void => app.toggleMode();
+export const togglePin = (): void => app.toggleRecording();
+export const playMove = (san: string, spots: LngLat[] = []): boolean => app.play(san, spots);
+export const movePlacing = (at: LngLat): void => app.movePlacing(at);
+export const commitPlacing = (): void => app.confirmPlacing();
+export const cancelPlacing = (): void => app.cancelPlacing();
+export const canUndoPly = (): boolean => app.session.canTakeBack;
+export const undoPly = (): void => app.takeBack();
+export const moveNodeTo = (nodeId: NodeId, at: LngLat, withBranch = false, place?: Place): void =>
+  app.relocate(nodeId, at, { withBranch, ...(place ? { place } : {}) });
+export const setBoardSize = (nodeId: NodeId, delta: number): void => app.resizeBoard(nodeId, delta);
+export const setNote = (nodeId: NodeId, note: string): void => app.annotate(nodeId, note);
+export const deleteNode = (nodeId: NodeId): void => app.deletePosition(nodeId);
+export const beginRelocate = (nodeId: NodeId | null): void => app.startRelocating(nodeId);
+export const previewRelocate = (at: LngLat | null): void => app.previewRelocation(at);
+export const endRelocate = (): void => app.endRelocating();
+export const switchMap = (id: MapId): void => app.switchMap(id);
+export const newMap = (name: string, orientation: Orientation, at: LngLat = DEFAULT_CENTER): void => app.createMap(name, orientation, at);
+export const renameMap = (name: string): void => app.renameMap(name);
+export const flipOrientation = (): void => app.flipOrientation();
+export const duplicateMap = (): void => app.duplicateMap();
+export const deleteMap = (id?: MapId): boolean => app.deleteMap(id);
+export const saveView = (view: SavedView): void => app.rememberView(view);
+export const searchPlaces = (query: string, signal?: AbortSignal) => app.searchPlaces(query, signal);
+export const exportMap = (format: MapFormatId): void => app.exportMap(format);
+export const importMaps = (format: MapFormatId, text: string, ctx: { name: string; origin: LngLat }): number => app.importMaps(format, text, ctx);

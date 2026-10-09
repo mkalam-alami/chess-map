@@ -1,7 +1,6 @@
 import maplibregl from 'maplibre-gl';
-import { openingAt, openingText } from '../chess/openings';
-import type { NodeId } from '../domain';
-import { activeRepertoire, focus, getState, moveNodeTo, subscribe } from '../store/store';
+import { openingText, type NodeId } from '../domain';
+import { activeRepertoire, focus, getState, moveNodeTo, openingAt, subscribe } from '../store/store';
 import { el, shieldFromMap } from '../ui/dom';
 import { makeDraggable } from './drag';
 import { clearPreview, onOverride, overrides, previewMove } from './live';
@@ -107,7 +106,7 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.root.dataset.testid = TESTID[kind];
       e.root.dataset.nodeId = id;
       e.root.dataset.label = text;
-      const op = openingAt(m, m.endOf(id));
+      const op = openingAt(m.endOf(id));
       e.root.title = [op && `${op.eco} ${openingText(op)}`, node.place?.label].filter(Boolean).join(' · ');
       if (pulse && kind === 'child') {
         e.root.classList.add('pulse');

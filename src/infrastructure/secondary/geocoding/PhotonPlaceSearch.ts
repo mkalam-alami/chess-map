@@ -1,7 +1,4 @@
-import type { LngLat } from '../domain';
-import type { GeoOptions } from './reverse';
-
-export interface PlaceHit { label: string; lngLat: LngLat; bbox?: [west: number, south: number, east: number, north: number] }
+import type { PlaceHit, PlaceSearch } from '../../../application';
 
 interface PhotonFeature {
   geometry?: { coordinates?: [number, number] };
@@ -28,12 +25,19 @@ export function parsePhoton(data: { features?: PhotonFeature[] }): PlaceHit[] {
   return out;
 }
 
-export async function searchPlaces(q: string, opts: GeoOptions = {}): Promise<PlaceHit[]> {
-  const query = q.trim();
-  if (!query) return [];
-  const doFetch = opts.fetchFn ?? fetch;
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=en`;
-  const res = await doFetch(url, opts.signal ? { signal: opts.signal } : undefined);
-  if (!res.ok) throw new Error(`Place search failed (HTTP ${res.status})`);
-  return parsePhoton((await res.json()) as { features?: PhotonFeature[] });
+/** Place search via Photon (komoot). */
+export class PhotonPlaceSearch implements PlaceSearch {
+  private readonly fetchFn: typeof fetch;
+
+  constructor(opts: { fetch?: typeof fetch } = {}) {
+    this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
+  }
+
+  async search(query: string, signal?: AbortSignal): Promise<PlaceHit[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const res = await this.fetchFn(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`, signal ? { signal } : undefined);
+    if (!res.ok) throw new Error(`Place search failed (HTTP ${res.status})`);
+    return parsePhoton((await res.json()) as { features?: PhotonFeature[] });
+  }
 }

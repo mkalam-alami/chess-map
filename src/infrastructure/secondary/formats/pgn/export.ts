@@ -1,4 +1,4 @@
-import { Repertoire, formatLine, type ChessMapData, type Cursor, type MapNodeData, type NodeId } from '../domain';
+import { Repertoire, formatLine, type ChessMapData, type Cursor, type MapNodeData, type NodeId } from '../../../../domain';
 
 export interface ExportOptions {
   /**

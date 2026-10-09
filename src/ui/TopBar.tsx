@@ -1,14 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
-import { openingAt, openingText } from '../chess/openings';
-import { formatLine, type Cursor, type LngLat } from '../domain';
-import { ValidationError } from '../model/serialize';
+import { formatLine, openingText, type Cursor, type LngLat } from '../domain';
+import { ImportError } from '../application';
 import {
-  activeMap, activeRepertoire, back, beginRelocate, canUndoPly, deleteMap, duplicateMap, exportActiveMapJson, flipOrientation, focus, forward,
-  getState, hooks, importMapJson, newMap, renameMap, setMode, switchMap, toggleOverview, togglePin, undoPly,
+  activeMap, activeRepertoire, back, beginRelocate, canUndoPly, deleteMap, duplicateMap, exportMap, flipOrientation, focus, forward,
+  getState, hooks, importMaps, newMap, openingAt, renameMap, setMode, switchMap, toggleOverview, togglePin, undoPly,
 } from '../store/store';
-import { download } from './dom';
 import { Icon } from './Icon';
-import { openingsLoaded, useAtom, useStore } from './hooks';
+import { useStore } from './hooks';
 import { confirmDialog, formDialog, openPopover } from './overlay';
 import { toast } from './toast';
 
@@ -27,7 +25,7 @@ function Menu({ close, getCenter, pickJson }: { close: () => void; getCenter: ()
       <div class="menu-label">View</div>
       {item('Go to place…', 'menu-goto', () => beginRelocate(null))}
       <div class="menu-label">Import / export</div>
-      {item('Export JSON', 'menu-export-json', () => download(`${activeMap().name}.chessmap.json`, exportActiveMapJson()))}
+      {item('Export JSON', 'menu-export-json', () => exportMap('json'))}
       {item('Import JSON…', 'menu-import-json', pickJson)}
       {item('Export PGN', 'menu-export-pgn', menuHook('export-pgn'))}
       {item('Import PGN…', 'menu-import-pgn', menuHook('import-pgn'))}
@@ -59,7 +57,6 @@ const placeText = (label: string, country?: string): string => (country && !labe
 
 export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
   const s = useStore();
-  useAtom(openingsLoaded); // opening names arrive after the first render
   const bar = useRef<HTMLElement>(null);
   const line = useRef<HTMLDivElement>(null);
   const menuBtn = useRef<HTMLButtonElement>(null);
@@ -85,7 +82,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
     el.scrollLeft = el.scrollWidth; // keep the latest ply in view
   });
 
-  const op = openingAt(rep, s.cursor);
+  const op = openingAt(s.cursor);
   const pl = rep.node(s.cursor.nodeId).place;
   const place = pl ? placeText(pl.label, pl.country) : '';
   const others = s.cursor.ply > 0 ? rep.transpositions(s.cursor) : [];
@@ -97,10 +94,10 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
     input.value = '';
     if (!file) return;
     try {
-      importMapJson(await file.text());
+      importMaps('json', await file.text(), { name: file.name, origin: getCenter() });
       toast('Map imported');
     } catch (err) {
-      toast(err instanceof ValidationError ? err.message : 'Could not import this file');
+      toast(err instanceof ImportError ? err.message : 'Could not import this file');
     }
   };
 
