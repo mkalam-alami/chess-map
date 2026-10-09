@@ -1,7 +1,6 @@
 import maplibregl from 'maplibre-gl';
-import { activeMap, getState, subscribe } from '../store/store';
+import { activeRepertoire, getState, subscribe } from '../store/store';
 import { el } from '../ui/dom';
-import { pinLabel } from '../chess/replay';
 
 /** Ghost of the board / pin being relocated, shown at the highlighted search result (same look as the placing ghost). */
 export function createRelocateGhost(map: maplibregl.Map): void {
@@ -11,9 +10,10 @@ export function createRelocateGhost(map: maplibregl.Map): void {
   let marker: maplibregl.Marker | undefined;
   subscribe(() => {
     const r = getState().relocating;
-    const node = r?.nodeId ? activeMap().nodes[r.nodeId] : undefined;
-    if (r?.preview && node) {
-      label.textContent = pinLabel(activeMap(), node);
+    const rep = activeRepertoire();
+    const nodeId = r?.nodeId && rep.hasNode(r.nodeId) ? r.nodeId : undefined;
+    if (r?.preview && nodeId) {
+      label.textContent = rep.pinLabel(nodeId);
       marker ??= new maplibregl.Marker({ element: ghost, anchor: 'bottom' }).setLngLat(r.preview).addTo(map);
       marker.setLngLat(r.preview);
     } else if (marker) {

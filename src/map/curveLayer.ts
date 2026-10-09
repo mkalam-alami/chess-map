@@ -1,8 +1,6 @@
 import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
-import { getNode, type LngLat, type MapNode } from '../model/types';
-import { pathTo } from '../model/tree';
-import { activeMap, getState, subscribe, subscribePlacing } from '../store/store';
-import { sameLngLat } from '../geo/lngLat';
+import { sameLngLat, type LngLat, type MapNodeData } from '../domain';
+import { activeRepertoire, getState, subscribe, subscribePlacing } from '../store/store';
 import { curveCoords } from './curves';
 import { onOverride, overrides } from './live';
 
@@ -35,23 +33,23 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
   let ready = false;
   let queued = false;
 
-  function edges(): { a: MapNode; b: MapNode; kind: Kind }[] {
+  function edges(): { a: MapNodeData; b: MapNodeData; kind: Kind }[] {
     const s = getState();
-    const m = activeMap();
-    const found = new Map<string, { a: MapNode; b: MapNode; kind: Kind }>();
-    const add = (a: MapNode, b: MapNode, kind: Kind): void => {
+    const m = activeRepertoire();
+    const found = new Map<string, { a: MapNodeData; b: MapNodeData; kind: Kind }>();
+    const add = (a: MapNodeData, b: MapNodeData, kind: Kind): void => {
       const key = `${a.id}>${b.id}`;
       const old = found.get(key);
       if (!old || RANK[kind] > RANK[old.kind]) found.set(key, { a, b, kind });
     };
-    const node = getNode(m, s.cursor.nodeId);
-    if (s.overview) for (const n of Object.values(m.nodes)) if (n.parentId) add(getNode(m, n.parentId), n, 'overview');
-    const path = pathTo(m, node.id);
-    for (let i = 1; i < path.length; i++) add(getNode(m, path[i - 1] as string), getNode(m, path[i] as string), 'ancestor');
-    if (s.cursor.ply === node.plies.length) for (const c of node.children) add(node, getNode(m, c), 'active');
+    const node = m.node(s.cursor.nodeId);
+    if (s.overview) for (const n of m.nodes()) if (n.parentId) add(m.node(n.parentId), n, 'overview');
+    const path = m.pathTo(node.id);
+    for (let i = 1; i < path.length; i++) add(m.node(path[i - 1] as string), m.node(path[i] as string), 'ancestor');
+    if (s.cursor.ply === node.plies.length) for (const c of node.children) add(node, m.node(c), 'active');
     const rel = s.relocating;
-    const target = rel?.nodeId ? m.nodes[rel.nodeId] : undefined;
-    if (rel?.preview && target?.parentId) add(getNode(m, target.parentId), { ...target, id: '__relocate', lngLat: rel.preview }, 'ghost');
+    const target = rel?.nodeId && m.hasNode(rel.nodeId) ? m.node(rel.nodeId) : undefined;
+    if (rel?.preview && target?.parentId) add(m.node(target.parentId), { ...target, id: '__relocate', lngLat: rel.preview }, 'ghost');
     if (s.placing) add(node, { ...node, id: '__ghost', lngLat: s.placing.lngLat }, 'ghost');
     return [...found.values()];
   }
@@ -59,7 +57,7 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
   function draw(): void {
     queued = false;
     if (!ready) return;
-    const pos = (n: MapNode): LngLat => overrides.get(n.id) ?? n.lngLat;
+    const pos = (n: MapNodeData): LngLat => overrides.get(n.id) ?? n.lngLat;
     const features = edges().flatMap(({ a, b, kind }) => {
       const pa = pos(a);
       const pb = pos(b);

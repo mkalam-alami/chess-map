@@ -1,15 +1,15 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadOpenings, openingAt, openingText } from '../src/chess/openings';
-import { cursorEnd, rootCursor } from '../src/model/cursor';
-import { pinnedOf } from './fixtures';
+import { Repertoire } from '../src/domain';
+import { pinnedOf } from './domain/fixtures';
 
 /** Opening at the end of a single pinned line. */
 const at = (sans: string[]) => {
-  const { map, id } = pinnedOf(sans);
-  return openingAt(map, cursorEnd(map, id));
+  const { session, id } = pinnedOf(sans);
+  return openingAt(session.repertoire, session.repertoire.endOf(id));
 };
 
-describe('openingAt', () => {
+describe('lazy opening book (openingAt on a repertoire)', () => {
   it('is null before the data is loaded', () => {
     expect(at(['e4'])).toBeNull();
   });
@@ -36,8 +36,9 @@ describe('openingAt', () => {
     });
 
     it('returns null at the start position', () => {
-      const { map } = pinnedOf(['e4']);
-      expect(openingAt(map, rootCursor(map))).toBeNull();
+      const { session } = pinnedOf(['e4']);
+      const rep: Repertoire = session.repertoire;
+      expect(openingAt(rep, rep.rootCursor())).toBeNull();
     });
   });
 });

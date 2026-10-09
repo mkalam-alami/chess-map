@@ -1,5 +1,5 @@
 import { deserializeLibrary, serializeLibrary } from '../model/serialize';
-import type { Library } from '../model/types';
+import type { LibraryData as Library } from '../domain';
 
 export const STORAGE_KEY = 'chess-map:library';
 

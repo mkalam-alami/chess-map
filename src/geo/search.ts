@@ -1,4 +1,4 @@
-import type { LngLat } from '../model/types';
+import type { LngLat } from '../domain';
 import type { GeoOptions } from './reverse';
 
 export interface PlaceHit { label: string; lngLat: LngLat; bbox?: [west: number, south: number, east: number, north: number] }

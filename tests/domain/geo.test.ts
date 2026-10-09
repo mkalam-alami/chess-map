@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sameLngLat, wrapLng, wrapNear } from '../src/geo/lngLat';
+import { sameLngLat, wrapLng, wrapNear } from '../../src/domain';
 
 describe('lngLat helpers', () => {
   it('wrapLng normalizes into [-180, 180)', () => {

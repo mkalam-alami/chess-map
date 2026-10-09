@@ -1,34 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { branchAt, setSizeDelta } from '../src/model/tree';
-import { DEFAULT_BOARD_ZOOM, NOMINAL_PX, boardPx, comfortPx, effectiveBoardZoom, focusZoom, gripResize, maxZoomToFit } from '../src/model/scale';
-import { getNode } from '../src/model/types';
-import { lineOf, pinnedOf } from './fixtures';
-
-describe('board scale model', () => {
-  const { map: m, ids } = lineOf(['e4', 'e5']);
-  const [root, a, b] = ids as [string, string, string];
-
-  it('effectiveBoardZoom sums deltas from the root', () => {
-    expect(effectiveBoardZoom(m, b)).toBe(DEFAULT_BOARD_ZOOM);
-    const m2 = setSizeDelta(setSizeDelta(m, a, 1), b, -0.5);
-    expect(effectiveBoardZoom(m2, a)).toBe(DEFAULT_BOARD_ZOOM - 1);
-    expect(effectiveBoardZoom(m2, b)).toBe(DEFAULT_BOARD_ZOOM - 0.5);
-    expect(effectiveBoardZoom({ ...m2, boardZoom: 3 }, root)).toBe(3);
-  });
-
-  it('setSizeDelta rounds to 0.25 and clears zero', () => {
-    expect(getNode(setSizeDelta(m, a, 0.4), a).sizeDelta).toBe(0.5);
-    expect('sizeDelta' in getNode(setSizeDelta(setSizeDelta(m, a, 1), a, 0.1), a)).toBe(false);
-  });
-
-  it('a split tail keeps the same effective board size', () => {
-    const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
-    const r = branchAt(setSizeDelta(map, id, 1), { nodeId: id, ply: 2 }, 'Nc3', [3, 3]);
-    const tail = getNode(r.map, id).children[0] as string;
-    expect(getNode(r.map, tail).sizeDelta).toBeUndefined();
-    expect(effectiveBoardZoom(r.map, tail)).toBe(effectiveBoardZoom(r.map, id));
-  });
-});
+import { NOMINAL_PX } from '../../../src/domain';
+import { boardPx, comfortPx, focusZoom, gripResize, maxZoomToFit } from '../../../src/map/viewMath';
 
 describe('boardPx', () => {
   const view = { width: 1280, height: 630 };

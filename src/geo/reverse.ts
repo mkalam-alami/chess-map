@@ -1,4 +1,4 @@
-import type { LngLat } from '../model/types';
+import type { LngLat } from '../domain';
 
 export interface ReverseResult { label: string; country?: string }
 export interface GeoOptions { signal?: AbortSignal; fetchFn?: typeof fetch }

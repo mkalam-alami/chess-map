@@ -2,8 +2,7 @@ import type maplibregl from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { searchPlaces, type PlaceHit } from '../geo/search';
 import { isMobile, padding } from '../map/mapView';
-import { pinLabel } from '../chess/replay';
-import { activeMap, endRelocate, focus, getState, moveNodeTo, previewRelocate, setCentered } from '../store/store';
+import { activeRepertoire, endRelocate, focus, getState, moveNodeTo, previewRelocate, setCentered } from '../store/store';
 import { shieldProps } from './dom';
 import { Icon } from './Icon';
 import { useStore } from './hooks';
@@ -142,9 +141,9 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
     e.preventDefault();
   }
 
-  const m = activeMap();
-  const node = target ? m.nodes[target] : undefined;
-  const title = node ? (node.parentId === null ? 'Move the start board to…' : `Move ${pinLabel(m, node)} to…`) : 'Go to place';
+  const rep = activeRepertoire();
+  const node = target && rep.hasNode(target) ? rep.node(target) : undefined;
+  const title = node ? (node.parentId === null ? 'Move the start board to…' : `Move ${rep.pinLabel(node.id)} to…`) : 'Go to place';
   const current = node ? (node.place?.label ? `Now: ${node.place.label}` : '') : 'Look around without changing anything';
 
   return (

@@ -3,10 +3,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
-import { getNode, type LngLat, type SavedView } from '../model/types';
-import { activeMap, getState, saveView, setCentered, subscribe } from '../store/store';
-import { comfortPx, effectiveBoardZoom, focusZoom, maxZoomToFit, type Viewport } from '../model/scale';
-import { wrapNear } from '../geo/lngLat';
+import { wrapNear, type LngLat, type SavedView } from '../domain';
+import { activeRepertoire, getState, saveView, setCentered, subscribe } from '../store/store';
+import { comfortPx, focusZoom, maxZoomToFit, type Viewport } from './viewMath';
 
 export const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 export const INITIAL_ZOOM = 1.2;
@@ -29,8 +28,8 @@ export function visibleSize(map: maplibregl.Map): Viewport {
 }
 
 function viewOfActive(): SavedView {
-  const map = activeMap();
-  return map.view ?? { center: getNode(map, map.rootId).lngLat, zoom: INITIAL_ZOOM };
+  const rep = activeRepertoire();
+  return rep.view ?? { center: rep.node(rep.rootId).lngLat, zoom: INITIAL_ZOOM };
 }
 
 export function createMapView(container: HTMLElement): maplibregl.Map {
@@ -85,7 +84,7 @@ export function createMapView(container: HTMLElement): maplibregl.Map {
   };
   /** After a view restore: centered only if the board really is in the middle. */
   const syncCentered = (): void => {
-    const at = map.project(getNode(activeMap(), getState().cursor.nodeId).lngLat);
+    const at = map.project(activeRepertoire().node(getState().cursor.nodeId).lngLat);
     const mid = map.project(map.getCenter());
     setCentered(Math.abs(at.x - mid.x) < 2 && Math.abs(at.y - mid.y) < 2);
   };
@@ -96,11 +95,11 @@ export function createMapView(container: HTMLElement): maplibregl.Map {
   // Follow focus() and map switches.
   let lastRecenter = getState().recenter;
   let lastMapId = getState().activeMapId;
-  let lastBoardZoom = effectiveBoardZoom(activeMap(), getState().cursor.nodeId);
+  let lastBoardZoom = activeRepertoire().effectiveBoardZoom(getState().cursor.nodeId);
   subscribe(() => {
     const s = getState();
     const prevBoardZoom = lastBoardZoom;
-    lastBoardZoom = effectiveBoardZoom(activeMap(), s.cursor.nodeId);
+    lastBoardZoom = activeRepertoire().effectiveBoardZoom(s.cursor.nodeId);
     if (s.activeMapId !== lastMapId) {
       lastMapId = s.activeMapId;
       lastRecenter = s.recenter;
@@ -112,7 +111,7 @@ export function createMapView(container: HTMLElement): maplibregl.Map {
       // Arrow-key navigation keeps the board the same size on screen rather than fitting the children, and jumps without easing.
       focusView(map, s.keepSize ? map.getZoom() - prevBoardZoom + lastBoardZoom : undefined, s.keepSize);
     } else if (s.centered && !lastCentered) {
-      easeToNode(map, getNode(activeMap(), s.cursor.nodeId).lngLat); // "Back to board"
+      easeToNode(map, activeRepertoire().node(s.cursor.nodeId).lngLat); // "Back to board"
     }
     if (s.centered !== lastCentered) {
       lastCentered = s.centered;
@@ -126,15 +125,15 @@ const mercY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + (Math.max
 
 /** Highest zoom at which all child pins of the cursor node stay in the visible area around the node. */
 export function fitZoom(map: maplibregl.Map): number {
-  const m = activeMap();
+  const m = activeRepertoire();
   const { cursor } = getState();
-  const node = getNode(m, cursor.nodeId);
+  const node = m.node(cursor.nodeId);
   if (cursor.ply !== node.plies.length) return Infinity;
   const view = visibleSize(map);
   const halfW = Math.max(40, view.width / 2 - 80);
   const halfH = Math.max(40, view.height / 2 - 30);
   const offsets = node.children.map((id) => {
-    const ll = getNode(m, id).lngLat;
+    const ll = m.node(id).lngLat;
     return {
       dx: Math.abs(wrapNear(ll[0], node.lngLat[0]) - node.lngLat[0]) / 360,
       dy: Math.abs(mercY(ll[1]) - mercY(node.lngLat[1])),
@@ -147,7 +146,7 @@ export function fitZoom(map: maplibregl.Map): number {
 export function targetZoom(map: maplibregl.Map): number {
   const { cursor } = getState();
   return focusZoom({
-    boardZoom: effectiveBoardZoom(activeMap(), cursor.nodeId),
+    boardZoom: activeRepertoire().effectiveBoardZoom(cursor.nodeId),
     comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, isMobile()),
     fit: fitZoom(map),
     minZoom: map.getMinZoom(),
@@ -157,7 +156,7 @@ export function targetZoom(map: maplibregl.Map): number {
 
 /** Centers the cursor node below the top bar at `zoom`, by default the one given by targetZoom. `instant` skips the animation. */
 export function focusView(map: maplibregl.Map, zoom?: number, instant = false): void {
-  const at = getNode(activeMap(), getState().cursor.nodeId).lngLat;
+  const at = activeRepertoire().node(getState().cursor.nodeId).lngLat;
   const z = zoom === undefined ? targetZoom(map) : Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom));
   map.easeTo({ center: [wrapNear(at[0], map.getCenter().lng), at[1]], zoom: z, padding: padding(), duration: instant ? 0 : 400 });
 }

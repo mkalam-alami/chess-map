@@ -1,8 +1,4 @@
-import { START_FEN, tryMove } from '../chess/replay';
-import { newId } from './id';
-import type { ChessMap, Library, LngLat, MapNode, NodeId } from './types';
-
-export const LIBRARY_VERSION = 1;
+import { LIBRARY_VERSION, START_FEN, newId, tryMove, type ChessMapData, type LibraryData, type LngLat, type MapNodeData, type NodeId } from '../domain';
 
 export class ValidationError extends Error {
   constructor(public path: string, reason: string) {
@@ -60,7 +56,7 @@ const lngLat = (v: unknown, path: string): LngLat => {
   return [v[0] as number, v[1] as number];
 };
 
-function validateMap(raw: unknown, path: string): ChessMap {
+function validateMap(raw: unknown, path: string): ChessMapData {
   if (!isObj(raw)) throw new ValidationError(path, 'expected an object');
   const id = str(raw.id, `${path}.id`);
   const name = str(raw.name, `${path}.name`);
@@ -68,7 +64,7 @@ function validateMap(raw: unknown, path: string): ChessMap {
   const rootId = str(raw.rootId, `${path}.rootId`);
   if (!isObj(raw.nodes)) throw new ValidationError(`${path}.nodes`, 'expected an object');
   const rawNodes = raw.nodes;
-  const nodes: Record<NodeId, MapNode> = {};
+  const nodes: Record<NodeId, MapNodeData> = {};
 
   for (const [key, rn] of Object.entries(rawNodes)) {
     const p = `${path}.nodes.${key}`;
@@ -78,7 +74,7 @@ function validateMap(raw: unknown, path: string): ChessMap {
     if (!Array.isArray(rn.plies) || !rn.plies.every((s) => typeof s === 'string')) throw new ValidationError(`${p}.plies`, 'expected string[]');
     if (typeof rn.pinned !== 'boolean') throw new ValidationError(`${p}.pinned`, 'expected boolean');
     if (!Array.isArray(rn.children) || !rn.children.every((s) => typeof s === 'string')) throw new ValidationError(`${p}.children`, 'expected string[]');
-    const node: MapNode = {
+    const node: MapNodeData = {
       id: key, parentId, plies: rn.plies as string[], pinned: rn.pinned,
       lngLat: lngLat(rn.lngLat, `${p}.lngLat`), children: rn.children as string[],
     };
@@ -111,7 +107,7 @@ function validateMap(raw: unknown, path: string): ChessMap {
 
   // Reachability (rejects cycles/orphans) + replay legality
   const seen = new Set<NodeId>();
-  const walk = (node: MapNode, startFen: string): void => {
+  const walk = (node: MapNodeData, startFen: string): void => {
     seen.add(node.id);
     let fen = startFen;
     node.plies.forEach((san, i) => {
@@ -121,14 +117,14 @@ function validateMap(raw: unknown, path: string): ChessMap {
     });
     for (const c of node.children) {
       if (seen.has(c)) throw new ValidationError(`${path}.nodes.${node.id}.children`, 'cycle');
-      walk(nodes[c] as MapNode, fen);
+      walk(nodes[c] as MapNodeData, fen);
     }
   };
   walk(root, START_FEN);
   const orphan = Object.keys(nodes).find((k) => !seen.has(k));
   if (orphan) throw new ValidationError(`${path}.nodes.${orphan}`, 'unreachable from root');
 
-  const map: ChessMap = { id, name, orientation: raw.orientation, rootId, nodes };
+  const map: ChessMapData = { id, name, orientation: raw.orientation, rootId, nodes };
   if (raw.boardZoom !== undefined) map.boardZoom = num(raw.boardZoom, `${path}.boardZoom`);
   if (raw.view !== undefined) {
     if (!isObj(raw.view) || typeof raw.view.zoom !== 'number') throw new ValidationError(`${path}.view`, 'expected {center, zoom}');
@@ -137,13 +133,13 @@ function validateMap(raw: unknown, path: string): ChessMap {
   return map;
 }
 
-export const serializeLibrary = (lib: Library): string => JSON.stringify(lib);
+export const serializeLibrary = (lib: LibraryData): string => JSON.stringify(lib);
 
 /** Accepts parsed JSON or a JSON string. Migrates, validates structure and replays every line. */
-export function deserializeLibrary(json: unknown): Library {
+export function deserializeLibrary(json: unknown): LibraryData {
   const raw = migrate(parse(json));
   if (!isObj(raw.maps)) throw new ValidationError('maps', 'expected an object');
-  const maps: Record<string, ChessMap> = {};
+  const maps: Record<string, ChessMapData> = {};
   for (const [key, m] of Object.entries(raw.maps)) {
     const map = validateMap(m, `maps.${key}`);
     if (map.id !== key) throw new ValidationError(`maps.${key}.id`, 'must equal its key');
@@ -156,10 +152,10 @@ export function deserializeLibrary(json: unknown): Library {
 
 const MAP_FORMAT = 'chess-map';
 
-export const exportMap = (map: ChessMap): string => JSON.stringify({ format: MAP_FORMAT, version: LIBRARY_VERSION, map }, null, 2);
+export const exportMap = (map: ChessMapData): string => JSON.stringify({ format: MAP_FORMAT, version: LIBRARY_VERSION, map }, null, 2);
 
 /** Validates a single-map export and returns it under a fresh map id. */
-export function importMap(json: unknown): ChessMap {
+export function importMap(json: unknown): ChessMapData {
   const raw = migrate(parse(json));
   if (raw.format !== MAP_FORMAT) throw new ValidationError('format', `expected "${MAP_FORMAT}"`);
   return { ...validateMap(raw.map, 'map'), id: newId() };

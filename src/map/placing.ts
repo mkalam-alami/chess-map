@@ -1,7 +1,6 @@
 import maplibregl from 'maplibre-gl';
-import { moveLabel, sanPath } from '../chess/replay';
-import type { LngLat } from '../model/types';
-import { activeMap, cancelPlacing, commitPlacing, getState, movePlacing, subscribe, subscribePlacing } from '../store/store';
+import { moveLabel, type LngLat } from '../domain';
+import { activeRepertoire, cancelPlacing, commitPlacing, getState, movePlacing, subscribe, subscribePlacing } from '../store/store';
 import { button, el, shieldFromMap } from '../ui/dom';
 import { makeDraggable } from './drag';
 import { padding } from './mapView';
@@ -71,8 +70,7 @@ export function createPlacing(map: maplibregl.Map, app: HTMLElement): void {
     container.classList.toggle('placing', !!p);
     if (p && !active) {
       active = true;
-      const m = activeMap();
-      const start = sanPath(m, p.parentCursor).length;
+      const start = activeRepertoire().sanPath(p.parentCursor).length;
       label.textContent = moveLabel(start, p.san);
       const touch = pointerType !== 'mouse';
       hint.textContent = touch ? 'drag or tap the map' : 'click to place';

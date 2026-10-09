@@ -1,9 +1,6 @@
 import { Chess } from 'chess.js';
 import { parseGames, type ParseTree } from '@mliebelt/pgn-parser';
-import { START_FEN, tryMove } from '../chess/replay';
-import { DEFAULT_CENTER, wrapLng } from '../geo/lngLat';
-import { newId } from '../model/id';
-import type { ChessMap, LngLat, MapNode, NodeId } from '../model/types';
+import { DEFAULT_CENTER, START_FEN, newId, tryMove, wrapLng, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../domain';
 import { unescapeArg } from './export';
 
 export class PgnImportError extends Error {
@@ -70,7 +67,7 @@ function metaOf(diag: Record<string, unknown> | null | undefined): Meta {
 }
 
 interface Draft {
-  node: MapNode;
+  node: MapNodeData;
   hasGeo: boolean;
 }
 
@@ -80,12 +77,12 @@ function fail(game: number, san: string, fen: string): never {
   throw new PgnImportError(`Game ${game}: illegal move "${san}" at move ${c.moveNumber()}${dots}`);
 }
 
-function placeOf(meta: Meta): MapNode['place'] | undefined {
+function placeOf(meta: Meta): MapNodeData['place'] | undefined {
   if (!meta.place) return undefined;
   return meta.country ? { label: meta.place, country: meta.country } : { label: meta.place };
 }
 
-function importGame(tree: ParseTree, index: number, opts: { name?: string; origin?: LngLat }, total: number): ChessMap {
+function importGame(tree: ParseTree, index: number, opts: { name?: string; origin?: LngLat }, total: number): ChessMapData {
   const tags = (tree.tags ?? {}) as Record<string, unknown>;
   if (typeof tags.FEN === 'string' || tags.SetUp === '1') {
     throw new PgnImportError(`Game ${index + 1}: custom start positions (FEN header) are not supported yet`);
@@ -96,7 +93,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
   const orientation = str(tags.Orientation)?.toLowerCase() === 'black' ? 'black' : 'white';
 
   const rootMeta = metaOf(tree.gameComment as Record<string, unknown> | undefined);
-  const root: MapNode = {
+  const root: MapNodeData = {
     id: newId(), parentId: null, plies: [], pinned: rootMeta.pinned === true,
     lngLat: rootMeta.geo ?? opts.origin ?? DEFAULT_CENTER, children: [],
   };
@@ -124,7 +121,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
       if (!head) continue;
       let r = play(head, parentFen);
       const meta = metaOfMove(head);
-      const node: MapNode = {
+      const node: MapNodeData = {
         id: newId(), parentId, plies: [r.san], pinned: meta.pinned === true, lngLat: meta.geo ?? [0, 0], children: [],
       };
       const p = placeOf(meta);
@@ -173,7 +170,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
   };
   place(root.id, null);
 
-  const nodes: Record<NodeId, MapNode> = {};
+  const nodes: Record<NodeId, MapNodeData> = {};
   for (const [id, d] of drafts) nodes[id] = d.node;
   const bz = Number(str(tags.BoardZoom));
   return { id: newId(), name, orientation, rootId: root.id, nodes, ...(str(tags.BoardZoom) && Number.isFinite(bz) ? { boardZoom: bz } : {}) };
@@ -196,7 +193,7 @@ export function fan(parent: LngLat, baseAngle: number, k: number, taken: LngLat[
 }
 
 /** Parses a (multi-game) PGN into one map per game. Throws PgnImportError with a readable message. */
-export function importPgn(text: string, opts: { name?: string; origin?: LngLat } = {}): ChessMap[] {
+export function importPgn(text: string, opts: { name?: string; origin?: LngLat } = {}): ChessMapData[] {
   const src = text.replace(/^﻿/, '').replace(/\[%pinned\s*\]/g, '[%pinned 1]');
   if (!src.trim()) throw new PgnImportError('No PGN data found');
   let games: ParseTree[];

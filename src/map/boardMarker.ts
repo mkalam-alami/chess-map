@@ -2,12 +2,8 @@ import maplibregl from 'maplibre-gl';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Key } from 'chessground/types';
-import { fenAt, inCheck, legalDests, moveSquares, promotionColor, sanPath, tryMove, turnColor } from '../chess/replay';
-import { cursorBack } from '../model/cursor';
-import { getNode, type Cursor, type LngLat } from '../model/types';
-import { NOMINAL_PX, effectiveBoardZoom } from '../model/scale';
-import { activeMap, beginPlacing, beginRelocate, closeBoard, exploreMove, getState, hooks, moveExists, moveNodeTo, playMove, subscribe } from '../store/store';
-import { wrapNear } from '../geo/lngLat';
+import { NOMINAL_PX, inCheck, legalDests, moveSquares, promotionColor, tryMove, turnColor, wrapNear, type Cursor, type LngLat, type Mode } from '../domain';
+import { activeRepertoire, beginRelocate, closeBoard, getState, hooks, moveNodeTo, playMove, subscribe } from '../store/store';
 import { confirmDeleteNode } from '../ui/confirmDelete';
 import { el, iconButton, shieldFromMap } from '../ui/dom';
 import { askPromotion } from '../ui/promotion';
@@ -45,7 +41,7 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
   root.append(card, note.box);
   shieldFromMap(root);
 
-  const marker = new maplibregl.Marker({ element: root, anchor: 'center' }).setLngLat(getNode(activeMap(), cursorId()).lngLat).addTo(map);
+  const marker = new maplibregl.Marker({ element: root, anchor: 'center' }).setLngLat(activeRepertoire().node(cursorId()).lngLat).addTo(map);
 
   const cg: Api = Chessground(wrap, {
     coordinates: true,
@@ -61,7 +57,7 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
   for (const ev of ['pointerdown', 'mousedown', 'touchstart']) {
     wrap.addEventListener(ev, () => {
       cg.state.dom.bounds.clear();
-      const fen = fenAt(activeMap(), getState().cursor);
+      const fen = activeRepertoire().fenAt(getState().cursor);
       const lm = cg.state.lastMove;
       if (cg.state.turnColor !== turnColor(fen) && lm) onUserMove(lm[0] as Key, lm[1] as Key); // run the not-yet-reported move now
       else if (cg.state.turnColor !== turnColor(fen) || !cg.state.movable.dests) update();
@@ -81,31 +77,31 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
     handle,
     enabled: () => getState().mode === 'edit' && !getState().placing,
     anchorPoint: centerPoint,
-    onPreview: (ll, subtree) => previewMove(activeMap(), cursorId(), ll, subtree),
+    onPreview: (ll, subtree) => previewMove(activeRepertoire(), cursorId(), ll, subtree),
     onDrop: (ll, subtree) => {
       clearPreview();
       moveNodeTo(cursorId(), ll, subtree);
     },
     onCancel: clearPreview,
   });
-  onOverride(() => marker.setLngLat(overrides.get(cursorId()) ?? getNode(activeMap(), cursorId()).lngLat));
+  onOverride(() => marker.setLngLat(overrides.get(cursorId()) ?? activeRepertoire().node(cursorId()).lngLat));
 
   /** Map positions around the board for new markers, away from the existing children and on screen. */
   function spawnSpots(count: number): LngLat[] {
-    const m = activeMap();
-    const node = getNode(m, cursorId());
+    const m = activeRepertoire();
+    const node = m.node(cursorId());
     const c = centerPoint();
     const rect = map.getContainer().getBoundingClientRect();
     const cx = c.x - rect.left;
     const cy = c.y - rect.top;
     const boardLng = map.unproject([cx, cy]).lng;
     const taken = node.children.map((id) => {
-      const ll = getNode(m, id).lngLat;
+      const ll = m.node(id).lngLat;
       const p = map.project([wrapNear(ll[0], boardLng), ll[1]]);
       return Math.atan2(p.y - cy, p.x - cx);
     });
     // World-relative: 0.9 board widths at the board's own (unclamped) scale, independent of the current zoom.
-    const r = 0.9 * NOMINAL_PX * 2 ** (map.getZoom() - effectiveBoardZoom(m, node.id));
+    const r = 0.9 * NOMINAL_PX * 2 ** (map.getZoom() - m.effectiveBoardZoom(node.id));
     const at = (a: number): [number, number] => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
     const onScreen = (a: number): boolean => {
       const [x, y] = at(a);
@@ -120,7 +116,7 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
   let handled = '';
   function onUserMove(orig: Key, dest: Key): void {
     const { cursor, mode } = getState();
-    const fen = fenAt(activeMap(), cursor);
+    const fen = activeRepertoire().fenAt(cursor);
     // Chessground's deferred report of a move we already processed (see the pointerdown guard) is ignored.
     const key = orig + dest + fen;
     if (key === handled) return;
@@ -134,33 +130,28 @@ export function createBoardMarker(map: maplibregl.Map): { update: () => void } {
     commitMove(mode, tryMove(fen, { from: orig, to: dest })?.san);
   }
 
-  function commitMove(mode: 'explore' | 'edit', san: string | undefined): void {
+  /** The domain decides what the move means (follow, reject, place, record); the view only offers spawn spots and snaps back. */
+  function commitMove(mode: Mode, san: string | undefined): void {
     if (!san) {
       update();
-    } else if (mode === 'explore') {
-      if (!exploreMove(san)) {
-        update(); // snap back
-        toast('Not in repertoire');
-      }
-    } else {
-      const spots = spawnSpots(2);
-      if (!getState().pin && !moveExists(san)) beginPlacing(san, spots[0] as LngLat, spots[1]);
-      else playMove(san, spots);
+    } else if (!playMove(san, mode === 'edit' ? spawnSpots(2) : [])) {
+      update(); // snap back
+      toast('Not in repertoire');
     }
   }
 
   function lastMoveOf(cursor: Cursor): [Key, Key] | undefined {
-    const m = activeMap();
-    const prev = cursorBack(m, cursor);
-    const san = sanPath(m, cursor).at(-1);
-    return prev && san ? moveSquares(fenAt(m, prev), san) : undefined;
+    const m = activeRepertoire();
+    const prev = m.back(cursor);
+    const san = m.sanPath(cursor).at(-1);
+    return prev && san ? moveSquares(m.fenAt(prev), san) : undefined;
   }
 
   function update(): void {
     const s = getState();
-    const m = activeMap();
-    const node = getNode(m, s.cursor.nodeId);
-    const fen = fenAt(m, s.cursor);
+    const m = activeRepertoire();
+    const node = m.node(s.cursor.nodeId);
+    const fen = m.fenAt(s.cursor);
     const turn = turnColor(fen);
     marker.setLngLat(overrides.get(node.id) ?? node.lngLat);
     wrap.dataset.fen = fen;

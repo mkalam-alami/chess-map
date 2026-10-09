@@ -1,4 +1,7 @@
-import type { LngLat } from '../model/types';
+export type LngLat = [lng: number, lat: number];
+
+/** A named place (reverse-geocoded or picked from a search). */
+export interface Place { label: string; country?: string }
 
 /** Where new maps and PGN imports start when no position is given (Paris). */
 export const DEFAULT_CENTER: LngLat = [2.35, 48.85];

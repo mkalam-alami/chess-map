@@ -1,5 +1,4 @@
-import { subtreeIds } from '../model/tree';
-import { getNode, type ChessMap, type LngLat, type NodeId } from '../model/types';
+import type { LngLat, NodeId, Repertoire } from '../domain';
 
 /** Transient positions while a node is being dragged (not yet committed to the store). */
 export const overrides = new Map<NodeId, LngLat>();
@@ -13,14 +12,14 @@ export const onOverride = (f: () => void): void => {
 };
 
 /** Live preview of moving `id` to `ll`, optionally with all its descendants. */
-export function previewMove(map: ChessMap, id: NodeId, ll: LngLat, subtree: boolean): void {
+export function previewMove(map: Repertoire, id: NodeId, ll: LngLat, subtree: boolean): void {
   overrides.clear();
-  const from = getNode(map, id).lngLat;
+  const from = map.node(id).lngLat;
   overrides.set(id, ll);
   if (subtree) {
-    for (const d of subtreeIds(map, id)) {
+    for (const d of map.branchIds(id)) {
       if (d === id) continue;
-      const n = getNode(map, d).lngLat;
+      const n = map.node(d).lngLat;
       overrides.set(d, [n[0] + ll[0] - from[0], n[1] + ll[1] - from[1]]);
     }
   }

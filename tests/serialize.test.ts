@@ -1,18 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { deserializeLibrary, exportMap, importMap, serializeLibrary, ValidationError } from '../src/model/serialize';
-import { branchAt, createLibrary, setNote, setPlace, setSizeDelta } from '../src/model/tree';
-import type { Library } from '../src/model/types';
+import { Library, Repertoire, type LibraryData } from '../src/domain';
 import { flushSave, loadLibrary, saveLibrary, STORAGE_KEY } from '../src/store/persist';
-import { pinnedOf } from './fixtures';
+import { pinnedOf } from './domain/fixtures';
 
 /** A pinned segment split by a branch, with a note, a place, a size and a saved view. */
-function sample(): Library {
-  const { map: m0, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
-  let map = branchAt(m0, { nodeId: id, ply: 2 }, 'f4', [4, 50]).map;
-  map = setNote(map, id, 'King pawn');
-  map = setPlace(map, id, { label: 'Paris', country: 'France' });
-  map = setSizeDelta(map, id, 0.75);
-  return createLibrary({ ...map, name: 'Test', view: { center: [1, 2], zoom: 3 }, boardZoom: 2 });
+function sample(): LibraryData {
+  const { session, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
+  let s = session.goTo({ nodeId: id, ply: 2 }).play('f4', [[4, 50]]).confirmPlacing();
+  s = s.annotate(id, 'King pawn').nameLocation(id, { label: 'Paris', country: 'France' }).resizeBoard(id, 0.75);
+  const map = { ...s.repertoire.data, name: 'Test', view: { center: [1, 2] as [number, number], zoom: 3 }, boardZoom: 2 };
+  return Library.of(Repertoire.fromData(map)).data;
 }
 
 /** The sample as plain JSON, its active map and one way to reach its nodes. */

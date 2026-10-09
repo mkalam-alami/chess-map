@@ -1,42 +1,49 @@
-import { epd, fenAt } from '../chess/replay';
-import { minPly } from './cursor';
-import { newId } from './id';
-import { LIBRARY_VERSION } from './serialize';
-import { getNode, type ChessMap, type Cursor, type LngLat, type Library, type MapNode, type NodeId } from './types';
+// Private tree surgery on `ChessMapData`. Only Repertoire (and the cursor / scale helpers) use it:
+// nothing here is part of the domain's public API.
+import { newId } from '../id';
+import type { LngLat } from '../geo';
+import type { ChessMapData, Cursor, MapNodeData, NodeId, Orientation } from './types';
 
-const put = (map: ChessMap, ...nodes: MapNode[]): ChessMap => {
+export function getNode(map: ChessMapData, id: NodeId): MapNodeData {
+  const node = map.nodes[id];
+  if (!node) throw new Error(`Unknown node ${id}`);
+  return node;
+}
+
+/** Lowest valid cursor ply on a node: 0 for the root (start position), 1 elsewhere. */
+export const minPly = (node: MapNodeData): number => (node.parentId === null ? 0 : 1);
+
+const put = (map: ChessMapData, ...nodes: MapNodeData[]): ChessMapData => {
   const out = { ...map.nodes };
   for (const n of nodes) out[n.id] = n;
   return { ...map, nodes: out };
 };
 
-const update = (map: ChessMap, id: NodeId, patch: Partial<MapNode>): ChessMap =>
+const update = (map: ChessMapData, id: NodeId, patch: Partial<MapNodeData>): ChessMapData =>
   put(map, { ...getNode(map, id), ...patch });
 
 /** Sets an optional field, or removes it when `value` is undefined (absent means default). */
-function withOptional<K extends 'note' | 'place' | 'sizeDelta'>(map: ChessMap, id: NodeId, key: K, value: MapNode[K] | undefined): ChessMap {
+function withOptional<K extends 'note' | 'place' | 'sizeDelta'>(map: ChessMapData, id: NodeId, key: K, value: MapNodeData[K] | undefined): ChessMapData {
   const { [key]: _old, ...rest } = getNode(map, id);
-  return put(map, (value === undefined ? rest : { ...rest, [key]: value }) as MapNode);
+  return put(map, (value === undefined ? rest : { ...rest, [key]: value }) as MapNodeData);
 }
 
-export function createMap(name: string, orientation: 'white' | 'black', lngLat: LngLat): ChessMap {
-  const root: MapNode = { id: newId(), parentId: null, plies: [], pinned: false, lngLat, children: [] };
+export function createMapData(name: string, orientation: Orientation, lngLat: LngLat): ChessMapData {
+  const root: MapNodeData = { id: newId(), parentId: null, plies: [], pinned: false, lngLat, children: [] };
   return { id: newId(), name, orientation, rootId: root.id, nodes: { [root.id]: root } };
 }
 
-export const createLibrary = (map: ChessMap): Library => ({ version: LIBRARY_VERSION, maps: { [map.id]: map }, activeMapId: map.id });
-
 /** Adds a 1-ply child at the end of `parentId`. Returns the existing child if one starts with `san`. */
-export function addChild(map: ChessMap, parentId: NodeId, san: string, lngLat: LngLat): { map: ChessMap; nodeId: NodeId } {
+export function addChild(map: ChessMapData, parentId: NodeId, san: string, lngLat: LngLat): { map: ChessMapData; nodeId: NodeId } {
   const parent = getNode(map, parentId);
   const existing = parent.children.find((id) => getNode(map, id).plies[0] === san);
   if (existing) return { map, nodeId: existing };
-  const child: MapNode = { id: newId(), parentId, plies: [san], pinned: false, lngLat, children: [] };
+  const child: MapNodeData = { id: newId(), parentId, plies: [san], pinned: false, lngLat, children: [] };
   return { map: put(map, { ...parent, children: [...parent.children, child.id], lastChild: child.id }, child), nodeId: child.id };
 }
 
 /** Pinned nodes only, and only while they are a leaf (otherwise use branchAt). */
-export function appendPly(map: ChessMap, nodeId: NodeId, san: string): ChessMap {
+export function appendPly(map: ChessMapData, nodeId: NodeId, san: string): ChessMapData {
   const node = getNode(map, nodeId);
   if (!node.pinned) throw new Error('appendPly: node is not pinned');
   if (node.children.length) throw new Error('appendPly: node has children');
@@ -44,13 +51,13 @@ export function appendPly(map: ChessMap, nodeId: NodeId, san: string): ChessMap 
 }
 
 /** Undo rules: leaf nodes only, and a non-root node keeps at least 1 ply (use deleteSubtree to remove it). */
-export function canUndoLastPly(map: ChessMap, nodeId: NodeId): boolean {
+export function canUndoLastPly(map: ChessMapData, nodeId: NodeId): boolean {
   const node = getNode(map, nodeId);
   return node.children.length === 0 && node.plies.length > minPly(node);
 }
 
 /** Drops the last ply if allowed (see canUndoLastPly), otherwise returns the map unchanged. */
-export function undoLastPly(map: ChessMap, nodeId: NodeId): ChessMap {
+export function undoLastPly(map: ChessMapData, nodeId: NodeId): ChessMapData {
   if (!canUndoLastPly(map, nodeId)) return map;
   return update(map, nodeId, { plies: getNode(map, nodeId).plies.slice(0, -1) });
 }
@@ -59,22 +66,22 @@ export function undoLastPly(map: ChessMap, nodeId: NodeId): ChessMap {
  * Splits a segment at `atPly` (1..len-1). The head keeps plies[0..atPly], the
  * tail (new, pinned, same lngLat) gets the rest plus all old children.
  */
-export function splitSegment(map: ChessMap, nodeId: NodeId, atPly: number): { map: ChessMap; tailId: NodeId } {
+export function splitSegment(map: ChessMapData, nodeId: NodeId, atPly: number): { map: ChessMapData; tailId: NodeId } {
   const node = getNode(map, nodeId);
   if (atPly < 1 || atPly >= node.plies.length) throw new Error(`splitSegment: bad ply ${atPly}`);
-  const tail: MapNode = {
+  const tail: MapNodeData = {
     id: newId(), parentId: nodeId, plies: node.plies.slice(atPly), pinned: true, lngLat: node.lngLat,
     children: node.children,
     ...(node.lastChild ? { lastChild: node.lastChild } : {}),
     ...(node.place ? { place: node.place } : {}),
   };
-  const head: MapNode = { ...node, plies: node.plies.slice(0, atPly), children: [tail.id], lastChild: tail.id };
+  const head: MapNodeData = { ...node, plies: node.plies.slice(0, atPly), children: [tail.id], lastChild: tail.id };
   const moved = node.children.map((id) => ({ ...getNode(map, id), parentId: tail.id }));
   return { map: put(map, head, tail, ...moved), tailId: tail.id };
 }
 
 /** Plays `san` at the cursor, splitting a segment mid-way if needed. Existing moves are reused. */
-export function branchAt(map: ChessMap, cursor: Cursor, san: string, lngLat: LngLat): { map: ChessMap; cursor: Cursor } {
+export function branchAt(map: ChessMapData, cursor: Cursor, san: string, lngLat: LngLat): { map: ChessMapData; cursor: Cursor } {
   const node = getNode(map, cursor.nodeId);
   if (cursor.ply > node.plies.length || cursor.ply < minPly(node)) throw new Error('branchAt: bad cursor');
   if (cursor.ply < node.plies.length) {
@@ -85,7 +92,7 @@ export function branchAt(map: ChessMap, cursor: Cursor, san: string, lngLat: Lng
   return { map: r.map, cursor: { nodeId: r.nodeId, ply: 1 } };
 }
 
-export function subtreeIds(map: ChessMap, nodeId: NodeId): NodeId[] {
+export function subtreeIds(map: ChessMapData, nodeId: NodeId): NodeId[] {
   const out: NodeId[] = [];
   const stack = [nodeId];
   for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
@@ -95,24 +102,21 @@ export function subtreeIds(map: ChessMap, nodeId: NodeId): NodeId[] {
   return out;
 }
 
-export const subtreeSize = (map: ChessMap, nodeId: NodeId): number => subtreeIds(map, nodeId).length;
-
-export function deleteSubtree(map: ChessMap, nodeId: NodeId): { map: ChessMap; removed: number } {
+export function deleteSubtree(map: ChessMapData, nodeId: NodeId): ChessMapData {
   const node = getNode(map, nodeId);
   if (node.parentId === null) throw new Error('Cannot delete the root');
-  const ids = subtreeIds(map, nodeId);
   const nodes = { ...map.nodes };
-  for (const id of ids) delete nodes[id];
+  for (const id of subtreeIds(map, nodeId)) delete nodes[id];
   const { lastChild, ...parent } = getNode(map, node.parentId);
   nodes[parent.id] = {
     ...parent,
     children: parent.children.filter((id) => id !== nodeId),
     ...(lastChild && lastChild !== nodeId ? { lastChild } : {}),
   };
-  return { map: { ...map, nodes }, removed: ids.length };
+  return { ...map, nodes };
 }
 
-export function moveNode(map: ChessMap, nodeId: NodeId, lngLat: LngLat, opts: { withSubtree?: boolean } = {}): ChessMap {
+export function moveNode(map: ChessMapData, nodeId: NodeId, lngLat: LngLat, opts: { withSubtree?: boolean } = {}): ChessMapData {
   if (!opts.withSubtree) return update(map, nodeId, { lngLat });
   const from = getNode(map, nodeId).lngLat;
   const dLng = lngLat[0] - from[0];
@@ -125,39 +129,37 @@ export function moveNode(map: ChessMap, nodeId: NodeId, lngLat: LngLat, opts: { 
 }
 
 /** Empty/blank note removes it. */
-export const setNote = (map: ChessMap, nodeId: NodeId, note: string | undefined): ChessMap =>
+export const setNote = (map: ChessMapData, nodeId: NodeId, note: string | undefined): ChessMapData =>
   withOptional(map, nodeId, 'note', note?.trim() ? note : undefined);
 
-export const setPlace = (map: ChessMap, nodeId: NodeId, place: MapNode['place']): ChessMap => withOptional(map, nodeId, 'place', place);
+export const setPlace = (map: ChessMapData, nodeId: NodeId, place: MapNodeData['place']): ChessMapData => withOptional(map, nodeId, 'place', place);
 
 /** Board size relative to the parent, in log2 steps of 0.25. 0 removes the field (inherit). */
-export const setSizeDelta = (map: ChessMap, nodeId: NodeId, delta: number): ChessMap =>
+export const setSizeDelta = (map: ChessMapData, nodeId: NodeId, delta: number): ChessMapData =>
   withOptional(map, nodeId, 'sizeDelta', Math.round(delta * 4) / 4 || undefined);
 
-export const setPinned = (map: ChessMap, nodeId: NodeId, pinned: boolean): ChessMap => update(map, nodeId, { pinned });
+export const setPinned = (map: ChessMapData, nodeId: NodeId, pinned: boolean): ChessMapData => update(map, nodeId, { pinned });
 
 /** Node ids from the root down to `nodeId`. */
-export function pathTo(map: ChessMap, nodeId: NodeId): NodeId[] {
+export function pathTo(map: ChessMapData, nodeId: NodeId): NodeId[] {
   const out: NodeId[] = [];
   for (let id: NodeId | null = nodeId; id !== null; id = getNode(map, id).parentId) out.unshift(id);
   return out;
 }
 
-/** Other cursors in the map reaching the same position (FEN fields 1-4). */
-export function findTranspositions(map: ChessMap, cursor: Cursor): Cursor[] {
-  const target = epd(fenAt(map, cursor));
-  const out: Cursor[] = [];
-  for (const node of Object.values(map.nodes)) {
-    for (let ply = minPly(node); ply <= node.plies.length; ply++) {
-      if (node.id === cursor.nodeId && ply === cursor.ply) continue;
-      if (epd(fenAt(map, { nodeId: node.id, ply })) === target) out.push({ nodeId: node.id, ply });
-    }
+/** All plies from the root up to the cursor. */
+export function sanPath(map: ChessMapData, cursor: Cursor): string[] {
+  let node = getNode(map, cursor.nodeId);
+  let out = node.plies.slice(0, cursor.ply);
+  while (node.parentId !== null) {
+    node = getNode(map, node.parentId);
+    out = [...node.plies, ...out];
   }
   return out;
 }
 
 /** Number of nodes (markers) between `from` and every node of the tree, walking up and down: parent and children are 1 away. */
-export function nodeDistances(map: ChessMap, from: NodeId): Map<NodeId, number> {
+export function nodeDistances(map: ChessMapData, from: NodeId): Map<NodeId, number> {
   const out = new Map<NodeId, number>([[from, 0]]);
   const queue: NodeId[] = [from];
   for (let i = 0; i < queue.length; i++) {

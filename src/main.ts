@@ -1,7 +1,7 @@
 import './style.css';
 import { flushSave, loadLibrary } from './store/persist';
 import { activeMap, back, beginRelocate, canUndoPly, forward, getState, init, subscribe, toggleMode, togglePin, undoPly } from './store/store';
-import { sameCursor } from './model/cursor';
+import { sameCursor } from './domain';
 import { createMapView } from './map/mapView';
 import { createBoardMarker } from './map/boardMarker';
 import { createPinMarkers } from './map/pinMarker';

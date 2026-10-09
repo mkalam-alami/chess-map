@@ -1,12 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { openingAt, openingText } from '../chess/openings';
-import { formatLine, sanPath } from '../chess/replay';
-import { lineCursors } from '../model/cursor';
-import { findTranspositions } from '../model/tree';
+import { formatLine, type Cursor, type LngLat } from '../domain';
 import { ValidationError } from '../model/serialize';
-import { getNode, type Cursor, type LngLat } from '../model/types';
 import {
-  activeMap, back, beginRelocate, canUndoPly, deleteMap, duplicateMap, exportActiveMapJson, flipOrientation, focus, forward,
+  activeMap, activeRepertoire, back, beginRelocate, canUndoPly, deleteMap, duplicateMap, exportActiveMapJson, flipOrientation, focus, forward,
   getState, hooks, importMapJson, newMap, renameMap, setMode, switchMap, toggleOverview, togglePin, undoPly,
 } from '../store/store';
 import { download } from './dom';
@@ -68,7 +65,6 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
   const menuBtn = useRef<HTMLButtonElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const m = activeMap();
   const edit = s.mode === 'edit';
 
   useEffect(() => {
@@ -81,17 +77,18 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
     return () => ro.disconnect();
   }, []);
 
-  const sans = sanPath(m, s.cursor);
-  const cursors = lineCursors(m, s.cursor);
+  const rep = activeRepertoire();
+  const sans = rep.sanPath(s.cursor);
+  const cursors = rep.lineCursors(s.cursor);
   useLayoutEffect(() => {
     const el = line.current as HTMLDivElement;
     el.scrollLeft = el.scrollWidth; // keep the latest ply in view
   });
 
-  const op = openingAt(m, s.cursor);
-  const pl = getNode(m, s.cursor.nodeId).place;
+  const op = openingAt(rep, s.cursor);
+  const pl = rep.node(s.cursor.nodeId).place;
   const place = pl ? placeText(pl.label, pl.country) : '';
-  const others = s.cursor.ply > 0 ? findTranspositions(m, s.cursor) : [];
+  const others = s.cursor.ply > 0 ? rep.transpositions(s.cursor) : [];
   const chipTarget: Cursor | undefined = others[0];
 
   const importJson = async (e: Event): Promise<void> => {
@@ -171,7 +168,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
             ))}
           </div>
           <button type="button" class="chip" data-testid="transposition" hidden={!chipTarget} onClick={() => chipTarget && focus(chipTarget)}>
-            {chipTarget && `⇄ also reached via ${formatLine(sanPath(m, chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`}
+            {chipTarget && `⇄ also reached via ${formatLine(rep.sanPath(chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`}
           </button>
         </div>
         <div class={op && !op.exact ? 'opening inexact' : 'opening'} data-testid="opening" hidden={!op} title={op ? `${op.eco} · ${openingText(op)}` : ''}>
@@ -189,7 +186,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
 
 export function NavButtons() {
   const { cursor } = useStore();
-  const n = sanPath(activeMap(), cursor).length;
+  const n = activeRepertoire().sanPath(cursor).length;
   return (
     <div class="nav-buttons">
       <button type="button" class="nav" data-testid="btn-back" title="Back (←)" aria-label="Back" onClick={back}>

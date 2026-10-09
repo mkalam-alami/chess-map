@@ -1,10 +1,9 @@
 import type maplibregl from 'maplibre-gl';
-import { sameLngLat } from './geo/lngLat';
 import { reverseGeocode } from './geo/reverse';
 import { lichessTarget } from './lichess/url';
 import { PgnImportError, importPgn } from './pgn/import';
 import { exportPgn } from './pgn/export';
-import type { LngLat, NodeId } from './model/types';
+import type { LngLat, NodeId } from './domain';
 import { activeMap, addMap, getState, hooks, setPlace } from './store/store';
 import { download, el } from './ui/dom';
 import { toast } from './ui/toast';
@@ -18,10 +17,8 @@ async function geocode(nodeId: NodeId, lngLat: LngLat): Promise<void> {
   inflight.set(nodeId, ctl);
   try {
     const place = await reverseGeocode(lngLat, { signal: ctl.signal });
-    const at = activeMap().nodes[nodeId]?.lngLat;
-    // dropped if the node was removed or moved (e.g. set by city) while the lookup was in flight
-    if (ctl.signal.aborted || !at || !sameLngLat(at, lngLat)) return;
-    setPlace(nodeId, place ?? { label: 'Open sea' });
+    // The domain drops the result if the node was removed or moved (e.g. set by city) while the lookup was in flight.
+    if (!ctl.signal.aborted) setPlace(nodeId, place ?? { label: 'Open sea' }, lngLat);
   } catch {
     /* offline / rate limited: leave the place empty */
   } finally {

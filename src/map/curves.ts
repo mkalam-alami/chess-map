@@ -1,4 +1,4 @@
-import type { LngLat } from '../model/types';
+import type { LngLat } from '../domain';
 
 const MAX_LAT = 85.0511;
 

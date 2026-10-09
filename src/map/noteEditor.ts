@@ -1,4 +1,4 @@
-import type { MapNode } from '../model/types';
+import type { MapNodeData } from '../domain';
 import { getState, setNote } from '../store/store';
 import { el, iconButton } from '../ui/dom';
 
@@ -7,7 +7,7 @@ export interface NoteEditor {
   box: HTMLElement;
   /** Header toggle. */
   toggle: HTMLButtonElement;
-  update: (node: MapNode, editable: boolean) => void;
+  update: (node: MapNodeData, editable: boolean) => void;
 }
 
 /** The board's note: shown below it, edited in place (Enter / Escape / outside press close, Shift+Enter adds a line). */
@@ -65,7 +65,7 @@ export function createNoteEditor(): NoteEditor {
     }
   });
 
-  function update(node: MapNode, canEdit: boolean): void {
+  function update(node: MapNodeData, canEdit: boolean): void {
     if (node.id !== nodeId || !canEdit) editing = false;
     nodeId = node.id;
     editable = canEdit;

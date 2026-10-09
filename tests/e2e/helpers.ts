@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import type { ChessMap, MapNode } from '../../src/model/types';
+import type { ChessMapData as ChessMap, MapNodeData as MapNode } from '../../src/domain';
 
 // Network is mocked: no real tiles, Nominatim or Photon requests are made.
 

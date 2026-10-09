@@ -1,10 +1,19 @@
+import type { LngLat, Place } from '../geo';
+
+export type { LngLat, Place };
 export type MapId = string;
 export type NodeId = string;
-export type LngLat = [lng: number, lat: number];
+export type Orientation = 'white' | 'black';
+/** `explore`: training, only repertoire moves are allowed. `edit`: building. */
+export type Mode = 'explore' | 'edit';
+
+/** Version of the persisted `LibraryData` shape. Bump it together with a migration (see the storage codec). */
+export const LIBRARY_VERSION = 1;
 
 export interface SavedView { center: LngLat; zoom: number }
 
-export interface MapNode {
+/** Persisted shape of one position (JSON-compatible, unchanged across the refactor). */
+export interface MapNodeData {
   id: NodeId;
   parentId: NodeId | null;
   /** SAN plies. Root: []; normal marker: 1 ply; pinned segment: n plies. */
@@ -12,7 +21,7 @@ export interface MapNode {
   /** Pinned: new moves are appended to `plies` instead of spawning children. */
   pinned: boolean;
   lngLat: LngLat;
-  place?: { label: string; country?: string };
+  place?: Place;
   note?: string;
   /** Ordered. Children always hang off the END of this node's segment. */
   children: NodeId[];
@@ -22,20 +31,22 @@ export interface MapNode {
   sizeDelta?: number;
 }
 
-export interface ChessMap {
+/** Persisted shape of one chess map. */
+export interface ChessMapData {
   id: MapId;
   name: string;
-  orientation: 'white' | 'black';
+  orientation: Orientation;
   rootId: NodeId;
-  nodes: Record<NodeId, MapNode>;
+  nodes: Record<NodeId, MapNodeData>;
   view?: SavedView;
   /** Map zoom at which the root board renders at NOMINAL_PX (default 1.5). */
   boardZoom?: number;
 }
 
-export interface Library {
-  version: 1;
-  maps: Record<MapId, ChessMap>;
+/** Persisted shape of the whole library. */
+export interface LibraryData {
+  version: typeof LIBRARY_VERSION;
+  maps: Record<MapId, ChessMapData>;
   activeMapId: MapId;
 }
 
@@ -49,9 +60,3 @@ export interface Library {
  *  - non-root cursors always have ply >= 1.
  */
 export interface Cursor { nodeId: NodeId; ply: number }
-
-export function getNode(map: ChessMap, id: NodeId): MapNode {
-  const node = map.nodes[id];
-  if (!node) throw new Error(`Unknown node ${id}`);
-  return node;
-}

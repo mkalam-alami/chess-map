@@ -1,6 +1,5 @@
-import { formatLine, sanPath } from '../chess/replay';
+import { Repertoire, formatLine, type ChessMapData, type Cursor } from '../domain';
 import { exportPgn } from '../pgn/export';
-import type { ChessMap, Cursor } from '../model/types';
 
 export const MAX_URL = 2000;
 export const LICHESS_STUDY_URL = 'https://lichess.org/study';
@@ -18,8 +17,8 @@ export function lichessAnalysisUrl(sans: string[], orientation: 'white' | 'black
 export type LichessTarget = { kind: 'url'; url: string } | { kind: 'clipboard'; pgn: string; url: string };
 
 /** Direct analysis URL for the line to the cursor, or (too long) the full-tree PGN to paste into a study. */
-export function lichessTarget(map: ChessMap, cursor: Cursor): LichessTarget {
-  const url = lichessAnalysisUrl(sanPath(map, cursor), map.orientation);
+export function lichessTarget(map: ChessMapData, cursor: Cursor): LichessTarget {
+  const url = lichessAnalysisUrl(Repertoire.fromData(map).sanPath(cursor), map.orientation);
   if (url.length <= MAX_URL) return { kind: 'url', url };
   return { kind: 'clipboard', pgn: exportPgn(map), url: LICHESS_STUDY_URL };
 }

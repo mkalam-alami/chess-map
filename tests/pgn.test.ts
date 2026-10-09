@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { sanPath } from '../src/chess/replay';
-import { DEFAULT_CENTER } from '../src/geo/lngLat';
-import { addChild, appendPly, createMap, moveNode, setNote, setPinned, setPlace, setSizeDelta } from '../src/model/tree';
-import { getNode, type ChessMap, type MapNode } from '../src/model/types';
+import { DEFAULT_CENTER, Repertoire, type ChessMapData as ChessMap, type MapNodeData as MapNode } from '../src/domain';
 import { exportPgn } from '../src/pgn/export';
 import { fan, importPgn, PgnImportError } from '../src/pgn/import';
-import { childOf, pinnedOf, treeOf } from './fixtures';
+import { childOf, editSession, emptyRep, patchNode, pinnedOf, spawn, treeOf } from './domain/fixtures';
 
 /** Root -> child -> ... following child indexes (`nodeAt(m)` is the root). */
+const getNode = (map: ChessMap, id: string): MapNode => Repertoire.fromData(map).node(id);
 const nodeAt = (map: ChessMap, ...path: number[]): MapNode => path.reduce((n, i) => childOf(map, n.id, i), getNode(map, map.rootId));
 
 /** The first map of a single-game PGN. */
@@ -25,18 +23,17 @@ function shape(map: ChessMap, id = map.rootId): unknown {
 
 /** 1. e4 (1. d4) e5 (1... c5) 2. Nf3 Nc6 3. Bb5 a6 (pinned) 4. Ba4, with notes, places, sizes and odd characters. */
 function sample(): ChessMap {
-  const { map: m0, id } = treeOf({ e4: { e5: { Nf3: {} }, c5: {} }, d4: {} }, createMap('My Opening', 'black', [10, 20]));
-  let m = moveNode(moveNode(m0, id('e4'), [11.5, 21.25]), id('e4 e5 Nf3'), [-5.123456, 40.1]);
+  const { session: s0, id } = treeOf({ e4: { e5: { Nf3: {} }, c5: {} }, d4: {} }, emptyRep('My Opening', 'black', [10, 20]));
   const nf3 = id('e4 e5 Nf3');
-  m = setPinned(m, nf3, true);
-  for (const s of ['Nc6', 'Bb5', 'a6']) m = appendPly(m, nf3, s);
-  const ba4 = addChild(m, nf3, 'Ba4', [0.5, 0.5]);
-  m = setNote(ba4.map, ba4.nodeId, 'Ruy "Lopez" line');
-  m = setPlace(m, nf3, { label: 'Porto, Portugal', country: 'Portugal' });
-  m = setPlace(m, id('d4'), { label: 'Odd {name} "x" [%y]' });
-  m = setNote(m, m.rootId, 'Start here');
-  m = setSizeDelta(setSizeDelta(m, id('e4'), 0.5), id('e4 c5'), -1.25);
-  return { ...m, boardZoom: 2.5 };
+  let s = s0.relocate(id('e4'), [11.5, 21.25]).relocate(nf3, [-5.123456, 40.1]);
+  s = s.goTo(s.repertoire.endOf(nf3)).toggleRecording();
+  for (const san of ['Nc6', 'Bb5', 'a6']) s = s.play(san);
+  s = s.toggleRecording();
+  const ba4 = spawn(s, nf3, 'Ba4', [0.5, 0.5]);
+  s = ba4.session.annotate(ba4.id, 'Ruy "Lopez" line');
+  s = s.nameLocation(nf3, { label: 'Porto, Portugal', country: 'Portugal' }).nameLocation(id('d4'), { label: 'Odd {name} "x" [%y]' });
+  s = s.annotate(s.repertoire.rootId, 'Start here').resizeBoard(id('e4'), 0.5).resizeBoard(id('e4 c5'), -1.25);
+  return { ...s.repertoire.data, boardZoom: 2.5 };
 }
 
 describe('exportPgn', () => {
@@ -95,7 +92,7 @@ describe('importPgn', () => {
     expect(nodeAt(map, 1).plies).toEqual(['d4']);
     expect(nodeAt(map, 1, 0)).toMatchObject({ plies: ['d5'], note: 'answer' });
     expect(nodeAt(map, 1, 1).plies).toEqual(['Nf6']);
-    expect(sanPath(map, { nodeId: nodeAt(map, 1, 1, 0).id, ply: 1 })).toEqual(['d4', 'Nf6', 'c4']);
+    expect(Repertoire.fromData(map).sanPath({ nodeId: nodeAt(map, 1, 1, 0).id, ply: 1 })).toEqual(['d4', 'Nf6', 'c4']);
     expect(nodeAt(map, 0, 0, 0, 0).plies).toEqual(['Nc6']);
   });
 
@@ -167,7 +164,8 @@ describe('round trip', () => {
 
   it('keeps unpinned multi-ply segments and moved roots', () => {
     const { map, id } = pinnedOf(['e4', 'e5']);
-    const m = moveNode(setPinned(map, id, false), map.rootId, [3, 4]);
+    const unpinned = patchNode(Repertoire.fromData(map), id, { pinned: false });
+    const m = editSession(unpinned).relocate(map.rootId, [3, 4]).repertoire.data;
     expect(shape(importOne(exportPgn(m)))).toEqual(shape(m));
   });
 
