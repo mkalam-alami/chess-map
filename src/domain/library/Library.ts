@@ -2,20 +2,24 @@ import { DEFAULT_CENTER } from '../geo';
 import { Repertoire } from '../repertoire/Repertoire';
 import { LIBRARY_VERSION, type LibraryData, type MapId } from '../repertoire/types';
 
-/** The set of maps and which one is active. Immutable; there is always at least one map. */
+/** Package-private: lets `library/commands.ts` build instances without a public constructor. Not in the domain barrel. */
+export const internals = {} as { build: (reps: ReadonlyMap<MapId, Repertoire>, activeId: MapId) => Library };
+
+/**
+ * The set of maps and which one is active. Immutable and read-only: it only answers queries. Maps are added, switched
+ * and removed through `Session` actions (which apply the package-private `library/commands.ts`).
+ */
 export class Library {
   private cached?: LibraryData;
 
-  private constructor(private readonly reps: ReadonlyMap<MapId, Repertoire>, readonly activeId: MapId) {}
+  static { internals.build = (reps, activeId) => new Library(reps, activeId); }
 
-  /** A library holding just `repertoire`, which is active. */
-  static of(repertoire: Repertoire): Library {
-    return new Library(new Map([[repertoire.id, repertoire]]), repertoire.id);
-  }
+  private constructor(private readonly reps: ReadonlyMap<MapId, Repertoire>, readonly activeId: MapId) {}
 
   /** The library a first-time user starts with: one empty white repertoire. */
   static initial(): Library {
-    return Library.of(Repertoire.create('My repertoire', 'white', DEFAULT_CENTER));
+    const rep = Repertoire.create('My repertoire', 'white', DEFAULT_CENTER);
+    return new Library(new Map([[rep.id, rep]]), rep.id);
   }
 
   /** Wraps already validated data (secondary adapters validate before calling this). */
@@ -45,29 +49,5 @@ export class Library {
     const r = this.reps.get(id);
     if (!r) throw new Error(`Unknown map ${id}`);
     return r;
-  }
-
-  /** Adds (or replaces, same id) a map and makes it active. */
-  add(repertoire: Repertoire): Library {
-    return new Library(new Map(this.reps).set(repertoire.id, repertoire), repertoire.id);
-  }
-
-  /** Makes another map active; this when the id is unknown. */
-  activate(id: MapId): Library {
-    return this.reps.has(id) ? new Library(this.reps, id) : this;
-  }
-
-  /** Replaces a map (by its id) without changing the active one. Throws on unknown maps. */
-  update(repertoire: Repertoire): Library {
-    this.get(repertoire.id);
-    return new Library(new Map(this.reps).set(repertoire.id, repertoire), this.activeId);
-  }
-
-  /** Removes a map; the first remaining one becomes active if it was the active one. Refused (this) for the last map or unknown ids. */
-  remove(id: MapId): Library {
-    if (this.reps.size <= 1 || !this.reps.has(id)) return this;
-    const reps = new Map(this.reps);
-    reps.delete(id);
-    return new Library(reps, id === this.activeId ? (reps.keys().next().value as MapId) : this.activeId);
   }
 }

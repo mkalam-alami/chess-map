@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { curveCoords } from '../src/map/curves';
+import { curveCoords } from '../../../src/infrastructure/primary/map/curves';
 
 describe('curveCoords', () => {
   it('has steps+1 points and keeps endpoints', () => {

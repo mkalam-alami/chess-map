@@ -1,5 +1,5 @@
 import type { Map as MlMap } from 'maplibre-gl';
-import type { LngLat } from '../domain';
+import type { LngLat } from '../../../domain';
 
 export interface DragOptions {
   map: MlMap;

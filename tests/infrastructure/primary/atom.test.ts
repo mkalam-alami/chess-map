@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { atom } from '../src/ui/hooks';
+import { atom } from '../../../src/infrastructure/primary/ui/hooks';
 
 describe('atom', () => {
   it('holds a value and notifies subscribers on set', () => {

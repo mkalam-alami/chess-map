@@ -1,22 +1,23 @@
 import type maplibregl from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { PlaceHit } from '../application';
+import type { PlaceHit } from '../../../application';
 import { isMobile, padding } from '../map/mapView';
-import { activeRepertoire, endRelocate, focus, getState, moveNodeTo, previewRelocate, searchPlaces, setCentered } from '../store/store';
 import { shieldProps } from './dom';
 import { Icon } from './Icon';
-import { useStore } from './hooks';
+import { useApp, useViewState } from './hooks';
 import { toast } from './toast';
 
 const HINT_IDLE = 'Type a city, region or address';
 
 /**
- * "Set location by city" panel (desktop: floating card, mobile: bottom sheet). The target comes from the store
+ * "Set location by city" panel (desktop: floating card, mobile: bottom sheet). The target comes from the session
  * (`relocating`); with no target it is a plain "Go to place". Arrow keys / hover preview a result (the map flies there
  * and a ghost of the target appears), Enter / click confirms, Escape restores the previous camera.
  */
 export function LocatePanel({ map }: { map: maplibregl.Map }) {
-  const { relocating } = useStore();
+  const app = useApp();
+  const view = useViewState();
+  const { relocating } = app.session;
   const open = !!relocating;
   const target = relocating?.nodeId ?? null;
 
@@ -31,7 +32,7 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
   const live = useRef({ hits, active, wholeBranch, target });
   live.current = { hits, active, wholeBranch, target };
   const timers = useRef({ search: undefined as ReturnType<typeof setTimeout> | undefined, hover: undefined as ReturnType<typeof setTimeout> | undefined, abort: undefined as AbortController | undefined });
-  const saved = useRef({ center: map.getCenter(), zoom: map.getZoom(), centered: getState().centered });
+  const saved = useRef({ center: map.getCenter(), zoom: map.getZoom(), centered: view.centered });
 
   const stopPending = (): void => {
     clearTimeout(timers.current.search);
@@ -42,8 +43,8 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
   // Opening resets the form and remembers the camera; closing drops pending work.
   useEffect(() => {
     if (!open) return;
-    saved.current = { center: map.getCenter(), zoom: map.getZoom(), centered: getState().centered };
-    setCentered(false); // the map flies around to preview places
+    saved.current = { center: map.getCenter(), zoom: map.getZoom(), centered: view.centered };
+    view.setCentered(false); // the map flies around to preview places
     setQuery('');
     setHits([]);
     setActive(-1);
@@ -84,7 +85,7 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
     if (!hit) return;
     setActive(i);
     live.current.active = i;
-    if (getState().relocating?.nodeId) previewRelocate(hit.lngLat);
+    if (app.session.relocating?.nodeId) app.previewRelocation(hit.lngLat);
     fly(hit);
   }
 
@@ -92,18 +93,18 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
     const { hits: list, active: i, wholeBranch: withBranch, target: node } = live.current;
     const hit = list[i];
     if (!hit) return;
-    endRelocate();
+    app.endRelocating();
     if (!node) return; // plain go-to: the camera is already there
-    const wasCursor = node === getState().cursor.nodeId;
-    moveNodeTo(node, hit.lngLat, withBranch, { label: hit.label });
-    if (wasCursor) focus(getState().cursor);
+    const wasCursor = node === app.session.cursor.nodeId;
+    app.relocate(node, hit.lngLat, { withBranch, place: { label: hit.label } });
+    if (wasCursor) app.goTo(app.session.cursor);
     else toast(`Moved to ${hit.label.split(', ')[0]}`);
   }
 
   function cancel(): void {
     const from = saved.current;
-    endRelocate();
-    setCentered(from.centered);
+    app.endRelocating();
+    view.setCentered(from.centered);
     map.easeTo({ center: from.center, zoom: from.zoom, padding: padding(), duration: 500 });
   }
 
@@ -121,7 +122,7 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
       const ctl = (timers.current.abort = new AbortController());
       let found: PlaceHit[] = [];
       try {
-        found = await searchPlaces(q, ctl.signal);
+        found = await app.searchPlaces(q, ctl.signal);
         setStatus(found.length ? '' : 'No results');
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
@@ -141,7 +142,7 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
     e.preventDefault();
   }
 
-  const rep = activeRepertoire();
+  const rep = app.session.repertoire;
   const node = target && rep.hasNode(target) ? rep.node(target) : undefined;
   const title = node ? (node.parentId === null ? 'Move the start board to…' : `Move ${rep.pinLabel(node.id)} to…`) : 'Go to place';
   const current = node ? (node.place?.label ? `Now: ${node.place.label}` : '') : 'Look around without changing anything';

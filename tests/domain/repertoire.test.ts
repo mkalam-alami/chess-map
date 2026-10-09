@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BOARD_ZOOM, Repertoire, START_FEN, sameCursor, turnColor, type ChessMapData } from '../../src/domain';
+import * as cmd from '../../src/domain/repertoire/commands';
 import { O, childOf, emptyRep, lineOf, patchNode, pinnedOf, treeOf } from './fixtures';
 
 const rep = (data: ChessMapData): Repertoire => Repertoire.fromData(data);
@@ -135,7 +136,7 @@ describe('positions', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const pr = p.session.repertoire;
     expect(pr.fenAt({ nodeId: p.id, ply: 2 })).toBe(r.fenAt(e5));
-    const split = pr.branch({ nodeId: p.id, ply: 2 }, 'c4', O, O, false).repertoire;
+    const split = cmd.branch(pr, { nodeId: p.id, ply: 2 }, 'c4', O, O, false).repertoire;
     const tail = split.node(p.id).children[0] as string;
     expect(split.fenAt({ nodeId: tail, ply: 1 })).toBe(pr.fenAt({ nodeId: p.id, ply: 3 }));
   });
@@ -213,13 +214,13 @@ describe('board size', () => {
     const { map, ids } = lineOf(['e4']);
     const a = ids[1] as string;
     const r = rep(map);
-    expect(r.resize(a, 0.4).node(a).sizeDelta).toBe(0.5);
-    expect('sizeDelta' in r.resize(a, 1).resize(a, 0.1).node(a)).toBe(false);
+    expect(cmd.resize(r, a, 0.4).node(a).sizeDelta).toBe(0.5);
+    expect('sizeDelta' in cmd.resize(cmd.resize(r, a, 1), a, 0.1).node(a)).toBe(false);
   });
 
   it('a split tail keeps the same effective board size as the head', () => {
     const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
-    const r = rep(map).resize(id, 1).branch({ nodeId: id, ply: 2 }, 'Nc3', [3, 3], [4, 4], false).repertoire;
+    const r = cmd.branch(cmd.resize(rep(map), id, 1), { nodeId: id, ply: 2 }, 'Nc3', [3, 3], [4, 4], false).repertoire;
     const tail = r.node(id).children[0] as string;
     expect(r.node(tail).sizeDelta).toBeUndefined();
     expect(r.effectiveBoardZoom(tail)).toBe(r.effectiveBoardZoom(id));
@@ -230,7 +231,7 @@ describe('extend (record in place)', () => {
   it('pins a leaf marker and grows its segment', () => {
     const { map, ids } = lineOf(['e4']);
     const r = rep(map);
-    const out = r.extend(r.endOf(ids[1] as string), 'e5');
+    const out = cmd.extend(r, r.endOf(ids[1] as string), 'e5');
     expect(out?.cursor).toEqual({ nodeId: ids[1], ply: 2 });
     expect(out?.repertoire.node(ids[1] as string)).toMatchObject({ plies: ['e4', 'e5'], pinned: true });
     expect(r.node(ids[1] as string).plies).toEqual(['e4']); // input untouched
@@ -239,10 +240,10 @@ describe('extend (record in place)', () => {
   it('refuses the root, a mid-segment cursor and nodes with children', () => {
     const { map, ids } = lineOf(['e4', 'e5']);
     const r = rep(map);
-    expect(r.extend(r.rootCursor(), 'e4')).toBeNull();
-    expect(r.extend(r.endOf(ids[1] as string), 'c5')).toBeNull(); // has a child
+    expect(cmd.extend(r, r.rootCursor(), 'e4')).toBeNull();
+    expect(cmd.extend(r, r.endOf(ids[1] as string), 'c5')).toBeNull(); // has a child
     const p = pinnedOf(['e4', 'e5']);
-    expect(p.session.repertoire.extend({ nodeId: p.id, ply: 1 }, 'c5')).toBeNull();
+    expect(cmd.extend(p.session.repertoire, { nodeId: p.id, ply: 1 }, 'c5')).toBeNull();
   });
 });
 
@@ -250,7 +251,7 @@ describe('branch', () => {
   it('adds a child marker, becoming the new lastChild, without touching the input', () => {
     const { map, ids } = lineOf(['e4']);
     const before = JSON.stringify(map);
-    const out = rep(map).branch(rep(map).rootCursor(), 'd4', [9, 9], [9, 9], false);
+    const out = cmd.branch(rep(map), rep(map).rootCursor(), 'd4', [9, 9], [9, 9], false);
     expect(JSON.stringify(map)).toBe(before);
     expect(out.cursor).toEqual({ nodeId: out.nodeId, ply: 1 });
     const root = out.repertoire.node(map.rootId);
@@ -261,21 +262,21 @@ describe('branch', () => {
 
   it('reuses an existing child with the same first ply', () => {
     const { map, ids } = lineOf(['e4']);
-    const out = rep(map).branch(rep(map).rootCursor(), 'e4', [9, 9], [9, 9], false);
+    const out = cmd.branch(rep(map), rep(map).rootCursor(), 'e4', [9, 9], [9, 9], false);
     expect(out.nodeId).toBe(ids[1]);
     expect(out.repertoire.nodes()).toHaveLength(2);
   });
 
   it('can create the child pinned', () => {
     const empty = emptyRep();
-    const out = empty.branch(empty.rootCursor(), 'e4', O, O, true);
+    const out = cmd.branch(empty, empty.rootCursor(), 'e4', O, O, true);
     expect(out.repertoire.node(out.nodeId).pinned).toBe(true);
   });
 
   it('splits a pinned segment mid-way, re-parenting the old children under the relocated tail', () => {
     const { map, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
-    const withChild = rep(map).branch(rep(map).endOf(id), 'Bb5', [5, 5], [5, 5], false);
-    const r = withChild.repertoire.branch({ nodeId: id, ply: 2 }, 'f4', [7, 7], [8, 8], false);
+    const withChild = cmd.branch(rep(map), rep(map).endOf(id), 'Bb5', [5, 5], [5, 5], false);
+    const r = cmd.branch(withChild.repertoire, { nodeId: id, ply: 2 }, 'f4', [7, 7], [8, 8], false);
     const head = r.repertoire.node(id);
     expect(head.plies).toEqual(['e4', 'e5']);
     expect(head.children).toHaveLength(2);
@@ -289,8 +290,8 @@ describe('branch', () => {
 
   it('moves the whole tail branch along with the relocated tail', () => {
     const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
-    const grandchild = rep(map).branch(rep(map).endOf(id), 'Nc6', [3, 3], [3, 3], false);
-    const split = grandchild.repertoire.branch({ nodeId: id, ply: 1 }, 'c5', [7, 7], [13, 23], false).repertoire;
+    const grandchild = cmd.branch(rep(map), rep(map).endOf(id), 'Nc6', [3, 3], [3, 3], false);
+    const split = cmd.branch(grandchild.repertoire, { nodeId: id, ply: 1 }, 'c5', [7, 7], [13, 23], false).repertoire;
     const tail = split.node(id).children[0] as string;
     expect(split.node(tail).lngLat).toEqual([13, 23]);
     expect(split.node(grandchild.nodeId).lngLat).toEqual([13 + (3 - 1), 23 + (3 - 1)]); // shifted by the same offset
@@ -298,22 +299,22 @@ describe('branch', () => {
 
   it('keeps the tail place name', () => {
     const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
-    const named = rep(map).namePlace(id, { label: 'Paris' });
-    const split = named.branch({ nodeId: id, ply: 1 }, 'c5', O, O, false).repertoire;
+    const named = cmd.namePlace(rep(map), id, { label: 'Paris' });
+    const split = cmd.branch(named, { nodeId: id, ply: 1 }, 'c5', O, O, false).repertoire;
     expect(split.node(split.node(id).children[0] as string).place).toEqual({ label: 'Paris' });
   });
 
   it('does not split when the move already follows the segment', () => {
     const { map, id } = pinnedOf(['e4', 'e5', 'Nf3']);
     const r = rep(map);
-    const out = r.branch({ nodeId: id, ply: 1 }, 'e5', O, O, false);
+    const out = cmd.branch(r, { nodeId: id, ply: 1 }, 'e5', O, O, false);
     expect(out.repertoire.data).toEqual(map);
     expect(out.cursor).toEqual({ nodeId: id, ply: 2 });
   });
 
   it('rejects a cursor outside the segment', () => {
     const { map, id } = pinnedOf(['e4', 'e5']);
-    expect(() => rep(map).branch({ nodeId: id, ply: 9 }, 'c5', O, O, false)).toThrow(/bad cursor/);
+    expect(() => cmd.branch(rep(map), { nodeId: id, ply: 9 }, 'c5', O, O, false)).toThrow(/bad cursor/);
   });
 });
 
@@ -322,21 +323,21 @@ describe('takeBack', () => {
     const { map, id } = pinnedOf(['e4', 'e5']);
     const r = rep(map);
     expect(r.canTakeBack(r.endOf(id))).toBe(true);
-    const m1 = r.takeBack(r.endOf(id));
+    const m1 = cmd.takeBack(r, r.endOf(id));
     expect(m1.node(id).plies).toEqual(['e4']);
     expect(m1.canTakeBack(m1.endOf(id))).toBe(false);
-    expect(m1.takeBack(m1.endOf(id))).toBe(m1);
+    expect(cmd.takeBack(m1, m1.endOf(id))).toBe(m1);
   });
 
   it('refuses nodes with children, mid-segment cursors and the root', () => {
     const { map, id } = pinnedOf(['e4', 'e5']);
     const r = rep(map);
-    const withChild = r.branch(r.endOf(id), 'Nf3', O, O, false).repertoire;
+    const withChild = cmd.branch(r, r.endOf(id), 'Nf3', O, O, false).repertoire;
     expect(withChild.canTakeBack(withChild.endOf(id))).toBe(false);
-    expect(withChild.takeBack(withChild.endOf(id))).toBe(withChild);
+    expect(cmd.takeBack(withChild, withChild.endOf(id))).toBe(withChild);
     expect(r.canTakeBack({ nodeId: id, ply: 1 })).toBe(false);
     expect(r.canTakeBack(r.rootCursor())).toBe(false);
-    expect(r.takeBack(r.rootCursor())).toBe(r);
+    expect(cmd.takeBack(r, r.rootCursor())).toBe(r);
   });
 });
 
@@ -346,13 +347,13 @@ describe('moveTo', () => {
   const r = rep(map);
 
   it('moves a node alone', () => {
-    const alone = r.moveTo(e4, [10, 10], false);
+    const alone = cmd.moveTo(r, e4, [10, 10], false);
     expect(alone.node(e4).lngLat).toEqual([10, 10]);
     expect(alone.node(e5).lngLat).toEqual([2, 2]);
   });
 
   it('moves a node with its branch, without touching the input', () => {
-    const moved = r.moveTo(e4, [11, 21], true);
+    const moved = cmd.moveTo(r, e4, [11, 21], true);
     expect([e4, e5, nf3].map((id) => moved.node(id).lngLat)).toEqual([[11, 21], [12, 22], [13, 23]]);
     expect(r.node(nf3).lngLat).toEqual([3, 3]);
   });
@@ -362,15 +363,15 @@ describe('annotate / namePlace', () => {
   it('sets a note and removes it when blank', () => {
     const { map, ids } = lineOf(['e4']);
     const id = ids[1] as string;
-    const n = rep(map).annotate(id, 'hi');
+    const n = cmd.annotate(rep(map), id, 'hi');
     expect(n.node(id).note).toBe('hi');
-    expect('note' in n.annotate(id, '  ').node(id)).toBe(false);
+    expect('note' in cmd.annotate(n, id, '  ').node(id)).toBe(false);
   });
 
   it('names a place, replacing the previous one', () => {
     const { map, ids } = lineOf(['e4']);
     const id = ids[1] as string;
-    const n = rep(map).namePlace(id, { label: 'Paris', country: 'France' }).namePlace(id, { label: 'Lyon' });
+    const n = cmd.namePlace(cmd.namePlace(rep(map), id, { label: 'Paris', country: 'France' }), id, { label: 'Lyon' });
     expect(n.node(id).place).toEqual({ label: 'Lyon' });
   });
 });
@@ -378,7 +379,7 @@ describe('annotate / namePlace', () => {
 describe('remove', () => {
   it('removes the branch and fixes the parent', () => {
     const { map, ids } = lineOf(['e4', 'e5', 'Nf3']);
-    const r = rep(map).remove(ids[2] as string);
+    const r = cmd.remove(rep(map), ids[2] as string);
     expect(r.nodes()).toHaveLength(2);
     const parent = r.node(ids[1] as string);
     expect(parent.children).toEqual([]);
@@ -388,31 +389,31 @@ describe('remove', () => {
   it('keeps another lastChild when a sibling goes', () => {
     const t = treeOf({ e4: {}, d4: {}, c4: {} });
     const withLast = patchNode(rep(t.map), t.map.rootId, { lastChild: t.id('e4') });
-    const r = withLast.remove(t.id('d4'));
+    const r = cmd.remove(withLast, t.id('d4'));
     expect(r.node(r.rootId).lastChild).toBe(t.id('e4'));
     expect(r.node(r.rootId).children).toEqual([t.id('e4'), t.id('c4')]);
   });
 
   it('never removes the root', () => {
-    expect(() => emptyRep().remove(emptyRep().rootId)).toThrow();
+    expect(() => cmd.remove(emptyRep(), emptyRep().rootId)).toThrow();
     const { map } = lineOf(['e4']);
-    expect(() => rep(map).remove(map.rootId)).toThrow(/root/);
+    expect(() => cmd.remove(rep(map), map.rootId)).toThrow(/root/);
   });
 });
 
 describe('map-level commands', () => {
   it('rename, flipped and withView return new repertoires and leave the original alone', () => {
     const r = emptyRep('A', 'white');
-    expect(r.rename('B').name).toBe('B');
-    expect(r.flipped().orientation).toBe('black');
-    expect(r.flipped().flipped().orientation).toBe('white');
-    expect(r.withView({ center: [1, 2], zoom: 3 }).view).toEqual({ center: [1, 2], zoom: 3 });
+    expect(cmd.rename(r, 'B').name).toBe('B');
+    expect(cmd.flip(r).orientation).toBe('black');
+    expect(cmd.flip(cmd.flip(r)).orientation).toBe('white');
+    expect(cmd.withView(r, { center: [1, 2], zoom: 3 }).view).toEqual({ center: [1, 2], zoom: 3 });
     expect(r).toMatchObject({ name: 'A', orientation: 'white', view: undefined });
   });
 
   it('copy keeps the tree under a fresh id and the given name', () => {
     const { map } = lineOf(['e4']);
-    const c = rep(map).copy('Twin');
+    const c = cmd.copyAs(rep(map), 'Twin');
     expect(c.name).toBe('Twin');
     expect(c.id).not.toBe(map.id);
     expect(c.nodes()).toEqual(rep(map).nodes());

@@ -1,8 +1,9 @@
 import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
-import { sameLngLat, type LngLat, type MapNodeData } from '../domain';
-import { activeRepertoire, getState, subscribe, subscribePlacing } from '../store/store';
+import { sameLngLat, type LngLat, type MapNodeData } from '../../../domain';
+import type { ChessMapApp } from '../../../application';
+import type { ViewState } from '../viewState';
 import { curveCoords } from './curves';
-import { onOverride, overrides } from './live';
+import type { DragPreview } from './dragPreview';
 
 type Kind = 'active' | 'ancestor' | 'overview' | 'ghost';
 const RANK: Record<Kind, number> = { overview: 0, ancestor: 1, active: 2, ghost: 3 };
@@ -29,13 +30,13 @@ function arrowImage(): ImageData {
 }
 
 /** One GeoJSON source of curved edges; layers are added once the style has loaded. */
-export function createCurveLayer(map: MlMap): { update: () => void } {
+export function createCurveLayer(map: MlMap, app: ChessMapApp, vs: ViewState, preview: DragPreview): { update: () => void } {
   let ready = false;
   let queued = false;
 
   function edges(): { a: MapNodeData; b: MapNodeData; kind: Kind }[] {
-    const s = getState();
-    const m = activeRepertoire();
+    const s = app.session;
+    const m = s.repertoire;
     const found = new Map<string, { a: MapNodeData; b: MapNodeData; kind: Kind }>();
     const add = (a: MapNodeData, b: MapNodeData, kind: Kind): void => {
       const key = `${a.id}>${b.id}`;
@@ -43,7 +44,7 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
       if (!old || RANK[kind] > RANK[old.kind]) found.set(key, { a, b, kind });
     };
     const node = m.node(s.cursor.nodeId);
-    if (s.overview) for (const n of m.nodes()) if (n.parentId) add(m.node(n.parentId), n, 'overview');
+    if (vs.overview) for (const n of m.nodes()) if (n.parentId) add(m.node(n.parentId), n, 'overview');
     const path = m.pathTo(node.id);
     for (let i = 1; i < path.length; i++) add(m.node(path[i - 1] as string), m.node(path[i] as string), 'ancestor');
     if (s.cursor.ply === node.plies.length) for (const c of node.children) add(node, m.node(c), 'active');
@@ -57,7 +58,7 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
   function draw(): void {
     queued = false;
     if (!ready) return;
-    const pos = (n: MapNodeData): LngLat => overrides.get(n.id) ?? n.lngLat;
+    const pos = (n: MapNodeData): LngLat => preview.overrides.get(n.id) ?? n.lngLat;
     const features = edges().flatMap(({ a, b, kind }) => {
       const pa = pos(a);
       const pb = pos(b);
@@ -105,8 +106,8 @@ export function createCurveLayer(map: MlMap): { update: () => void } {
     ready = false;
     addLayers();
   });
-  subscribe(update);
-  subscribePlacing(update);
-  onOverride(update);
+  vs.subscribe(update);
+  app.subscribePlacing(update);
+  preview.onChange(update);
   return { update };
 }

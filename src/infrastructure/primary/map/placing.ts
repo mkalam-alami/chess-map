@@ -1,21 +1,21 @@
 import maplibregl from 'maplibre-gl';
-import { moveLabel, type LngLat } from '../domain';
-import { activeRepertoire, cancelPlacing, commitPlacing, getState, movePlacing, subscribe, subscribePlacing } from '../store/store';
+import { moveLabel, type LngLat } from '../../../domain';
+import type { ChessMapApp } from '../../../application';
 import { button, el, shieldFromMap } from '../ui/dom';
 import { makeDraggable } from './drag';
 import { padding } from './mapView';
 
 /** Carry-to-place: a ghost pin follows the pointer (mouse) or can be dragged / tapped into place (touch). */
-export function createPlacing(map: maplibregl.Map, app: HTMLElement): void {
+export function createPlacing(map: maplibregl.Map, appElement: HTMLElement, app: ChessMapApp): void {
   const container = map.getContainer();
   let pointerType = 'mouse';
   container.addEventListener('pointerdown', (e) => (pointerType = e.pointerType), true);
   container.addEventListener('pointermove', (e) => {
     pointerType = e.pointerType;
-    if (!getState().placing || e.pointerType !== 'mouse') return;
+    if (!app.session.placing || e.pointerType !== 'mouse') return;
     const r = container.getBoundingClientRect();
     const ll = map.unproject([e.clientX - r.left, e.clientY - r.top]);
-    movePlacing([ll.lng, ll.lat]);
+    app.movePlacing([ll.lng, ll.lat]);
   });
 
   const ghost = el('div', 'pin pin-ghost');
@@ -28,49 +28,49 @@ export function createPlacing(map: maplibregl.Map, app: HTMLElement): void {
   const bar = el('div', 'placing-bar');
   const place = button('Place', 'place-confirm', 'primary');
   const cancel = button('Cancel', 'place-cancel');
-  place.addEventListener('click', commitPlacing);
-  cancel.addEventListener('click', cancelPlacing);
+  place.addEventListener('click', () => app.confirmPlacing());
+  cancel.addEventListener('click', () => app.cancelPlacing());
   bar.append(cancel, place);
   bar.hidden = true;
-  app.append(bar);
+  appElement.append(bar);
 
   makeDraggable({
     map,
     handle: ghost,
-    enabled: () => !!getState().placing,
+    enabled: () => !!app.session.placing,
     anchorPoint: () => {
       const r = ghost.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.bottom };
     },
-    onPreview: (ll: LngLat) => movePlacing(ll),
-    onDrop: (ll: LngLat) => movePlacing(ll),
+    onPreview: (ll: LngLat) => app.movePlacing(ll),
+    onDrop: (ll: LngLat) => app.movePlacing(ll),
     onCancel: () => undefined,
   });
 
   // A click (not a pan: MapLibre applies clickTolerance) either drops the pin (mouse) or moves it (touch).
   map.on('click', (e) => {
-    if (!getState().placing) return;
-    movePlacing([e.lngLat.lng, e.lngLat.lat]);
-    if (pointerType === 'mouse') commitPlacing();
+    if (!app.session.placing) return;
+    app.movePlacing([e.lngLat.lng, e.lngLat.lat]);
+    if (pointerType === 'mouse') app.confirmPlacing();
   });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && getState().placing) cancelPlacing();
+    if (e.key === 'Escape' && app.session.placing) app.cancelPlacing();
   });
 
   const sync = (): void => {
-    const p = getState().placing;
+    const p = app.session.placing;
     if (p && marker) marker.setLngLat(p.lngLat);
   };
-  subscribePlacing(sync);
+  app.subscribePlacing(sync);
 
   let active = false;
-  subscribe(() => {
-    const p = getState().placing;
+  app.subscribe(() => {
+    const p = app.session.placing;
     container.classList.toggle('placing', !!p);
     if (p && !active) {
       active = true;
-      const start = activeRepertoire().sanPath(p.parentCursor).length;
+      const start = app.session.repertoire.sanPath(p.parentCursor).length;
       label.textContent = moveLabel(start, p.san);
       const touch = pointerType !== 'mouse';
       hint.textContent = touch ? 'drag or tap the map' : 'click to place';

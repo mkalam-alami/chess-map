@@ -1,15 +1,22 @@
-import { Library, Repertoire, Session, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../src/domain';
+import { Repertoire, Session, type ChessMapData, type Library, type LngLat, type MapNodeData, type NodeId } from '../../src/domain';
+import { activateMap, addMap, libraryOf } from '../../src/domain/library/commands';
 
 export const O: LngLat = [0, 0];
+
+/** A library of `first` (active) and any `others`, built with the internal library commands (the public API has no such plumbing). */
+export const libraryWith = (first: Repertoire, ...others: Repertoire[]): Library =>
+  activateMap(others.reduce(addMap, libraryOf(first)), first.id);
+
+export { libraryOf };
 
 /** An empty repertoire map named "t", for tests that do not care about its identity. */
 export const emptyRep = (name = 't', orientation: 'white' | 'black' = 'white', at: LngLat = O): Repertoire => Repertoire.create(name, orientation, at);
 
 /** An Edit session on `rep` (a single-map library). */
-export const editSession = (rep: Repertoire = emptyRep()): Session => Session.start(Library.of(rep), 'edit');
+export const editSession = (rep: Repertoire = emptyRep()): Session => Session.start(libraryOf(rep), 'edit');
 
 /** An Explore session on a map that already has moves. */
-export const exploreSession = (rep: Repertoire): Session => Session.start(Library.of(rep), 'explore');
+export const exploreSession = (rep: Repertoire): Session => Session.start(libraryOf(rep), 'explore');
 
 /** Like the user: plays `san` at the end of `parent`, drops the marker at `at` and confirms. Leaves the cursor on `parent`'s end. */
 export function spawn(session: Session, parent: NodeId, san: string, at: LngLat, tail?: LngLat): { session: Session; id: NodeId } {

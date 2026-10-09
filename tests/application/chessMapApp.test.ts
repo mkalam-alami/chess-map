@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ImportError } from '../../src/application';
 import { Library, Repertoire, epd, type LngLat, type NodeId } from '../../src/domain';
-import { emptyRep, treeOf } from '../domain/fixtures';
+import { emptyRep, libraryOf, treeOf } from '../domain/fixtures';
 import { makeApp, settle } from './fakes';
 
 const spots: LngLat[] = [[10, 10], [20, 20]];
@@ -10,7 +10,7 @@ const NAMED = { label: 'Paris', country: 'France' };
 /** A stored library with moves (e4 e5 / d4) and a named root, so starting it triggers no geocoding. */
 function storedLibrary(): Library {
   const { session } = treeOf({ e4: { e5: {} }, d4: {} });
-  return Library.of(session.nameLocation(session.repertoire.rootId, NAMED).repertoire);
+  return libraryOf(session.nameLocation(session.repertoire.rootId, NAMED).repertoire);
 }
 
 /** An app started on `storedLibrary()` (Explore unless a mode preference is given), with the writes of starting cleared. */
@@ -58,7 +58,7 @@ describe('start', () => {
 
   it('an empty repertoire is opened in Edit whatever the preference, and the preference is kept', () => {
     const t = makeApp();
-    t.library.stored = Library.of(emptyRep('Empty'));
+    t.library.stored = libraryOf(emptyRep('Empty'));
     t.preferences.mode = 'explore';
     void t.app.start();
     expect(t.app.session.mode).toBe('edit');

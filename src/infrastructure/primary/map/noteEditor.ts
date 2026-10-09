@@ -1,5 +1,5 @@
-import type { MapNodeData } from '../domain';
-import { getState, setNote } from '../store/store';
+import type { MapNodeData } from '../../../domain';
+import type { ChessMapApp } from '../../../application';
 import { el, iconButton } from '../ui/dom';
 
 export interface NoteEditor {
@@ -11,7 +11,7 @@ export interface NoteEditor {
 }
 
 /** The board's note: shown below it, edited in place (Enter / Escape / outside press close, Shift+Enter adds a line). */
-export function createNoteEditor(): NoteEditor {
+export function createNoteEditor(app: ChessMapApp): NoteEditor {
   const toggle = iconButton('note', 'board-note', 'Edit the note', 'size-btn');
   const box = el('div', 'board-note-box');
   const text = el('div', 'board-note-text', '', { 'data-testid': 'note-text' });
@@ -57,7 +57,7 @@ export function createNoteEditor(): NoteEditor {
   input.addEventListener('blur', () => {
     if (editing) setEditing(false);
   });
-  input.addEventListener('input', () => setNote(getState().cursor.nodeId, input.value));
+  input.addEventListener('input', () => app.annotate(app.session.cursor.nodeId, input.value));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey && !e.isComposing)) {
       e.preventDefault(); // Enter closes the editor, Shift+Enter adds a line

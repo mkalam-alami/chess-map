@@ -1,6 +1,8 @@
 import { DEFAULT_CENTER, sameLngLat, wrapLng, type LngLat, type Place } from '../geo';
 import { Library } from '../library/Library';
+import { activateMap, addMap, removeMap, replaceMap } from '../library/commands';
 import { Repertoire } from '../repertoire/Repertoire';
+import * as edit from '../repertoire/commands';
 import type { Cursor, MapId, Mode, NodeId, Orientation, SavedView } from '../repertoire/types';
 import type { DomainEvent } from './events';
 
@@ -81,7 +83,7 @@ export class Session {
   }
 
   private commit(repertoire: Repertoire, patch: Partial<Fields> = {}, events: DomainEvent[] = []): Session {
-    return this.next({ library: this.library.update(repertoire), ...patch }, events);
+    return this.next({ library: replaceMap(this.library, repertoire), ...patch }, events);
   }
 
   // ---- queries ----
@@ -171,7 +173,7 @@ export class Session {
     const existing = rep.next(this.cursor, san);
     if (existing) return this.focused(existing, false);
     if (this.recording) {
-      const r = rep.extend(this.cursor, san);
+      const r = edit.extend(rep, this.cursor, san);
       if (r) return this.commit(r.repertoire, { cursor: r.cursor });
     }
     return this.spawn(san, spots);
@@ -182,7 +184,7 @@ export class Session {
     const node = rep.node(this.cursor.nodeId);
     const limit = rep.sizeSum(node.id) === 0 ? 60 : 80;
     const at = spawnAt(spots[0] ?? node.lngLat, limit);
-    const r = rep.branch(this.cursor, san, at, spawnAt(spots[1] ?? at, limit), this.recording);
+    const r = edit.branch(rep, this.cursor, san, at, spawnAt(spots[1] ?? at, limit), this.recording);
     const placed: DomainEvent = { type: 'positionPlaced', nodeId: r.nodeId, at };
     if (this.recording) return this.commit(r.repertoire, { cursor: r.cursor }, [{ type: 'focused', cursor: r.cursor, keepSize: false }, placed]);
     return this.commit(r.repertoire, {}, [placed]); // cursor stays: the user can keep spawning alternatives
@@ -208,7 +210,7 @@ export class Session {
   takeBack(): Session {
     if (!this.canTakeBack) return this;
     const c = this.cursor;
-    return this.commit(this.repertoire.takeBack(c), { cursor: { nodeId: c.nodeId, ply: c.ply - 1 } });
+    return this.commit(edit.takeBack(this.repertoire, c), { cursor: { nodeId: c.nodeId, ply: c.ply - 1 } });
   }
 
   // ---- positions ----
@@ -219,8 +221,8 @@ export class Session {
    */
   relocate(nodeId: NodeId, at: LngLat, opts: { withBranch?: boolean; place?: Place } = {}): Session {
     const w = wrapLng(at);
-    const moved = this.repertoire.moveTo(nodeId, w, !!opts.withBranch);
-    if (opts.place) return this.commit(moved.namePlace(nodeId, opts.place));
+    const moved = edit.moveTo(this.repertoire, nodeId, w, !!opts.withBranch);
+    if (opts.place) return this.commit(edit.namePlace(moved, nodeId, opts.place));
     return this.commit(moved, {}, [{ type: 'positionPlaced', nodeId, at: w }]);
   }
 
@@ -232,17 +234,17 @@ export class Session {
     const rep = this.repertoire;
     if (!rep.hasNode(nodeId)) return this;
     if (requestedAt && !sameLngLat(requestedAt, rep.node(nodeId).lngLat)) return this;
-    return this.commit(rep.namePlace(nodeId, place));
+    return this.commit(edit.namePlace(rep, nodeId, place));
   }
 
   /** A blank note removes it. */
   annotate(nodeId: NodeId, note: string): Session {
-    return this.commit(this.repertoire.annotate(nodeId, note));
+    return this.commit(edit.annotate(this.repertoire, nodeId, note));
   }
 
   /** Absolute log2 board size relative to the parent (snapped to 0.25). */
   resizeBoard(nodeId: NodeId, delta: number): Session {
-    return this.commit(this.repertoire.resize(nodeId, delta));
+    return this.commit(edit.resize(this.repertoire, nodeId, delta));
   }
 
   /** Deletes a position and its branch (not the root). A cursor on that line moves to the parent's end. */
@@ -251,7 +253,7 @@ export class Session {
     const node = rep.node(nodeId);
     if (node.parentId === null) return this;
     const cursor = rep.pathTo(this.cursor.nodeId).includes(nodeId) ? rep.endOf(node.parentId) : this.cursor;
-    return this.commit(rep.remove(nodeId), { cursor });
+    return this.commit(edit.remove(rep, nodeId), { cursor });
   }
 
   // ---- set-location flow ----
@@ -284,37 +286,37 @@ export class Session {
 
   /** Switches to another map, from its start. */
   switchMap(id: MapId): Session {
-    return this.library.has(id) ? this.entering(this.library.activate(id)) : this;
+    return this.library.has(id) ? this.entering(activateMap(this.library, id)) : this;
   }
 
   /** Adds validated maps (e.g. an import) and switches to the last one. */
   addMaps(repertoires: Repertoire[]): Session {
     if (!repertoires.length) return this;
-    return this.entering(repertoires.reduce((lib, r) => lib.add(r), this.library));
+    return this.entering(repertoires.reduce(addMap, this.library));
   }
 
   /** A blank name keeps the current one. */
   renameMap(name: string): Session {
-    return this.commit(this.repertoire.rename(name.trim() || this.repertoire.name));
+    return this.commit(edit.rename(this.repertoire, name.trim() || this.repertoire.name));
   }
 
   flipOrientation(): Session {
-    return this.commit(this.repertoire.flipped());
+    return this.commit(edit.flip(this.repertoire));
   }
 
   /** Copies the active map as "<name> (copy)" and switches to the copy. */
   duplicateMap(): Session {
-    return this.addMaps([this.repertoire.copy(`${this.repertoire.name} (copy)`)]);
+    return this.addMaps([edit.copyAs(this.repertoire, `${this.repertoire.name} (copy)`)]);
   }
 
   /** Deletes a map (the active one by default); the last map can't be deleted. Re-enters the resulting active map. */
   deleteMap(id: MapId = this.library.activeId): Session {
-    const library = this.library.remove(id);
+    const library = removeMap(this.library, id);
     return library === this.library ? this : this.entering(library);
   }
 
   /** Remembers the viewport of the active map. */
   rememberView(view: SavedView): Session {
-    return this.commit(this.repertoire.withView(view));
+    return this.commit(edit.withView(this.repertoire, view));
   }
 }

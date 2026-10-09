@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { angDist, spawnAngles } from '../src/map/spawn';
+import { angDist, spawnAngles } from '../../../src/infrastructure/primary/map/spawn';
 
 const deg = (a: number): number => Math.round((a * 180) / Math.PI);
 

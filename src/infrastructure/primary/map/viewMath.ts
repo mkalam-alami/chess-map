@@ -1,4 +1,4 @@
-import { NOMINAL_PX } from '../domain';
+import { NOMINAL_PX } from '../../../domain';
 
 // Pure presentation math for the map view (board pixel size, focus zoom, resize grip). Not domain logic.
 

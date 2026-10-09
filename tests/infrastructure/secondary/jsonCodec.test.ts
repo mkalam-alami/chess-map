@@ -4,7 +4,7 @@ import { LIBRARY_VERSION, Library, Repertoire } from '../../../src/domain';
 import {
   deserializeLibrary, deserializeMap, migrate, serializeLibrary, serializeMap, ValidationError,
 } from '../../../src/infrastructure/secondary/storage/jsonCodec';
-import { pinnedOf } from '../../domain/fixtures';
+import { libraryOf, pinnedOf } from '../../domain/fixtures';
 
 /** A pinned segment split by a branch, with a note, a place, a size and a saved view. */
 function sample(): Library {
@@ -12,7 +12,7 @@ function sample(): Library {
   let s = session.goTo({ nodeId: id, ply: 2 }).play('f4', [[4, 50]]).confirmPlacing();
   s = s.annotate(id, 'King pawn').nameLocation(id, { label: 'Paris', country: 'France' }).resizeBoard(id, 0.75);
   const map = { ...s.repertoire.data, name: 'Test', view: { center: [1, 2] as [number, number], zoom: 3 }, boardZoom: 2 };
-  return Library.of(Repertoire.fromData(map));
+  return libraryOf(Repertoire.fromData(map));
 }
 
 /** The sample as plain JSON, its active map and one way to reach its nodes. */

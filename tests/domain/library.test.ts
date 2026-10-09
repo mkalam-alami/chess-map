@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { LIBRARY_VERSION, Library, Repertoire, type LibraryData } from '../../src/domain';
+import { activateMap, addMap, libraryOf, removeMap, replaceMap } from '../../src/domain/library/commands';
+import { rename } from '../../src/domain/repertoire/commands';
 import { emptyRep, lineOf } from './fixtures';
 
 const three = (): { lib: Library; a: Repertoire; b: Repertoire; c: Repertoire } => {
   const a = emptyRep('A');
   const b = emptyRep('B');
   const c = emptyRep('C');
-  return { lib: Library.of(a).add(b).add(c).activate(a.id), a, b, c };
+  return { lib: activateMap(addMap(addMap(libraryOf(a), b), c), a.id), a, b, c };
 };
 
 describe('creating', () => {
-  it('of() holds one active map', () => {
+  it('libraryOf() holds one active map', () => {
     const a = emptyRep('A');
-    const lib = Library.of(a);
+    const lib = libraryOf(a);
     expect(lib.size).toBe(1);
     expect(lib.activeId).toBe(a.id);
     expect(lib.active).toBe(a);
@@ -72,8 +74,8 @@ describe('add', () => {
   it('appends the map and makes it active, leaving the original untouched', () => {
     const a = emptyRep('A');
     const b = emptyRep('B');
-    const lib = Library.of(a);
-    const next = lib.add(b);
+    const lib = libraryOf(a);
+    const next = addMap(lib, b);
     expect(next.ids()).toEqual([a.id, b.id]);
     expect(next.activeId).toBe(b.id);
     expect(lib.size).toBe(1);
@@ -82,8 +84,8 @@ describe('add', () => {
 
   it('replaces a map with the same id in place (keeping its position)', () => {
     const { lib, a, b } = three();
-    const renamed = b.rename('B2');
-    const next = lib.add(renamed);
+    const renamed = rename(b, 'B2');
+    const next = addMap(lib, renamed);
     expect(next.ids()).toEqual([a.id, b.id, lib.ids()[2]]);
     expect(next.get(b.id).name).toBe('B2');
     expect(next.activeId).toBe(b.id);
@@ -93,20 +95,20 @@ describe('add', () => {
 describe('activate', () => {
   it('switches the active map', () => {
     const { lib, b } = three();
-    expect(lib.activate(b.id).activeId).toBe(b.id);
+    expect(activateMap(lib, b.id).activeId).toBe(b.id);
     expect(lib.activeId).not.toBe(b.id);
   });
 
   it('returns the same library for an unknown id', () => {
     const { lib } = three();
-    expect(lib.activate('ghost')).toBe(lib);
+    expect(activateMap(lib, 'ghost')).toBe(lib);
   });
 });
 
 describe('update', () => {
   it('replaces a map by id without changing the active one', () => {
     const { lib, b } = three();
-    const next = lib.update(b.rename('Renamed'));
+    const next = replaceMap(lib, rename(b, 'Renamed'));
     expect(next.get(b.id).name).toBe('Renamed');
     expect(next.activeId).toBe(lib.activeId);
     expect(next.ids()).toEqual(lib.ids());
@@ -114,12 +116,12 @@ describe('update', () => {
 
   it('throws on a map that is not in the library', () => {
     const { lib } = three();
-    expect(() => lib.update(emptyRep('X'))).toThrow(/Unknown map/);
+    expect(() => replaceMap(lib, emptyRep('X'))).toThrow(/Unknown map/);
   });
 
   it('keeps map data identity for the untouched maps', () => {
     const { lib, a, b } = three();
-    const next = lib.update(b.rename('Renamed'));
+    const next = replaceMap(lib, rename(b, 'Renamed'));
     expect(next.data.maps[a.id]).toBe(a.data);
   });
 });
@@ -127,7 +129,7 @@ describe('update', () => {
 describe('remove', () => {
   it('removes a non-active map and keeps the active one', () => {
     const { lib, a, b } = three();
-    const next = lib.remove(b.id);
+    const next = removeMap(lib, b.id);
     expect(next.has(b.id)).toBe(false);
     expect(next.activeId).toBe(a.id);
     expect(next.size).toBe(2);
@@ -135,19 +137,19 @@ describe('remove', () => {
 
   it('activates the first remaining map when the active one goes', () => {
     const { lib, a, b } = three();
-    const next = lib.remove(a.id);
+    const next = removeMap(lib, a.id);
     expect(next.activeId).toBe(b.id);
   });
 
   it('never removes the last map', () => {
     const a = emptyRep('A');
-    const lib = Library.of(a);
-    expect(lib.remove(a.id)).toBe(lib);
+    const lib = libraryOf(a);
+    expect(removeMap(lib, a.id)).toBe(lib);
   });
 
   it('ignores unknown ids', () => {
     const { lib } = three();
-    expect(lib.remove('ghost')).toBe(lib);
+    expect(removeMap(lib, 'ghost')).toBe(lib);
   });
 });
 
@@ -155,16 +157,16 @@ describe('immutability', () => {
   it('commands never change the library they were called on', () => {
     const { lib, b } = three();
     const before = JSON.stringify(lib.data);
-    lib.add(emptyRep('D'));
-    lib.activate(b.id);
-    lib.update(b.rename('Z'));
-    lib.remove(b.id);
+    addMap(lib, emptyRep('D'));
+    activateMap(lib, b.id);
+    replaceMap(lib, rename(b, 'Z'));
+    removeMap(lib, b.id);
     expect(JSON.stringify(lib.data)).toBe(before);
   });
 
   it('keeps the repertoires\' trees', () => {
     const { map } = lineOf(['e4']);
-    const lib = Library.of(Repertoire.fromData(map));
+    const lib = libraryOf(Repertoire.fromData(map));
     expect(lib.active.nodes()).toHaveLength(2);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CENTER, Library, Repertoire, Session, type DomainEvent, type LngLat, type NodeId } from '../../src/domain';
-import { O, editSession, emptyRep, exploreSession, lineOf, patchNode, pinnedOf, spawn, treeOf } from './fixtures';
+import { O, editSession, emptyRep, exploreSession, libraryOf, libraryWith, lineOf, patchNode, pinnedOf, spawn, treeOf } from './fixtures';
 
 const types = (s: Session): string[] => s.events.map((e) => e.type);
 const eventOf = <T extends DomainEvent['type']>(s: Session, type: T): Extract<DomainEvent, { type: T }> =>
@@ -31,16 +31,16 @@ describe('starting a session', () => {
 
   it('a repertoire with moves opens in the preferred mode, Explore by default', () => {
     const rep = Repertoire.fromData(lineOf(['e4']).map);
-    expect(Session.start(Library.of(rep), 'edit').mode).toBe('edit');
-    expect(Session.start(Library.of(rep), 'explore').mode).toBe('explore');
-    expect(Session.start(Library.of(rep), null).mode).toBe('explore');
-    expect(Session.start(Library.of(rep)).mode).toBe('explore');
+    expect(Session.start(libraryOf(rep), 'edit').mode).toBe('edit');
+    expect(Session.start(libraryOf(rep), 'explore').mode).toBe('explore');
+    expect(Session.start(libraryOf(rep), null).mode).toBe('explore');
+    expect(Session.start(libraryOf(rep)).mode).toBe('explore');
   });
 
   it('opens on the active map when the library has several', () => {
     const a = Repertoire.fromData(lineOf(['e4']).map);
     const b = emptyRep('B');
-    const s = Session.start(Library.of(a).add(b).activate(a.id), 'explore');
+    const s = Session.start(libraryWith(a, b), 'explore');
     expect(s.repertoire.id).toBe(a.id);
     expect(s.mode).toBe('explore');
   });
@@ -792,7 +792,7 @@ describe('maps', () => {
     const two = () => {
       const a = Repertoire.fromData(lineOf(['e4', 'e5']).map);
       const b = Repertoire.fromData(lineOf(['d4']).map);
-      return { a, b, session: Session.start(Library.of(a).add(b).activate(a.id), 'explore') };
+      return { a, b, session: Session.start(libraryWith(a, b), 'explore') };
     };
 
     it('shows the other map from its start and emits mapEntered', () => {

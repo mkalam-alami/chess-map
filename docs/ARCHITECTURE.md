@@ -25,14 +25,16 @@ Enforced by `tests/architecture.test.ts` (it parses every import under `src/`).
 | --- | --- | --- | --- |
 | Domain | `src/domain/` | `src/domain/**`, `chess.js` | anything else (no DOM, no fetch, no storage, no timers) |
 | Application | `src/application/` | `src/domain` (barrel only), `src/application/**` | infrastructure, DOM/browser APIs, third-party libs |
-| Primary adapters | `src/infrastructure/primary/` | `src/domain` (barrel), `src/application` (barrel), `src/infrastructure/primary/**`, `preact`, `maplibre-gl`, `chessground` | `src/infrastructure/secondary/**` |
-| Secondary adapters | `src/infrastructure/secondary/` | `src/domain` (barrel), `src/application` (barrel), `src/infrastructure/secondary/**`, `@mliebelt/pgn-parser` | `src/infrastructure/primary/**`, `preact`, `maplibre-gl`, `chessground` |
-| Composition root | `src/main.ts` | everything | — |
+| Primary adapters | `src/infrastructure/primary/` | `src/domain` (barrel), `src/application` (barrel), `src/infrastructure/primary/**`, `preact*`, `maplibre-gl*`, `chessground*`, CSS files | `src/infrastructure/secondary/**` |
+| Secondary adapters | `src/infrastructure/secondary/` | `src/domain` (barrel), `src/application` (barrel), `src/infrastructure/secondary/**`, `@mliebelt/pgn-parser`, JSON files | `src/infrastructure/primary/**`, `preact`, `maplibre-gl`, `chessground`, `chess.js` |
+| Composition root | `src/main.ts` (the only file allowed to import both primary and secondary) | everything, but the core and primary only through their barrels | — |
 
 "Barrel only": outside its own folder, the domain is imported from `src/domain/index.ts`
 and the application from `src/application/index.ts`. The barrels are the public API;
 helpers that are exported for use *inside* a layer but are not in its barrel are
-private to that layer.
+private to that layer. The primary barrel is `src/infrastructure/primary/index.ts`
+(`startPrimary`); the secondary adapters have none, `main.ts` wires them one by one.
+Nothing may live in `src/` outside these layers (besides `style.css`).
 
 ## Domain (`src/domain/`)
 
@@ -51,9 +53,11 @@ src/domain/
   chess/openings.ts     openingAt(fens, lookup) — pure deepest-named-position search; OpeningInfo, openingText
   repertoire/types.ts   persisted data shapes: ChessMapData, MapNodeData, LibraryData, Cursor, SavedView, ids
   repertoire/tree.ts    private tree operations (split, branch, append, subtree, delete, move…)
+  repertoire/commands.ts  package-private commands on a Repertoire (extend, branch, moveTo, annotate, …), applied by Session
   repertoire/cursor.ts  cursor navigation rules (back / forward / next / line)
-  repertoire/Repertoire.ts  aggregate for one map (read-only queries + map-level actions)
-  library/Library.ts    aggregate for the set of maps and the active one
+  repertoire/Repertoire.ts  aggregate for one map (read-only queries)
+  library/Library.ts    aggregate for the set of maps and the active one (read-only)
+  library/commands.ts   package-private commands on a Library (add, activate, replace, remove), applied by Session
   session/Session.ts    aggregate root of the user's working session (the entry point for all actions)
   session/events.ts     DomainEvent union
 ```
@@ -62,9 +66,12 @@ src/domain/
 
 `*Data` types are the plain, JSON-compatible persisted shapes (unchanged from the
 current `ChessMap` / `MapNode` / `Library` JSON, so storage, JSON export and PGN stay
-compatible). Models wrap data and are constructed with `Repertoire.fromData(data)` /
-`Library.fromData(data)` (by secondary adapters, after validation) and expose it back
-with `.data` (for serialization). Constructors are private.
+compatible). Models wrap data and are constructed with `Repertoire.create(...)` / `Library.initial()` or
+`Repertoire.fromData(data)` / `Library.fromData(data)` (by secondary adapters, after validation) and expose it back
+with `.data` (for serialization). Constructors are private. The public classes are **read-only**: queries,
+those factories and `data`. Every change is a `Session` action; the building blocks it uses live in the
+non-barrel `commands.ts` files next to the models and are reachable only from inside the domain (tests that
+exercise them import the file directly).
 
 ### Repertoire (one chess map)
 
@@ -73,10 +80,11 @@ Read-only queries (used by views): `id`, `name`, `orientation`, `rootId`, `view`
 `endOf(nodeId)`, `pathTo(nodeId)`, `branchSize(nodeId)`, `fenAt(cursor)`, `fenPath(cursor)`,
 `sanPath(cursor)`, `lineCursors(cursor)`, `back(cursor)`, `forward(cursor)`,
 `next(cursor, san)`, `transpositions(cursor)`, `distancesFrom(nodeId)`, `sizeSum(nodeId)`,
-`effectiveBoardZoom(nodeId)`, `pinLabel(nodeId)`, `firstPlyIndex(nodeId)`, `canTakeBack(cursor)`.
+`effectiveBoardZoom(nodeId)`, `pinLabel(nodeId)`, `firstPlyIndex(nodeId)`, `branchIds(nodeId)`, `canTakeBack(cursor)`.
 
-Map-level actions are package-internal building blocks called by `Session`; they are not
-re-exported as free functions.
+A `Repertoire` has no commands: renaming, flipping, recording a ply, branching, moving, annotating… are
+`Session` actions that call the package-private `repertoire/commands.ts` and put the result in the `Library`
+(via `library/commands.ts`).
 
 ### Session (aggregate root)
 
@@ -130,13 +138,15 @@ object primary adapters talk to:
 - `session` (current `Session`), `subscribe(fn)` (every state change), `on(type, fn)` (domain
   events for views: `focused`, `deadEnd`, `rejected`, `mapEntered`), `subscribePlacing(fn)` (cheap
   channel for ghost movement, no full re-render).
-- One method per Session action (`back()`, `play(san, spots)`, `relocate(...)`, …). Each applies
+- One method per Session action (`back()`, `play(san, spots)`, `relocate(...)`, …). `forward()`, `play(...)` and
+  `deleteMap(id?)` return a boolean (false on a dead end, a rejected Explore move, a refused delete). Each applies
   the action, then: saves the library through `LibraryRepository` if it changed, saves the mode
   through `PreferenceStore` if it changed, reverse-geocodes on `positionPlaced` (latest lookup per
   node wins, failures ignored, result applied with `nameLocation`), forwards view events.
 - `rememberView(view)` saves without notifying subscribers.
-- Integration use cases: `start()` (load library + mode, load opening book, geocode an unnamed root),
-  `flush()`, `searchPlaces(q)`, `openingAt(cursor)`, `exportMap(format)` (writes through `FileSaver`),
+- Integration use cases: `start()` (load library + mode, geocode an unnamed root, load the opening book in the
+  background; returns a promise that settles once the book has loaded or failed), `flush()`,
+  `searchPlaces(q, signal?)`, `openingAt(cursor)`, `exportMap(format)` (writes through `FileSaver`),
   `importMaps(format, text, {name, origin})` (returns the number of maps, throws `ImportError`),
   `openInAnalysis()` (returns `'opened' | 'copied'`, rejects when the clipboard fails).
 
@@ -146,7 +156,7 @@ object primary adapters talk to:
 interface LibraryRepository { load(): Library | null; save(library: Library): void; flush(): void }
 interface PreferenceStore { loadMode(): Mode | null; saveMode(mode: Mode): void }
 interface ReverseGeocoder { placeAt(at: LngLat, signal: AbortSignal): Promise<Place | null> }
-interface PlaceSearch { search(query: string): Promise<PlaceHit[]> }
+interface PlaceSearch { search(query: string, signal?: AbortSignal): Promise<PlaceHit[]> }
 interface OpeningBook { load(): Promise<void>; lookup(epd: string): { eco: string; name: string } | undefined }
 type MapFormatId = 'json' | 'pgn';
 interface MapFormat { id: MapFormatId; extension: string; mimeType: string;
@@ -161,19 +171,24 @@ interface AnalysisBoard { open(map: Repertoire, cursor: Cursor): Promise<'opened
 
 ```
 primary/
-  index.ts          startPrimary(appElement, app): builds map views, Preact UI, keyboard
-  viewState.ts      presentation-only state (boardOpen, centered, overview, recenter, keepSize, pulse),
-                    an observable updated from app events; shared by the UI and the map views
-  keyboard.ts       shortcuts → app actions
-  ui/               Preact components (TopBar, Locate, Recenter, overlay, toast, promotion, hooks, dom helpers)
-  map/              MapLibre view, board marker (chessground), pins, curves, drag, placing ghost,
-                    relocation ghost, board sizer, presentation math (boardPx, focusZoom, gripResize,
-                    comfortPx, maxZoomToFit, spawnAngles, curveCoords)
+  index.ts          startPrimary(appElement, app): builds map views, Preact UI, keyboard; sets window.__chessMap (e2e)
+  viewState.ts      ViewState: presentation-only observable (boardOpen, centered, overview, recenter, keepSize, pulse)
+                    updated from app events (`focused`, `deadEnd`, `mapEntered`); shared by the UI and the map views
+  keyboard.ts       installKeyboard(app, viewState): shortcuts -> app actions
+  ui/               Preact components (TopBar, Locate, Recenter, overlay, toast, promotion), hooks.ts (AppContext,
+                    useApp, useViewState, atom), actions.ts (file import, "open in Lichess" with their toasts), dom helpers
+  map/              MapLibre view, board marker (chessground), pins, curves, drag + dragPreview, placing ghost,
+                    relocation ghost, board sizer, presentation math (viewMath: boardPx, focusZoom, gripResize,
+                    comfortPx, maxZoomToFit; curves: curveCoords; spawn: spawnAngles)
 ```
 
-Components get the app and the view state from a Preact context (`AppContext`); imperative
-map views receive them as constructor parameters. There are no module-level singletons
-holding application state. Toast / popover / dialog atoms stay UI-local.
+Components get the app and the `ViewState` from a Preact context (`AppContext`, provided by `mountUi`):
+`useApp()` returns the app and re-renders on every application change, `useViewState()` returns the view
+state and re-renders when it (or the application) changes. Imperative map views receive `app` and the view state
+as parameters (`createMapView(container, app, vs)`, ...). There are no module-level singletons holding
+application state. Toast / popover / dialog atoms stay UI-local, and the transient drag preview is an instance
+shared through parameters. Views read domain data through the models (`app.session.repertoire.node(id)`, ...),
+not through raw `.data`.
 
 ### Secondary (`src/infrastructure/secondary/`)
 
@@ -192,7 +207,8 @@ secondary/
 ## Composition root (`src/main.ts`)
 
 Builds the secondary adapters, injects them into `ChessMapApp`, starts it, hands the app to
-`startPrimary`, wires `pagehide` / `visibilitychange` to `app.flush()`. Dependency injection is
+`startPrimary`, wires `pagehide` / `visibilitychange` to `app.flush()`. It is the only place that touches the real
+`localStorage`, `fetch`, `navigator.clipboard` and `window.open`. Dependency injection is
 plain constructor injection — no container or decorators: the graph is small and static, and
 TypeScript 7 + Vite need no extra build config this way.
 
@@ -206,5 +222,5 @@ Tests follow the layer boundaries:
 | Application | `tests/application/` | `ChessMapApp` with in-memory fakes of every port (`tests/application/fakes.ts`): persistence on change, mode preference, geocoding (latest wins, dropped when moved, failures ignored), import / export, analysis, opening lookup, event forwarding. |
 | Secondary adapters | `tests/infrastructure/secondary/` | Complex code and error cases as adapter scenarios with fake `fetch` / `Storage` / clipboard: corrupt storage, quota errors, migrations, validation, PGN round trip, rate limiting, HTTP errors, clipboard failure. |
 | Primary adapters | `tests/infrastructure/primary/` | Finer unit tests only for non-trivial pure presentation math (curves, spawn angles, board px / zoom math, atom). |
-| End to end | `tests/e2e/` | Playwright, one spec file per user journey (see `tests/e2e/README.md`). The main coverage for primary adapters and the full wiring. All network mocked. |
+| End to end | `tests/e2e/` | Playwright (`smoke.spec.ts`, helpers in `helpers.ts`). The main coverage for primary adapters and the full wiring. All network mocked. |
 | Architecture | `tests/architecture.test.ts` | The dependency rules above. |

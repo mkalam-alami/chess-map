@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOMINAL_PX } from '../../../src/domain';
-import { boardPx, comfortPx, focusZoom, gripResize, maxZoomToFit } from '../../../src/map/viewMath';
+import { boardPx, comfortPx, focusZoom, gripResize, maxZoomToFit } from '../../../src/infrastructure/primary/map/viewMath';
 
 describe('boardPx', () => {
   const view = { width: 1280, height: 630 };

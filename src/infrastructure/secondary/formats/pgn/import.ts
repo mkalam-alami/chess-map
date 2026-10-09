@@ -1,6 +1,5 @@
-import { Chess } from 'chess.js';
 import { parseGames, type ParseTree } from '@mliebelt/pgn-parser';
-import { DEFAULT_CENTER, START_FEN, newId, tryMove, wrapLng, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../../../domain';
+import { DEFAULT_CENTER, START_FEN, newId, tryMove, turnColor, wrapLng, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../../../domain';
 import { ImportError } from '../../../../application';
 import { unescapeArg } from './export';
 
@@ -66,9 +65,8 @@ interface Draft {
 }
 
 function fail(game: number, san: string, fen: string): never {
-  const c = new Chess(fen);
-  const dots = c.turn() === 'w' ? '.' : '...';
-  throw new ImportError(`Game ${game}: illegal move "${san}" at move ${c.moveNumber()}${dots}`);
+  const dots = turnColor(fen) === 'white' ? '.' : '...';
+  throw new ImportError(`Game ${game}: illegal move "${san}" at move ${fen.split(' ')[5]}${dots}`);
 }
 
 function placeOf(meta: Meta): MapNodeData['place'] | undefined {

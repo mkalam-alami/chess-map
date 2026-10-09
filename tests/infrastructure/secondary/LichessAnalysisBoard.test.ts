@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Repertoire } from '../../../src/domain';
+import { flip } from '../../../src/domain/repertoire/commands';
 import { LICHESS_STUDY_URL, LichessAnalysisBoard, MAX_URL, lichessAnalysisUrl } from '../../../src/infrastructure/secondary/lichess/LichessAnalysisBoard';
 import { lineOf } from '../../domain/fixtures';
 
@@ -40,7 +41,7 @@ describe('LichessAnalysisBoard', () => {
     const { rep, root } = board(['e4']);
     await new LichessAnalysisBoard(d).open(rep, root);
     expect(d.open).toHaveBeenLastCalledWith('https://lichess.org/analysis/pgn/');
-    await new LichessAnalysisBoard(d).open(rep.flipped(), root);
+    await new LichessAnalysisBoard(d).open(flip(rep), root);
     expect(d.open).toHaveBeenLastCalledWith('https://lichess.org/analysis/pgn/?color=black');
   });
 

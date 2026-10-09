@@ -1,9 +1,10 @@
 import maplibregl from 'maplibre-gl';
-import { openingText, type NodeId } from '../domain';
-import { activeRepertoire, focus, getState, moveNodeTo, openingAt, subscribe } from '../store/store';
+import { openingText, type NodeId } from '../../../domain';
+import type { ChessMapApp } from '../../../application';
+import type { ViewState } from '../viewState';
 import { el, shieldFromMap } from '../ui/dom';
 import { makeDraggable } from './drag';
-import { clearPreview, onOverride, overrides, previewMove } from './live';
+import type { DragPreview } from './dragPreview';
 
 type Kind = 'child' | 'ancestor' | 'root' | 'overview';
 const TESTID: Record<Kind, string> = { child: 'pin', ancestor: 'pin-ancestor', root: 'pin-root', overview: 'pin-overview' };
@@ -16,20 +17,20 @@ interface Entry {
   kind: Kind;
 }
 
-export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
+export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: ViewState, preview: DragPreview): { update: () => void } {
   const entries = new Map<NodeId, Entry>();
-  let lastPulse = getState().pulse;
+  let lastPulse = vs.pulse;
 
   function desired(): Map<NodeId, Kind> {
-    const s = getState();
-    const m = activeRepertoire();
+    const s = app.session;
+    const m = s.repertoire;
     const node = m.node(s.cursor.nodeId);
     const out = new Map<NodeId, Kind>();
-    if (s.overview) for (const n of m.nodes()) out.set(n.id, 'overview');
+    if (vs.overview) for (const n of m.nodes()) out.set(n.id, 'overview');
     for (const id of m.pathTo(node.id)) out.set(id, id === m.rootId ? 'root' : 'ancestor');
     if (s.cursor.ply === node.plies.length) for (const c of node.children) out.set(c, 'child');
     out.delete(node.id); // the board stands there
-    if (!s.boardOpen) out.set(node.id, node.id === m.rootId ? 'root' : 'ancestor'); // closed: its pin is the way back
+    if (!vs.boardOpen) out.set(node.id, node.id === m.rootId ? 'root' : 'ancestor'); // closed: its pin is the way back
     return out;
   }
 
@@ -42,35 +43,35 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
     const marker = new maplibregl.Marker({ element: root, anchor: 'bottom' }).setLngLat([0, 0]).addTo(map);
     const entry: Entry = { marker, root, label, note, kind };
     const enter = (): void => {
-      const { cursor } = getState();
-      if (cursor.nodeId === id) focus(cursor); // the closed board's own pin: reopen where it was
-      else focus(entry.kind === 'ancestor' || entry.kind === 'root' ? activeRepertoire().endOf(id) : { nodeId: id, ply: 1 });
+      const { cursor, repertoire } = app.session;
+      if (cursor.nodeId === id) app.goTo(cursor); // the closed board's own pin: reopen where it was
+      else app.goTo(entry.kind === 'ancestor' || entry.kind === 'root' ? repertoire.endOf(id) : { nodeId: id, ply: 1 });
     };
     const dragged = makeDraggable({
       map,
       handle: root,
       longPress: true,
-      enabled: () => getState().mode === 'edit' && !getState().placing && entry.kind !== 'root',
+      enabled: () => app.session.mode === 'edit' && !app.session.placing && entry.kind !== 'root',
       anchorPoint: () => {
         const r = root.getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.bottom };
       },
-      onPreview: (ll, subtree) => previewMove(activeRepertoire(), id, ll, subtree),
+      onPreview: (ll, subtree) => preview.previewMove(app.session.repertoire, id, ll, subtree),
       onDrop: (ll, subtree) => {
-        clearPreview();
-        moveNodeTo(id, ll, subtree);
+        preview.clear();
+        app.relocate(id, ll, { withBranch: subtree });
       },
-      onCancel: clearPreview,
+      onCancel: preview.clear,
     });
     root.addEventListener('click', () => {
-      if (dragged() || getState().placing) return;
+      if (dragged() || app.session.placing) return;
       enter();
     });
     return entry;
   }
 
   function update(): void {
-    const m = activeRepertoire();
+    const m = app.session.repertoire;
     const want = desired();
     for (const [id, entry] of entries) {
       if (!want.has(id)) {
@@ -78,11 +79,11 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
         entries.delete(id);
       }
     }
-    const pulse = getState().pulse !== lastPulse;
-    lastPulse = getState().pulse;
-    const editing = getState().mode === 'edit';
+    const pulse = vs.pulse !== lastPulse;
+    lastPulse = vs.pulse;
+    const editing = app.session.mode === 'edit';
     // Overview: the further from the cursor (in markers), the smaller the pin.
-    const dist = getState().overview ? m.distancesFrom(getState().cursor.nodeId) : null;
+    const dist = vs.overview ? m.distancesFrom(app.session.cursor.nodeId) : null;
     for (const [id, kind] of want) {
       const node = m.node(id);
       let e = entries.get(id);
@@ -91,7 +92,7 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
         entries.set(id, e);
       }
       e.kind = kind;
-      e.marker.setLngLat(overrides.get(id) ?? node.lngLat);
+      e.marker.setLngLat(preview.overrides.get(id) ?? node.lngLat);
       const text = m.pinLabel(id);
       e.label.textContent = text;
       e.note.hidden = !node.note;
@@ -102,11 +103,11 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
       e.root.classList.toggle('pin-d2', d === 3 || d === 4);
       e.root.classList.toggle('pin-d5', d >= 5);
       e.root.classList.toggle('editable', editing);
-      e.root.classList.toggle('relocating', getState().relocating?.nodeId === id);
+      e.root.classList.toggle('relocating', app.session.relocating?.nodeId === id);
       e.root.dataset.testid = TESTID[kind];
       e.root.dataset.nodeId = id;
       e.root.dataset.label = text;
-      const op = openingAt(m.endOf(id));
+      const op = app.openingAt(m.endOf(id));
       e.root.title = [op && `${op.eco} ${openingText(op)}`, node.place?.label].filter(Boolean).join(' · ');
       if (pulse && kind === 'child') {
         e.root.classList.add('pulse');
@@ -115,8 +116,8 @@ export function createPinMarkers(map: maplibregl.Map): { update: () => void } {
     }
   }
 
-  onOverride(update);
-  subscribe(update);
+  preview.onChange(update);
+  vs.subscribe(update);
   update();
   return { update };
 }

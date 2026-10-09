@@ -1,23 +1,17 @@
 import { epd, moveLabel } from '../chess/rules';
-import { newId } from '../id';
-import type { LngLat, Place } from '../geo';
+import type { LngLat } from '../geo';
 import { cursorBack, cursorEnd, cursorForward, lineCursors, nextCursor, rootCursor } from './cursor';
 import { fenAt, fenPath } from './positions';
 import { effectiveBoardZoom, rootBoardZoom, sizeSum } from './scale';
 import {
-  appendPly, branchAt, canUndoLastPly, createMapData, deleteSubtree, getNode, minPly, moveNode, nodeDistances,
-  pathTo, sanPath, setNote, setPinned, setPlace, setSizeDelta, subtreeIds, undoLastPly,
+  canUndoLastPly, createMapData, getNode, minPly, nodeDistances, pathTo, sanPath, subtreeIds,
 } from './tree';
 import type { ChessMapData, Cursor, MapId, MapNodeData, NodeId, Orientation, SavedView } from './types';
 
-/** Outcome of a command that moves the cursor along with the map. */
-export interface Moved { repertoire: Repertoire; cursor: Cursor }
-
 /**
- * One chess map: a tree of positions. Immutable: commands return a new Repertoire.
- *
- * The queries are what views read. The commands are building blocks for `Session`, which owns the
- * rules about WHEN they apply (modes, busy flows, spawn positions); they only enforce tree integrity.
+ * One chess map: a tree of positions. Immutable and read-only: it only answers queries. Changes are made through
+ * `Session` actions, which apply the package-private `commands` (they only enforce tree integrity; `Session` owns the
+ * rules about WHEN they apply).
  */
 export class Repertoire {
   private constructor(private readonly d: ChessMapData) {}
@@ -119,59 +113,4 @@ export class Repertoire {
   canTakeBack(cursor: Cursor): boolean {
     return cursor.ply === this.node(cursor.nodeId).plies.length && canUndoLastPly(this.d, cursor.nodeId);
   }
-
-  // ---- commands (building blocks for Session) ----
-
-  private with(d: ChessMapData): Repertoire { return new Repertoire(d); }
-
-  rename(name: string): Repertoire { return this.with({ ...this.d, name }); }
-  flipped(): Repertoire { return this.with({ ...this.d, orientation: this.d.orientation === 'white' ? 'black' : 'white' }); }
-  withView(view: SavedView): Repertoire { return this.with({ ...this.d, view }); }
-  /** Same tree under a fresh map id and name. */
-  copy(name: string): Repertoire { return this.with({ ...this.d, id: newId(), name }); }
-
-  /**
-   * Records `san` in place when the cursor is at the end of a non-root leaf: the node becomes pinned
-   * and its segment grows. Null when the cursor is elsewhere (then the move needs `branch`).
-   */
-  extend(cursor: Cursor, san: string): Moved | null {
-    const node = this.node(cursor.nodeId);
-    if (cursor.ply !== node.plies.length || node.parentId === null || node.children.length) return null;
-    const pinned = node.pinned ? this.d : setPinned(this.d, node.id, true);
-    return { repertoire: this.with(appendPly(pinned, node.id, san)), cursor: { nodeId: node.id, ply: cursor.ply + 1 } };
-  }
-
-  /**
-   * Plays a new move `san` as a child at `at`, splitting a segment first when the cursor is mid-way
-   * (the split-off tail, with its branch, is relocated to `tailAt`). `pinned` makes the new marker a
-   * recording segment. `cursor` of the result is on the new marker.
-   */
-  branch(cursor: Cursor, san: string, at: LngLat, tailAt: LngLat, pinned: boolean): Moved & { nodeId: NodeId } {
-    const node = this.node(cursor.nodeId);
-    const splits = cursor.ply < node.plies.length && node.plies[cursor.ply] !== san;
-    const r = branchAt(this.d, cursor, san, at);
-    let d = r.map;
-    if (splits) d = moveNode(d, getNode(d, node.id).children[0] as NodeId, tailAt, { withSubtree: true });
-    if (pinned) d = setPinned(d, r.cursor.nodeId, true);
-    return { repertoire: this.with(d), cursor: r.cursor, nodeId: r.cursor.nodeId };
-  }
-
-  /** Drops the last ply when `canTakeBack`; otherwise returns this. */
-  takeBack(cursor: Cursor): Repertoire {
-    return this.canTakeBack(cursor) ? this.with(undoLastPly(this.d, cursor.nodeId)) : this;
-  }
-
-  /** Moves a position (and its whole branch with `withBranch`). */
-  moveTo(nodeId: NodeId, at: LngLat, withBranch: boolean): Repertoire {
-    return this.with(moveNode(this.d, nodeId, at, { withSubtree: withBranch }));
-  }
-
-  /** A blank note removes it. */
-  annotate(nodeId: NodeId, note: string): Repertoire { return this.with(setNote(this.d, nodeId, note)); }
-  /** Absolute log2 board size relative to the parent, snapped to 0.25; 0 inherits. */
-  resize(nodeId: NodeId, delta: number): Repertoire { return this.with(setSizeDelta(this.d, nodeId, delta)); }
-  namePlace(nodeId: NodeId, place: Place): Repertoire { return this.with(setPlace(this.d, nodeId, place)); }
-  /** Removes the position and everything after it. Throws for the root. */
-  remove(nodeId: NodeId): Repertoire { return this.with(deleteSubtree(this.d, nodeId)); }
 }
-

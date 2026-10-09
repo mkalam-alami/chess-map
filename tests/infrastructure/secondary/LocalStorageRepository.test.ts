@@ -4,7 +4,7 @@ import { CORRUPT_KEY, LocalStorageLibraryRepository, STORAGE_KEY } from '../../.
 import { LocalStoragePreferences, MODE_KEY } from '../../../src/infrastructure/secondary/storage/LocalStoragePreferences';
 import { browserStorage, type KV } from '../../../src/infrastructure/secondary/storage/kv';
 import { serializeLibrary } from '../../../src/infrastructure/secondary/storage/jsonCodec';
-import { pinnedOf } from '../../domain/fixtures';
+import { libraryOf, pinnedOf } from '../../domain/fixtures';
 
 const fakeStorage = () => {
   const data = new Map<string, string>();
@@ -22,8 +22,8 @@ const throwing = (on: { get?: boolean; set?: boolean }): KV => ({
   setItem: () => { if (on.set) throw new DOMException('full', 'QuotaExceededError'); },
 });
 
-const lib = (): Library => Library.of(pinnedOf(['e4', 'e5']).session.repertoire);
-const another = (): Library => Library.of(Repertoire.create('Other', 'black', [1, 2]));
+const lib = (): Library => libraryOf(pinnedOf(['e4', 'e5']).session.repertoire);
+const another = (): Library => libraryOf(Repertoire.create('Other', 'black', [1, 2]));
 
 beforeEach(() => {
   vi.useFakeTimers();
