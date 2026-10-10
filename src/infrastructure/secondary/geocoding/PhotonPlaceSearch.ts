@@ -28,15 +28,17 @@ export function parsePhoton(data: { features?: PhotonFeature[] }): PlaceHit[] {
 /** Place search via Photon (komoot). */
 export class PhotonPlaceSearch implements PlaceSearch {
   private readonly fetchFn: typeof fetch;
+  private readonly baseUrl: string;
 
-  constructor(opts: { fetch?: typeof fetch } = {}) {
+  constructor(opts: { fetch?: typeof fetch; baseUrl?: string } = {}) {
+    this.baseUrl = opts.baseUrl ?? 'https://photon.komoot.io';
     this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
   }
 
   async search(query: string, signal?: AbortSignal): Promise<PlaceHit[]> {
     const q = query.trim();
     if (!q) return [];
-    const res = await this.fetchFn(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`, signal ? { signal } : undefined);
+    const res = await this.fetchFn(`${this.baseUrl}/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`, signal ? { signal } : undefined);
     if (!res.ok) throw new Error(`Place search failed (HTTP ${res.status})`);
     return parsePhoton((await res.json()) as { features?: PhotonFeature[] });
   }

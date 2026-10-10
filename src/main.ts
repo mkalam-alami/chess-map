@@ -15,12 +15,14 @@ import { browserStorage } from './infrastructure/secondary/storage/kv';
 // Composition root: the only place that knows both the primary and the secondary adapters.
 const storage = browserStorage();
 const pgn = new PgnMapFormat();
+// Dev server only: Firefox blocks the cross-origin geocoding requests from localhost, so go through the Vite proxy (vite.config.ts).
+const geoBase = (service: string): { baseUrl?: string } => (import.meta.env.DEV ? { baseUrl: `${import.meta.env.BASE_URL}proxy/${service}` } : {});
 
 const app = new ChessMapApp({
   library: new LocalStorageLibraryRepository(storage),
   preferences: new LocalStoragePreferences(storage),
-  geocoder: new NominatimReverseGeocoder(),
-  placeSearch: new PhotonPlaceSearch(),
+  geocoder: new NominatimReverseGeocoder(geoBase('nominatim')),
+  placeSearch: new PhotonPlaceSearch(geoBase('photon')),
   openings: new LichessOpeningBook(),
   formats: { json: new JsonMapFormat(), pgn },
   files: new DownloadFileSaver(),

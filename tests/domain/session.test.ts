@@ -602,6 +602,18 @@ describe('relocating a position', () => {
     expect(s.repertoire.node(ids[0] as string).lngLat).toEqual(O);
   });
 
+  it('with the whole branch, every moved position asks for its place name, at a wrapped position', () => {
+    const { session, ids } = lineOf(['e4', 'e5', 'Nf3']);
+    const s = session.relocate(ids[1] as string, [179, 21], { withBranch: true });
+    expect(s.events).toEqual([
+      { type: 'positionPlaced', nodeId: ids[1], at: [179, 21] },
+      { type: 'positionPlaced', nodeId: ids[2], at: [-180, 22] },
+      { type: 'positionPlaced', nodeId: ids[3], at: [-179, 23] },
+    ]);
+    // a name arriving for a moved descendant is accepted although its stored longitude is not wrapped
+    expect(s.nameLocation(ids[2] as string, { label: 'Fiji' }, [-180, 22]).repertoire.node(ids[2] as string).place?.label).toBe('Fiji');
+  });
+
   it('with a place (e.g. a search result) the label is set directly and no geocoding is requested', () => {
     const { session, ids } = e4e5();
     const s = session.relocate(ids[1] as string, [30, 40], { place: { label: 'Lisbon', country: 'Portugal' } });

@@ -101,7 +101,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
       <div class="tb-main">
         {/* Identity: the map switcher reads as a title (a real <select> underneath). */}
         <label class="map-pick">
-          <Icon name="knight" size={20} />
+          <Icon name="logo" size={20} />
           <select class="map-select" data-testid="map-select" aria-label="Map" value={s.library.activeId} onChange={(e) => app.switchMap(e.currentTarget.value)}>
             {s.library.repertoires().map((lm) => <option value={lm.id}>{lm.name}</option>)}
           </select>

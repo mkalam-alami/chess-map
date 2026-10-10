@@ -42,12 +42,14 @@ const cacheKey = (p: LngLat): string => `${p[1].toFixed(2)},${p[0].toFixed(2)}`;
 /** Reverse geocoding via Nominatim: rate limited (FIFO, one request per MIN_INTERVAL_MS) and cached by position (~1 km). */
 export class NominatimReverseGeocoder implements ReverseGeocoder {
   private readonly fetchFn: typeof fetch;
+  private readonly baseUrl: string;
   private readonly now: () => number;
   private lastStart = 0;
   private tail: Promise<unknown> = Promise.resolve();
   private readonly cache = new Map<string, Place | null>();
 
-  constructor(opts: { fetch?: typeof fetch; now?: () => number } = {}) {
+  constructor(opts: { fetch?: typeof fetch; now?: () => number; baseUrl?: string } = {}) {
+    this.baseUrl = opts.baseUrl ?? 'https://nominatim.openstreetmap.org';
     this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
     this.now = opts.now ?? Date.now;
   }
@@ -56,7 +58,7 @@ export class NominatimReverseGeocoder implements ReverseGeocoder {
   async placeAt(at: LngLat, signal: AbortSignal): Promise<Place | null> {
     const key = cacheKey(at);
     if (this.cache.has(key)) return this.cache.get(key) ?? null;
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${at[1].toFixed(5)}&lon=${at[0].toFixed(5)}&zoom=10&accept-language=en`;
+    const url = `${this.baseUrl}/reverse?format=jsonv2&lat=${at[1].toFixed(5)}&lon=${at[0].toFixed(5)}&zoom=10&accept-language=en`;
     const result = await this.throttled(async () => {
       const res = await this.fetchFn(url, { signal });
       if (!res.ok) throw new Error(`Reverse geocoding failed (HTTP ${res.status})`);

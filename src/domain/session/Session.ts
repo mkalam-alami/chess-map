@@ -217,13 +217,18 @@ export class Session {
 
   /**
    * Moves a position (and its whole branch with `withBranch`); the longitude is wrapped. With a `place`
-   * (e.g. a search result) the label is set directly, otherwise `positionPlaced` asks for geocoding.
+   * (e.g. a search result) the label is set directly, otherwise `positionPlaced` asks for geocoding. The nodes
+   * carried along with the branch keep a stale place, so each of them asks for geocoding too.
    */
   relocate(nodeId: NodeId, at: LngLat, opts: { withBranch?: boolean; place?: Place } = {}): Session {
     const w = wrapLng(at);
     const moved = edit.moveTo(this.repertoire, nodeId, w, !!opts.withBranch);
-    if (opts.place) return this.commit(edit.namePlace(moved, nodeId, opts.place));
-    return this.commit(moved, {}, [{ type: 'positionPlaced', nodeId, at: w }]);
+    const named = opts.place ? edit.namePlace(moved, nodeId, opts.place) : moved;
+    const ids = opts.withBranch ? moved.branchIds(nodeId) : [nodeId];
+    const events: DomainEvent[] = ids
+      .filter((id) => id !== nodeId || !opts.place)
+      .map((id) => ({ type: 'positionPlaced', nodeId: id, at: wrapLng(moved.node(id).lngLat) }));
+    return this.commit(named, {}, events);
   }
 
   /**
@@ -233,7 +238,7 @@ export class Session {
   nameLocation(nodeId: NodeId, place: Place, requestedAt?: LngLat): Session {
     const rep = this.repertoire;
     if (!rep.hasNode(nodeId)) return this;
-    if (requestedAt && !sameLngLat(requestedAt, rep.node(nodeId).lngLat)) return this;
+    if (requestedAt && !sameLngLat(wrapLng(requestedAt), wrapLng(rep.node(nodeId).lngLat))) return this;
     return this.commit(edit.namePlace(rep, nodeId, place));
   }
 

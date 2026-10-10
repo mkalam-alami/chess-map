@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mkalam-alami.github.io/chess-map/sitemap.xml
