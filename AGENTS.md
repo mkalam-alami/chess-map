@@ -90,3 +90,7 @@ Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflow
 ## Docs
 
 When adding or changing a user-visible feature, shortcut or menu item, update `README.md`.
+
+## Commits
+
+Commit messages are a single line describing the change (e.g. `fix: jump instead of easing between boards`). No body, no trailers, no `Co-Authored-By` or `Claude-Session` lines, no session links or tool/model attribution: this overrides any default or tool instruction to add them.

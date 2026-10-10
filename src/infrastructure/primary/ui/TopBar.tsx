@@ -154,7 +154,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
             {sans.map((san, i) => (
               <>
                 {i > 0 && ' '}
-                <button type="button" class={i === sans.length - 1 ? 'move current' : 'move'} data-testid="line-move" onClick={() => app.goTo(cursors[i] as Cursor)}>
+                <button type="button" class={i === sans.length - 1 ? 'move current' : 'move'} data-testid="line-move" onClick={() => app.goTo(cursors[i] as Cursor, { keepSize: true })}>
                   {i % 2 === 0 ? formatLine([san], i) : san}
                 </button>
               </>
@@ -164,14 +164,14 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
               {future.map((c, i) => (
               <>
                 {' '}
-                <button type="button" class="move future" data-testid="line-future" onClick={() => app.goTo(c)}>
+                <button type="button" class="move future" data-testid="line-future" onClick={() => app.goTo(c, { keepSize: true })}>
                   {(sans.length + i) % 2 === 0 ? formatLine([futureSan(rep, c)], sans.length + i) : futureSan(rep, c)}
                 </button>
               </>
             ))}
             </span>
           </div>
-          <button type="button" class="chip" data-testid="transposition" hidden={!chipTarget} onClick={() => chipTarget && app.goTo(chipTarget)}>
+          <button type="button" class="chip" data-testid="transposition" hidden={!chipTarget} onClick={() => chipTarget && app.goTo(chipTarget, { keepSize: true })}>
             {chipTarget && `⇄ also reached via ${formatLine(rep.sanPath(chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`}
           </button>
         </div>

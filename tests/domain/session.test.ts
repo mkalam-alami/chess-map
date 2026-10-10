@@ -199,7 +199,7 @@ describe('exploring (training)', () => {
     expect(s.cursor.played).toBe(1);
     expect(s.repertoire.sanPath(s.cursor)).toEqual(['e4']);
     expect(types(s)).toEqual(['focused']);
-    expect(eventOf(s, 'focused')).toMatchObject({ cursor: s.cursor, keepSize: false });
+    expect(eventOf(s, 'focused')).toMatchObject({ cursor: s.cursor, keepSize: true });
   });
 
   it('rejects a move that is not in the repertoire: nothing changes, rejected is emitted', () => {

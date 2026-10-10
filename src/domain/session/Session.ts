@@ -111,7 +111,7 @@ export class Session {
 
   // ---- navigation ----
 
-  /** Moves the cursor (throws on an unknown node). `keepSize`: keep the board's on-screen size when focusing. */
+  /** Moves the cursor (throws on an unknown node). `keepSize`: keep the board's on-screen size when focusing, and jump there instead of easing (only a marker click glides). */
   goTo(cursor: Cursor, opts: { keepSize?: boolean } = {}): Session {
     if (this.busy) return this;
     this.repertoire.node(cursor.nodeId);
@@ -181,7 +181,7 @@ export class Session {
 
   private follow(san: string): Session {
     const to = this.repertoire.next(this.cursor, san);
-    if (to) return this.busy ? this : this.focused(to, false);
+    if (to) return this.busy ? this : this.focused(to, true);
     return this.next({}, [{ type: 'rejected', san }]);
   }
 
@@ -189,7 +189,7 @@ export class Session {
   private playEdit(san: string, spots: LngLat[]): Session {
     const rep = this.repertoire;
     const existing = rep.next(this.cursor, san);
-    if (existing) return this.focused(existing, false);
+    if (existing) return this.focused(existing, true);
     if (this.recording) {
       const r = edit.extend(rep, this.cursor, san);
       if (r) return this.commit(r.repertoire, { cursor: r.cursor });
