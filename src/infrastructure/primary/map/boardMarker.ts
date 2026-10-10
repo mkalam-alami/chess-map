@@ -149,6 +149,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     return prev && san ? moveSquares(m.fenAt(prev), san) : undefined;
   }
 
+  let viewOnly = false;
   function update(): void {
     const s = app.session;
     const m = s.repertoire;
@@ -173,6 +174,10 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
       lastMove: lastMoveOf(s.cursor),
       movable: { color: turn, dests: legalDests(fen) as Map<Key, Key[]> },
     });
+    // Chessground binds its pointer listeners only when it (re)draws while interactive. A redraw during placing (the camera
+    // zooms, the board is resized) leaves a dead board, so redraw once more when placing ends.
+    if (viewOnly && !s.placing) cg.redrawAll();
+    viewOnly = !!s.placing;
     sizer.apply();
   }
 

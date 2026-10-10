@@ -222,5 +222,5 @@ Tests follow the layer boundaries:
 | Application | `tests/application/` | `ChessMapApp` with in-memory fakes of every port (`tests/application/fakes.ts`): persistence on change, mode preference, geocoding (latest wins, dropped when moved, failures ignored), import / export, analysis, opening lookup, event forwarding. |
 | Secondary adapters | `tests/infrastructure/secondary/` | Complex code and error cases as adapter scenarios with fake `fetch` / `Storage` / clipboard: corrupt storage, quota errors, migrations, validation, PGN round trip, rate limiting, HTTP errors, clipboard failure. |
 | Primary adapters | `tests/infrastructure/primary/` | Finer unit tests only for non-trivial pure presentation math (curves, spawn angles, board px / zoom math, atom). |
-| End to end | `tests/e2e/` | Playwright (`smoke.spec.ts`, helpers in `helpers.ts`). The main coverage for primary adapters and the full wiring. All network mocked. |
+| End to end | `tests/e2e/` | Playwright, one spec per user journey (see `tests/e2e/README.md`), mocked network from `fixtures.ts`, helpers in `helpers.ts`. The main coverage for primary adapters and the full wiring; business rules stay in the lower levels. |
 | Architecture | `tests/architecture.test.ts` | The dependency rules above. |

@@ -1,31 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 import type { ChessMapData as ChessMap, MapNodeData as MapNode } from '../../src/domain';
 
-// Network is mocked: no real tiles, Nominatim or Photon requests are made.
+// Network mocks live in fixtures.ts (the `test` exported there installs them for every test).
 
-const STYLE = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#9bbbe8' } }] };
-
-export async function mockNetwork(page: Page): Promise<void> {
-  await page.route('https://tiles.openfreemap.org/**', (route) =>
-    route.request().url().includes('/styles/')
-      ? route.fulfill({ json: STYLE })
-      : route.fulfill({ status: 204, body: '' }),
-  );
-  await page.route('https://nominatim.openstreetmap.org/**', (route) =>
-    route.fulfill({ json: { address: { city: 'Testville', country: 'Testland' } } }),
-  );
-  await page.route('https://photon.komoot.io/**', (route) =>
-    route.fulfill({
-      json: {
-        features: [
-          {
-            geometry: { coordinates: [-9.14, 38.72] },
-            properties: { name: 'Lisbon', country: 'Portugal', extent: [-9.23, 38.80, -9.09, 38.69] },
-          },
-        ],
-      },
-    }),
-  );
+/** Opens the app and waits until the board is on screen. */
+export async function openApp(page: Page): Promise<void> {
+  await page.goto('./');
+  await expect(page.getByTestId('board')).toBeVisible();
 }
 
 /** The `window.__chessMap` handle set in src/main.ts. */
@@ -51,16 +32,18 @@ export const nodeAt = (s: Snapshot, ...path: number[]): MapNode =>
 
 export const nodeCount = async (page: Page): Promise<number> => Object.keys((await snapshot(page)).nodes).length;
 
-/** The map eases to the focused node; wait until the board stopped sliding. */
+/** The map eases to the focused node; wait until the board has not moved for three consecutive samples. */
 export async function settled(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
   const board = page.locator('[data-testid="board"] cg-board');
   let prev = '';
-  for (let i = 0; i < 40; i++) {
+  let still = 0;
+  for (let i = 0; i < 60; i++) {
     const b = await board.boundingBox();
     const cur = JSON.stringify(b);
-    if (b && cur === prev) return b;
+    still = b && cur === prev ? still + 1 : 0;
+    if (b && still >= 2) return b;
     prev = cur;
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(100);
   }
   throw new Error('board never settled');
 }
@@ -71,14 +54,28 @@ export const squareAt = (box: { x: number; y: number; width: number }, sq: strin
   return { x: box.x + (sq.charCodeAt(0) - 97 + 0.5) * s, y: box.y + (8 - Number(sq[1]) + 0.5) * s };
 };
 
-export async function play(page: Page, from: string, to: string): Promise<void> {
+/**
+ * Plays a move on the board with two clicks (white at the bottom). The destination is clicked once the origin shows as
+ * selected: clicking faster than the board reacts sometimes loses the move.
+ */
+export async function playMove(page: Page, from: string, to: string): Promise<void> {
   const box = await settled(page);
-  for (const sq of [from, to]) await page.mouse.click(squareAt(box, sq).x, squareAt(box, sq).y);
+  const selected = page.locator('[data-testid="board"] square.selected');
+  await expect(async () => {
+    await page.mouse.click(squareAt(box, from).x, squareAt(box, from).y);
+    await expect(selected).toHaveCount(1, { timeout: 500 });
+  }).toPass({ timeout: 5000 });
+  await page.mouse.click(squareAt(box, to).x, squareAt(box, to).y);
 }
 
 /** Edit mode: plays a move, then drops the carried ghost pin to the right of the board. */
 export async function spawn(page: Page, from: string, to: string, slot = 0): Promise<void> {
-  await play(page, from, to);
+  await playMove(page, from, to);
+  await placeHere(page, slot);
+}
+
+/** While a move is carried as a ghost pin: drops it to the right of the board (`slot` stacks several one below the other). */
+export async function placeHere(page: Page, slot = 0): Promise<void> {
   await expect(page.getByTestId('board-card')).toHaveClass(/placing/);
   const box = await settled(page);
   const at = { x: box.x + box.width + 120, y: box.y + 40 + slot * 70 };
@@ -86,6 +83,19 @@ export async function spawn(page: Page, from: string, to: string, slot = 0): Pro
   await page.mouse.click(at.x, at.y);
   await expect(page.getByTestId('board-card')).not.toHaveClass(/placing/);
 }
+
+/** Opens the ⋮ menu, then clicks one of its items (`export-json`, `new-map`, ...). */
+export async function menu(page: Page, item: string): Promise<void> {
+  await page.getByTestId('menu-button').click();
+  await page.getByTestId(`menu-${item}`).click();
+}
+
+/** Names of the maps in the switcher, in order. */
+export const mapNames = (page: Page): Promise<string[]> => page.getByTestId('map-select').locator('option').allTextContents();
+
+/** Name of the active map. */
+export const activeMapName = (page: Page): Promise<string> =>
+  page.getByTestId('map-select').evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.textContent ?? '');
 
 export const edit = (page: Page) => page.getByTestId('mode-edit').click();
 export const explore = (page: Page) => page.getByTestId('mode-explore').click();

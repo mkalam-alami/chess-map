@@ -34,7 +34,7 @@ Clean (hexagonal) architecture; read `docs/ARCHITECTURE.md` (the contract) befor
 | `src/infrastructure/primary/` | Driving adapters: `index.ts` (`startPrimary`), `viewState.ts` (presentation-only state), `keyboard.ts`, `ui/` (Preact: `TopBar`, `Locate`, `Recenter`, `overlay`, `toast`, `promotion`, `hooks.ts` with `AppContext` / `useApp` / `useViewState` / `atom`), `map/` (MapLibre view, board marker, pins, curves, drag, placing ghost, relocation, pure `viewMath` / `curves` / `spawn`). |
 | `src/infrastructure/secondary/` | Driven adapters implementing the ports: `storage/` (localStorage repository, preferences, `jsonCodec.ts` versioned (de)serialization), `formats/` (JSON, PGN), `geocoding/` (Nominatim, Photon), `openings/` (lazy `openings.json`), `lichess/`, `browser/` (file download). |
 | `src/main.ts` | Composition root: real `localStorage` / `fetch` / clipboard / `window.open`, `new ChessMapApp(ports)`, `app.start()`, `startPrimary`, `pagehide` flush. |
-| `tests/` | `tests/domain`, `tests/application` (in-memory fakes of the ports), `tests/infrastructure/{primary,secondary}`, `tests/architecture.test.ts`, `tests/e2e/` (Playwright). |
+| `tests/` | `tests/domain`, `tests/application` (in-memory fakes of the ports), `tests/infrastructure/{primary,secondary}`, `tests/architecture.test.ts`, `tests/e2e/` (Playwright, one spec per user journey: see `tests/README.md` and `tests/e2e/README.md`; e2e = user journeys, business rules go in `tests/domain`, side effects in `tests/application`, adapter error cases in `tests/infrastructure/secondary`). |
 
 ## Core concepts
 
@@ -67,7 +67,7 @@ Clean (hexagonal) architecture; read `docs/ARCHITECTURE.md` (the contract) befor
 ## External services
 
 - Reverse geocoding: Nominatim; place search: Photon; tiles: OpenFreeMap. All are free public services: don't add request loops or anything that would hammer them.
-- E2E tests mock all of these with `page.route` (see `mockNetwork` in `tests/e2e/helpers.ts`). Any new external request must be mocked there too; tests must not hit the network.
+- E2E tests mock all of these through the auto fixture in `tests/e2e/fixtures.ts` (import `test` from there, not from `@playwright/test`); it fails the test on any unmocked external request. Any new external request must be mocked there too; tests must not hit the network.
 
 ## Generated data
 
