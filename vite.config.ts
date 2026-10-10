@@ -4,5 +4,8 @@ export default defineConfig({
   base: '/chess-map/',
   worker: { format: 'es' },
   build: { target: 'es2022', chunkSizeWarningLimit: 12000 },
-  test: { include: ['tests/**/*.test.ts'] },
+  test: {
+    include: ['tests/**/*.test.ts'],
+    fsModuleCache: true,
+  },
 });

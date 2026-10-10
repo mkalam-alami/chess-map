@@ -1,44 +1,27 @@
 import { expect, test } from './fixtures';
-import { edit, expectStartFen, explore, line, openApp, spawn } from './helpers';
 
-test.beforeEach(async ({ page }) => {
-  await openApp(page);
-});
+test('first visit opens in Edit; the repertoire and the Explore / Edit choice survive a reload', async ({ page, app }) => {
+  const { topBar, board, map } = app;
+  await app.open();
+  await expect(topBar.editMode).toHaveAttribute('aria-checked', 'true');
+  await board.expectStartPosition();
+  await expect(topBar.line).toHaveText('');
+  await expect(topBar.placeLabel).toHaveText('Testville, Testland');
 
-test('first visit: an empty repertoire opens in Edit on the start position, with its place named', async ({ page }) => {
-  await expect(page.getByTestId('mode-edit')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('[data-testid="board"] cg-board')).toBeVisible();
-  await expectStartFen(page);
-  await expect(line(page)).toHaveText('');
-  await expect(page.getByTestId('place-label')).toHaveText('Testville, Testland');
-});
-
-test('the Explore / Edit choice is remembered across reloads', async ({ page }) => {
-  await edit(page);
-  await spawn(page, 'e2', 'e4'); // a non-empty repertoire, so the empty-map default does not apply
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('chess-map:library')?.includes('"e4"'))).toBe(true); // debounced autosave
-  await explore(page);
-  await page.reload();
-  await expect(page.getByTestId('mode-explore')).toHaveAttribute('aria-checked', 'true');
-  await edit(page);
-  await page.reload();
-  await expect(page.getByTestId('mode-edit')).toHaveAttribute('aria-checked', 'true');
-});
-
-test('the repertoire is still there after a reload', async ({ page }) => {
-  await edit(page);
-  await spawn(page, 'e2', 'e4');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('chess-map:library')?.includes('"e4"'))).toBe(true);
-  await page.reload();
-  await expect(page.getByTestId('board')).toBeHidden(); // a loaded repertoire opens as pins only
-  await expect(page.getByTestId('pin')).toHaveAttribute('data-label', '1.e4');
-  await expect(page.getByTestId('pin')).toHaveAttribute('data-label', '1.e4');
-});
-
-test('keys E toggles between Explore and Edit', async ({ page }) => {
-  await expect(page.getByTestId('mode-toggle')).toHaveAttribute('data-mode', 'edit');
   await page.keyboard.press('e');
-  await expect(page.getByTestId('mode-toggle')).toHaveAttribute('data-mode', 'explore');
+  await topBar.expectMode('explore');
   await page.keyboard.press('e');
-  await expect(page.getByTestId('mode-toggle')).toHaveAttribute('data-mode', 'edit');
+  await topBar.expectMode('edit');
+
+  await app.spawn('e2', 'e4'); // a non-empty repertoire, so the empty-map default does not apply
+  await expect.poll(async () => (await app.stored('chess-map:library'))?.includes('"e4"')).toBe(true); // debounced autosave
+  await topBar.explore();
+  await page.reload();
+  await expect(topBar.exploreMode).toHaveAttribute('aria-checked', 'true');
+  await expect(board.root).toBeHidden(); // a loaded repertoire opens as pins only
+  await expect(map.pin()).toHaveAttribute('data-label', '1.e4');
+
+  await topBar.edit();
+  await page.reload();
+  await expect(topBar.editMode).toHaveAttribute('aria-checked', 'true');
 });

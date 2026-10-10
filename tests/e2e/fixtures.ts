@@ -1,4 +1,5 @@
 import { expect, test as base } from '@playwright/test';
+import { ChessMapPage } from './pages/ChessMapPage';
 
 /**
  * Every e2e test runs against a fully mocked network, so tests can never hit a real service:
@@ -33,6 +34,8 @@ interface Options {
 interface Fixtures {
   /** Auto fixture: installs the mocks and fails the test on any unexpected external request. */
   network: void;
+  /** Page object of the app (not opened yet: call `app.open()`). */
+  app: ChessMapPage;
 }
 
 const isLocal = (url: string): boolean => {
@@ -43,6 +46,8 @@ const isLocal = (url: string): boolean => {
 export const test = base.extend<Options & Fixtures>({
   geo: ['ok', { option: true }],
   search: ['ok', { option: true }],
+
+  app: async ({ page }, use) => use(new ChessMapPage(page)),
 
   network: [
     async ({ context, geo, search }, use) => {

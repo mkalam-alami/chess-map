@@ -22,4 +22,10 @@ describe('JsonMapFormat', () => {
     expect(() => format.read('{"hello":"world"}')).toThrow(ImportError);
     expect(() => format.read('nope')).toThrow(ImportError);
   });
+  it('refuses a map with an illegal move, naming it', () => {
+    const file = JSON.parse(format.write(session.repertoire));
+    const node = Object.values(file.map.nodes).find((n: any) => n.moves.length > 0) as any;
+    node.moves = ['e5'];
+    expect(() => format.read(JSON.stringify(file))).toThrow(/illegal move/);
+  });
 });

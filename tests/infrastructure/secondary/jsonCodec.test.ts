@@ -25,6 +25,25 @@ function raw() {
 }
 
 describe('library codec', () => {
+  it('loads a hand-written library of the current version, notes and places included', () => {
+    const lib = deserializeLibrary({
+      version: LIBRARY_VERSION,
+      activeMapId: 'm1',
+      maps: {
+        m1: {
+          id: 'm1', name: 'Saved earlier', orientation: 'black', rootId: 'r',
+          nodes: {
+            r: { id: 'r', parentId: null, moves: [], pinned: false, lngLat: [2.35, 48.85], children: ['a'], place: { label: 'Paris, France' } },
+            a: { id: 'a', parentId: 'r', moves: ['d4', 'd5'], pinned: true, lngLat: [2.6, 48.9], children: [], note: 'Queen pawn' },
+          },
+        },
+      },
+    });
+    expect(lib.active.name).toBe('Saved earlier');
+    expect(lib.active.node('r').place?.label).toBe('Paris, France');
+    expect(lib.active.node('a').note).toBe('Queen pawn');
+  });
+
   it('round-trips from JSON text and parsed JSON', () => {
     const lib = sample();
     expect(deserializeLibrary(JSON.parse(serializeLibrary(lib))).data).toEqual(lib.data);

@@ -13,7 +13,7 @@ npm run build       # typecheck + vite build to dist/
 npm run e2e         # Playwright (tests/e2e); builds and serves on :4173 first
 ```
 
-Before finishing a change, run `npm run typecheck` and `npm test` (this includes `tests/architecture.test.ts`, which enforces the layer rules). Run `npm run e2e` when touching UI, map interaction or the application wiring. Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright.
+Before finishing a change, run `npm run typecheck` and `npm test` (this includes `tests/architecture.test.ts`, which enforces the layer rules). Run `npm run e2e` when touching UI, map interaction or the application wiring (see *E2E tests* below: they are slow and kept few). Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright.
 
 ## Architecture
 
@@ -57,6 +57,16 @@ Clean (hexagonal) architecture; read `docs/ARCHITECTURE.md` (the contract) befor
 - Use `repertoire.node(id)` (throws on unknown ids) instead of indexing `data.nodes` directly; prefer the model queries over raw `.data` access outside serialization.
 - Match the existing style: short functions, single quotes, terse JSDoc on exported functions explaining *why* or the non-obvious contract.
 - New logic comes with a Vitest test next to its layer: domain rules through `Session` in `tests/domain/`, use cases with the fake ports in `tests/application/`, adapters in `tests/infrastructure/`.
+
+## E2E tests
+
+E2E is the slowest layer, so it is kept to **one journey test per major feature** (about ten in total; one spec file per feature, see `tests/e2e/README.md`).
+
+- A new feature does not get its own E2E test by default. First cover it where it belongs: business rules in `tests/domain`, side effects in `tests/application`, adapter edge and error cases in `tests/infrastructure/secondary`, pure presentation math in `tests/infrastructure/primary`.
+- Add or extend an E2E test only for what lower layers cannot see: the wiring and the real browser behaviour of the primary adapters (gestures, map and board interaction, persistence across a reload). Prefer adding a few steps to the existing journey of that feature over a new test; add a new spec only for a new major feature.
+- Don't add one E2E test per edge case, error message or keyboard shortcut. Move those down a layer.
+- Transient E2E tests written during development to validate a behaviour are fine, but delete them (or fold the one valuable step into the feature's journey) before finishing.
+- Drive the app through the page objects in `tests/e2e/pages/` (`app.topBar`, `app.board`, `app.map`, `app.menu`, `app.dialog`, `app.locate`) and get `test` from `tests/e2e/fixtures.ts`. No inline `getByTestId` in specs: add the locator or gesture to the component that owns it.
 
 ## Persistence and schema
 
