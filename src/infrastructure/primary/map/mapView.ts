@@ -35,6 +35,17 @@ function viewOfActive(app: ChessMapApp): SavedView {
   return rep.view ?? { center: rep.node(rep.rootId).lngLat, zoom: INITIAL_ZOOM };
 }
 
+/** Zoom below which country names are hidden (about when France fits on screen): at that scale they only compete with the pins. */
+const COUNTRY_LABELS_MIN_ZOOM = 5;
+
+/** Raises the minzoom of the style's country label layers (matched by id: the style is third-party). */
+function hideCountryLabelsWhenFar(map: maplibregl.Map): void {
+  for (const layer of map.getStyle().layers) {
+    if (layer.type !== 'symbol' || !/country/i.test(layer.id)) continue;
+    map.setLayerZoomRange(layer.id, Math.max(layer.minzoom ?? 0, COUNTRY_LABELS_MIN_ZOOM), layer.maxzoom ?? 24);
+  }
+}
+
 /** A two-finger gesture pans too, but it is a pinch/zoom, not the user leaving the board. */
 const isPinch = (e: Event | undefined): boolean => !!e && 'touches' in e && (e as TouchEvent).touches.length > 1;
 
@@ -57,7 +68,10 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
   });
   map.touchZoomRotate.disableRotation();
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-  map.on('style.load', () => map.setProjection({ type: 'mercator' }));
+  map.on('style.load', () => {
+    map.setProjection({ type: 'mercator' });
+    hideCountryLabelsWhenFar(map);
+  });
   map.on('error', (e) => console.warn('map error', e.error?.message ?? e));
   map.setPadding(padding());
   // MapLibre skips its first ResizeObserver tick, so a container sized after construction
