@@ -26,7 +26,7 @@ describe('public API of the domain', () => {
     expect(Object.getOwnPropertyNames(domain.Repertoire).filter((k) => !['length', 'name', 'prototype'].includes(k)).sort()).toEqual(['create', 'fromData']);
     expect(Object.getOwnPropertyNames(domain.Repertoire.prototype).sort()).toEqual([
       'back', 'boardZoom', 'branchIds', 'branchSize', 'canTakeBack', 'constructor', 'data', 'distancesFrom', 'effectiveBoardZoom', 'endOf',
-      'fenAt', 'fenPath', 'firstMoveIndex', 'forward', 'futureCursors', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
+      'fenAt', 'fenPath', 'firstMoveIndex', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
       'pathTo', 'pinLabel', 'rootCursor', 'rootId', 'sanPath', 'sizeSum', 'transpositions', 'view',
     ]);
   });

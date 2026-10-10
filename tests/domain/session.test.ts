@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CENTER, Library, Repertoire, Session, type DomainEvent, type LngLat, type NodeId } from '../../src/domain';
-import { O, editSession, emptyRep, exploreSession, libraryOf, libraryWith, lineOf, patchNode, pinnedOf, spawn, treeOf } from './fixtures';
+import { O, editSession, emptyRep, exploreSession, libraryOf, libraryWith, lineOf, pinnedOf, spawn, treeOf } from './fixtures';
 
 const types = (s: Session): string[] => s.events.map((e) => e.type);
 const eventOf = <T extends DomainEvent['type']>(s: Session, type: T): Extract<DomainEvent, { type: T }> =>
@@ -99,19 +99,43 @@ describe('navigating', () => {
     expect(s.events).toEqual([{ type: 'deadEnd' }]);
   });
 
-  it('forward with several children and no lastChild is a dead end too', () => {
-    const t = treeOf({ e4: {}, d4: {} });
-    const rep = patchNode(t.session.repertoire, rootOf(t.session), { lastChild: undefined });
-    const s = exploreSession(rep).forward();
+  it('forward does nothing by default: no future line is picked', () => {
+    const t = treeOf({ e4: { e5: {} }, d4: {} });
+    const s = exploreSession(t.session.repertoire).forward();
     expect(types(s)).toEqual(['deadEnd']);
+    expect(s.future).toEqual([]);
   });
 
-  it('forward follows the last visited child', () => {
-    const t = treeOf({ e4: {}, d4: {} });
-    const s = exploreSession(t.session.repertoire);
-    expect(s.forward().cursor).toEqual({ nodeId: t.id('d4'), played: 1 }); // d4 was created last
-    const back = s.goTo({ nodeId: t.id('e4'), played: 1 }).back();
-    expect(back.cursor).toEqual(s.repertoire.rootCursor());
+  it('stepping back keeps the line just left, and forward walks it again', () => {
+    const t = treeOf({ e4: { e5: {} }, d4: {} });
+    const e4 = { nodeId: t.id('e4'), played: 1 };
+    const e5 = { nodeId: t.id('e4 e5'), played: 1 };
+    const back = exploreSession(t.session.repertoire).goTo(e5).back().back();
+    expect(back.cursor).toEqual(back.repertoire.rootCursor());
+    expect(back.future).toEqual([e4, e5]);
+    const once = back.forward();
+    expect(once.cursor).toEqual(e4);
+    expect(once.future).toEqual([e5]);
+  });
+
+  it('jumping to a marker or move on the line keeps the future, jumping elsewhere drops it', () => {
+    const t = treeOf({ e4: { e5: {} }, d4: {} });
+    const e4 = { nodeId: t.id('e4'), played: 1 };
+    const e5 = { nodeId: t.id('e4 e5'), played: 1 };
+    const atRoot = exploreSession(t.session.repertoire).goTo(e5).goTo(t.session.repertoire.rootCursor());
+    expect(atRoot.future).toEqual([e4, e5]);
+    expect(atRoot.goTo(e5).future).toEqual([]);
+    expect(atRoot.goTo({ nodeId: t.id('d4'), played: 1 }).future).toEqual([]);
+  });
+
+  it('playing a move forgets the future, even the move the future held', () => {
+    const t = treeOf({ e4: { e5: {} }, d4: {} });
+    const back = exploreSession(t.session.repertoire).goTo({ nodeId: t.id('e4 e5'), played: 1 }).back().back();
+    expect(back.future).toHaveLength(2);
+    const played = back.play('e4');
+    expect(played.cursor).toEqual({ nodeId: t.id('e4'), played: 1 });
+    expect(played.future).toEqual([]);
+    expect(played.forward().events).toEqual([{ type: 'deadEnd' }]);
   });
 
   it('every navigation action is refused while a move is being placed or a location set', () => {

@@ -10,7 +10,6 @@ export class TopBar {
   readonly line: Locator;
   readonly lineFuture: Locator;
   readonly lineMove: Locator;
-  readonly moveCount: Locator;
   readonly pinToggle: Locator;
   readonly overviewToggle: Locator;
   readonly undoMove: Locator;
@@ -25,7 +24,6 @@ export class TopBar {
     this.line = id('line');
     this.lineFuture = id('line-future');
     this.lineMove = id('line-move');
-    this.moveCount = id('move-count');
     this.pinToggle = id('pin-toggle');
     this.overviewToggle = id('overview-toggle');
     this.undoMove = id('undo-move');

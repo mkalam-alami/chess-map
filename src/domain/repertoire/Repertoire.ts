@@ -1,6 +1,6 @@
 import { epd, moveLabel } from '../chess/rules';
 import type { LngLat } from '../geo';
-import { cursorBack, cursorEnd, cursorForward, lineCursors, nextCursor, rootCursor } from './cursor';
+import { cursorBack, cursorEnd, lineCursors, nextCursor, rootCursor } from './cursor';
 import { fenAt, fenPath } from './positions';
 import { effectiveBoardZoom, rootBoardZoom, sizeSum } from './scale';
 import {
@@ -67,14 +67,6 @@ export class Repertoire {
 
   /** One move back; null at the start position. */
   back(cursor: Cursor): Cursor | null { return cursorBack(this.d, cursor); }
-  /** One move forward: within the segment, else the last visited child or the only child; null otherwise. */
-  forward(cursor: Cursor): Cursor | null { return cursorForward(this.d, cursor); }
-  /** The moves the forward key would step through from `cursor` (empty at the end of the recorded line). */
-  futureCursors(cursor: Cursor): Cursor[] {
-    const out: Cursor[] = [];
-    for (let c = cursorForward(this.d, cursor); c; c = cursorForward(this.d, c)) out.push(c);
-    return out;
-  }
   /** Where playing `san` leads inside the existing tree; null if it is a new move. */
   next(cursor: Cursor, san: string): Cursor | null { return nextCursor(this.d, cursor, san); }
 

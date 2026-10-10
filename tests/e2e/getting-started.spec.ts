@@ -19,7 +19,7 @@ test('first visit opens in Edit; the repertoire and the Explore / Edit choice su
   await page.reload();
   await expect(topBar.exploreMode).toHaveAttribute('aria-checked', 'true');
   await expect(board.root).toBeHidden(); // a loaded repertoire opens as pins only
-  await expect(map.pin()).toHaveAttribute('data-label', '1.e4');
+  await expect(map.overviewPins.first()).toHaveAttribute('data-label', '1.e4');
 
   await topBar.edit();
   await page.reload();

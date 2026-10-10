@@ -23,5 +23,5 @@ test('carry-to-place by touch: Cancel drops the move, Place drops the pin, tappi
   const pb = (await map.pin().boundingBox())!;
   expect(Math.abs(pb.x + pb.width / 2 - 60)).toBeLessThan(30);
   await page.touchscreen.tap(pb.x + 6, pb.y + pb.height / 2 - 4); // the part of the pin that is not under the board
-  await expect(topBar.moveCount).toHaveText('1.e4');
+  await expect(topBar.line).toHaveText('1. e4');
 });

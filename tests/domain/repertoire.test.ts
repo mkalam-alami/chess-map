@@ -51,32 +51,6 @@ describe('navigation', () => {
     expect(m.back({ nodeId: id, played: 3 })).toEqual({ nodeId: id, played: 2 });
     expect(m.back({ nodeId: id, played: 1 })).toEqual(m.rootCursor());
     expect(m.back(m.rootCursor())).toBeNull();
-    expect(m.forward(m.rootCursor())).toEqual({ nodeId: id, played: 1 });
-    expect(m.forward({ nodeId: id, played: 3 })).toEqual(c);
-    expect(m.forward(c)).toBeNull();
-  });
-
-  it('futureCursors lists what the forward key would walk through', () => {
-    const { map, id } = treeOf({ e4: { e5: {} }, d4: {} });
-    const r = rep(patchNode(rep(map), map.rootId, { lastChild: id('e4') }).data);
-    expect(r.futureCursors(r.rootCursor()).map((c) => r.sanPath(c).join(' '))).toEqual(['e4', 'e4 e5']);
-    expect(r.futureCursors(r.futureCursors(r.rootCursor()).at(-1) as never)).toEqual([]);
-  });
-
-  it('forward follows the last visited child; it is null when there are several and none was visited', () => {
-    const { map, id } = treeOf({ e4: {}, d4: {} });
-    const r = rep(map);
-    expect(r.forward(r.rootCursor())).toEqual({ nodeId: id('d4'), played: 1 });
-    const toE4 = patchNode(r, map.rootId, { lastChild: id('e4') });
-    expect(toE4.forward(toE4.rootCursor())).toEqual({ nodeId: id('e4'), played: 1 });
-    const noLast = patchNode(r, map.rootId, { lastChild: undefined });
-    expect(noLast.forward(noLast.rootCursor())).toBeNull();
-  });
-
-  it('forward takes the only child even without a lastChild', () => {
-    const { map, id } = treeOf({ e4: {} });
-    const r = patchNode(rep(map), map.rootId, { lastChild: undefined });
-    expect(r.forward(r.rootCursor())).toEqual({ nodeId: id('e4'), played: 1 });
   });
 
   it('next() finds the next move of a segment or a child, null for a new move', () => {

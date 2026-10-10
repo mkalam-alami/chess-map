@@ -7,7 +7,6 @@ test('step through a line, close and reopen boards, toggle the overview', async 
 
   await map.enter();
   await expect(topBar.line).toHaveText('1. e4');
-  await expect(topBar.moveCount).toHaveText('1.e4');
   await page.keyboard.press('ArrowLeft');
   await expect(topBar.line).toHaveText('');
   // after stepping back, the moves forward would replay stay in the header, muted and clickable
@@ -18,7 +17,7 @@ test('step through a line, close and reopen boards, toggle the overview', async 
   await map.enter();
   await expect(topBar.line).toHaveText('1. e4 e5');
   await topBar.lineMove.first().click(); // the top bar jumps back to a move
-  await expect(topBar.moveCount).toHaveText('1.e4');
+  await expect(topBar.line).toHaveText('1. e4');
   await map.rootPin.click();
   await expect(topBar.line).toHaveText('');
 

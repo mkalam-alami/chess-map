@@ -76,7 +76,7 @@ src/domain/
   repertoire/types.ts   persisted data shapes: ChessMapData, MapNodeData, LibraryData, Cursor, SavedView, ids
   repertoire/tree.ts    private tree operations (split, branch, append, subtree, delete, move…)
   repertoire/commands.ts  package-private commands on a Repertoire (extend, branch, moveTo, annotate, …), applied by Session
-  repertoire/cursor.ts  cursor navigation rules (back / forward / next / line)
+  repertoire/cursor.ts  cursor navigation rules (back / next / line)
   repertoire/Repertoire.ts  aggregate for one map (read-only queries)
   library/Library.ts    aggregate for the set of maps and the active one (read-only)
   library/commands.ts   package-private commands on a Library (add, activate, replace, remove), applied by Session
@@ -100,7 +100,7 @@ exercise them import the file directly).
 Read-only queries (used by views): `id`, `name`, `orientation`, `rootId`, `view`,
 `boardZoom`, `node(id)` (throws on unknown id), `hasNode(id)`, `nodes()`, `rootCursor()`,
 `endOf(nodeId)`, `pathTo(nodeId)`, `branchSize(nodeId)`, `fenAt(cursor)`, `fenPath(cursor)`,
-`sanPath(cursor)`, `lineCursors(cursor)`, `back(cursor)`, `forward(cursor)`,
+`sanPath(cursor)`, `lineCursors(cursor)`, `back(cursor)`,
 `next(cursor, san)`, `transpositions(cursor)`, `distancesFrom(nodeId)`, `sizeSum(nodeId)`,
 `effectiveBoardZoom(nodeId)`, `pinLabel(nodeId)`, `firstMoveIndex(nodeId)`, `branchIds(nodeId)`, `canTakeBack(cursor)`.
 
@@ -129,7 +129,7 @@ Actions (each returns a `Session`; a refused action returns `this` with `events:
 | Area | Actions |
 | --- | --- |
 | Start | `Session.start(library, preferredMode)` (empty repertoire forces Edit), `Session.empty()` |
-| Navigation | `goTo(cursor, {keepSize?})`, `back()`, `forward()` (emits `deadEnd` when nothing) |
+| Navigation | `goTo(cursor, {keepSize?})`, `back()`, `forward()` (walks `session.future`, filled only by stepping back along the line; emits `deadEnd` when empty) |
 | Modes | `switchMode(mode)`, `toggleMode()`, `toggleRecording()` |
 | Moves | `play(san, spots)` — Explore: follow or `rejected`; Edit: existing → navigate, recording → record / spawn pinned, otherwise → enter `placing` at `spots[0]` (tail at `spots[1]`). `movePlacing(at)`, `confirmPlacing()`, `cancelPlacing()`, `takeBack()` |
 | Positions | `relocate(nodeId, at, {withBranch?, place?})`, `nameLocation(nodeId, place)` (system: geocoder result, ignored if the node was moved/removed since), `annotate(nodeId, note)`, `showNote(nodeId, shown)` (keeps a note visible under its marker; needs a note, dropped with it), `resizeBoard(nodeId, delta)`, `deletePosition(nodeId)` |

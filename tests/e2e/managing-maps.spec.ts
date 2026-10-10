@@ -36,7 +36,7 @@ test('create, switch, rename, duplicate, flip and delete maps; the library is sa
   await menu.choose('flip');
   await expect.poll(() => board.orientation()).toBe('black');
   await page.reload();
-  await expect(map.pin()).toBeVisible(); // a loaded repertoire opens as pins only
+  await expect(map.overviewPins.first()).toBeVisible(); // a loaded repertoire opens as pins only
   expect(await topBar.activeMapName()).toBe('My repertoire (copy)');
   await map.rootPin.click();
   expect(await board.orientation()).toBe('black');

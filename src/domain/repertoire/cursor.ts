@@ -18,19 +18,6 @@ export function cursorBack(map: ChessMapData, c: Cursor): Cursor | null {
   return node.parentId === null ? null : cursorEnd(map, node.parentId);
 }
 
-/** One move forward: within the segment, else lastChild or only child; otherwise null. */
-export function cursorForward(map: ChessMapData, c: Cursor): Cursor | null {
-  const node = getNode(map, c.nodeId);
-  if (c.played < node.moves.length) return { nodeId: c.nodeId, played: c.played + 1 };
-  const next =
-    node.lastChild && node.children.includes(node.lastChild)
-      ? node.lastChild
-      : node.children.length === 1
-        ? node.children[0]
-        : undefined;
-  return next === undefined ? null : { nodeId: next, played: 1 };
-}
-
 /** Where playing `san` at `c` leads within the existing tree (next move of the segment, or a child); null if it is a new move. */
 export function nextCursor(map: ChessMapData, c: Cursor, san: string): Cursor | null {
   const node = getNode(map, c.nodeId);

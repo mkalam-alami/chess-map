@@ -3,6 +3,7 @@ import { Library } from '../library/Library';
 import { activateMap, addMap, removeMap, replaceMap } from '../library/commands';
 import { Repertoire } from '../repertoire/Repertoire';
 import * as edit from '../repertoire/commands';
+import { sameCursor } from '../repertoire/cursor';
 import type { Cursor, MapId, Mode, NodeId, Orientation, SavedView } from '../repertoire/types';
 import type { DomainEvent } from './events';
 
@@ -15,6 +16,7 @@ export interface Relocating { nodeId: NodeId | null; preview: LngLat | null }
 interface Fields {
   library: Library;
   cursor: Cursor;
+  future: Cursor[];
   mode: Mode;
   recording: boolean;
   placing: Placing | null;
@@ -39,6 +41,11 @@ const spawnAt = (ll: LngLat, limit: number): LngLat => {
 export class Session {
   readonly library: Library;
   readonly cursor: Cursor;
+  /**
+   * The moves ahead that `forward` walks through, nearest first. Only a step back (key, marker or line click)
+   * fills it, and any move played empties it: no future line is ever picked by default.
+   */
+  readonly future: Cursor[];
   readonly mode: Mode;
   /** Edit mode "recording" (the old "pin" toggle): moves extend a pinned segment instead of spawning markers. */
   readonly recording: boolean;
@@ -50,6 +57,7 @@ export class Session {
   private constructor(f: Fields) {
     this.library = f.library;
     this.cursor = f.cursor;
+    this.future = f.future;
     this.mode = f.mode;
     this.recording = f.recording;
     this.placing = f.placing;
@@ -74,12 +82,13 @@ export class Session {
     const rep = library.active;
     const empty = rep.node(rep.rootId).children.length === 0;
     return new Session({
-      library, cursor: rep.rootCursor(), mode: empty ? 'edit' : mode, recording: false, placing: null, relocating: null, events,
+      library, cursor: rep.rootCursor(), future: [], mode: empty ? 'edit' : mode, recording: false, placing: null, relocating: null, events,
     });
   }
 
   private next(patch: Partial<Fields> = {}, events: DomainEvent[] = []): Session {
-    return new Session({ ...this, ...patch, events });
+    const reset = patch.cursor && !patch.future ? { future: [] } : {}; // a new cursor forgets the future unless told otherwise
+    return new Session({ ...this, ...reset, ...patch, events });
   }
 
   private commit(repertoire: Repertoire, patch: Partial<Fields> = {}, events: DomainEvent[] = []): Session {
@@ -106,11 +115,19 @@ export class Session {
   goTo(cursor: Cursor, opts: { keepSize?: boolean } = {}): Session {
     if (this.busy) return this;
     this.repertoire.node(cursor.nodeId);
-    return this.focused(cursor, !!opts.keepSize);
+    return this.focused(cursor, !!opts.keepSize, this.futureAfter(cursor));
   }
 
-  private focused(cursor: Cursor, keepSize: boolean): Session {
-    return this.next({ cursor }, [{ type: 'focused', cursor, keepSize }]);
+  private focused(cursor: Cursor, keepSize: boolean, future: Cursor[] = []): Session {
+    return this.next({ cursor, future }, [{ type: 'focused', cursor, keepSize }]);
+  }
+
+  /** Moving along the current line (back, or forward through the future) keeps what lies beyond `target`; leaving it keeps nothing. */
+  private futureAfter(target: Cursor): Cursor[] {
+    const rep = this.repertoire;
+    const line = [rep.rootCursor(), ...rep.lineCursors(this.cursor), ...this.future];
+    const at = line.findIndex((c) => sameCursor(c, target));
+    return at < 0 ? [] : line.slice(at + 1);
   }
 
   back(): Session {
@@ -119,10 +136,10 @@ export class Session {
     return c ? this.goTo(c, { keepSize: true }) : this;
   }
 
-  /** Emits `deadEnd` (and keeps the cursor) when there is nowhere to go. */
+  /** Walks the `future` left by a step back. Emits `deadEnd` (and keeps the cursor) when it is empty. */
   forward(): Session {
     if (this.busy) return this;
-    const c = this.repertoire.forward(this.cursor);
+    const c = this.future[0];
     return c ? this.goTo(c, { keepSize: true }) : this.next({}, [{ type: 'deadEnd' }]);
   }
 
@@ -164,7 +181,8 @@ export class Session {
 
   private follow(san: string): Session {
     const to = this.repertoire.next(this.cursor, san);
-    return to ? this.goTo(to) : this.next({}, [{ type: 'rejected', san }]);
+    if (to) return this.busy ? this : this.focused(to, false);
+    return this.next({}, [{ type: 'rejected', san }]);
   }
 
   /** Edit-mode move that takes effect now (no placing step). */
@@ -187,7 +205,7 @@ export class Session {
     const r = edit.branch(rep, this.cursor, san, at, spawnAt(spots[1] ?? at, limit), this.recording);
     const placed: DomainEvent = { type: 'positionPlaced', nodeId: r.nodeId, at };
     if (this.recording) return this.commit(r.repertoire, { cursor: r.cursor }, [{ type: 'focused', cursor: r.cursor, keepSize: false }, placed]);
-    return this.commit(r.repertoire, {}, [placed]); // cursor stays: the user can keep spawning alternatives
+    return this.commit(r.repertoire, { future: [] }, [placed]); // cursor stays: the user can keep spawning alternatives
   }
 
   /** Moves the ghost of the move being placed (no event, nothing else changes). */

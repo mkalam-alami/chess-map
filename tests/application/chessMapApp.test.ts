@@ -253,6 +253,8 @@ describe('subscriptions and events', () => {
   it('forwards focused events with the cursor and keepSize', () => {
     const t = started();
     const focused = vi.fn();
+    t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
+    t.app.back();
     t.app.on('focused', focused);
     t.app.forward();
     expect(focused).toHaveBeenCalledTimes(1);
@@ -265,9 +267,13 @@ describe('subscriptions and events', () => {
     const t = started();
     const dead = vi.fn();
     t.app.on('deadEnd', dead);
-    expect(t.app.forward()).toBe(true); // e4 (the last child)... or d4
-    while (t.app.forward());
+    expect(t.app.forward()).toBe(false); // no future line is picked by default
     expect(dead).toHaveBeenCalledTimes(1);
+    t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
+    t.app.back();
+    expect(t.app.forward()).toBe(true); // a step back leaves the way forward
+    expect(t.app.forward()).toBe(false);
+    expect(dead).toHaveBeenCalledTimes(2);
   });
 
   it('forwards rejected moves, and play() reports them', () => {
@@ -301,7 +307,7 @@ describe('subscriptions and events', () => {
     const order: string[] = [];
     const off = t.app.on('focused', () => order.push('event'));
     t.app.subscribe(() => order.push('subscriber'));
-    t.app.forward();
+    t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
     expect(order).toEqual(['event', 'subscriber']);
     off();
     t.app.back();
@@ -312,7 +318,7 @@ describe('subscriptions and events', () => {
     const t = started();
     const dead = vi.fn();
     t.app.on('deadEnd', dead);
-    t.app.forward();
+    t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
     expect(dead).not.toHaveBeenCalled();
   });
 
@@ -610,7 +616,7 @@ describe('export', () => {
 describe('analysis', () => {
   it('opens the active map at the cursor and returns the outcome', async () => {
     const t = started();
-    t.app.forward();
+    t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
     const result = t.app.openInAnalysis();
     expect(t.analysis.opened).toHaveLength(1);
     expect(t.analysis.opened[0]?.map).toBe(t.app.session.repertoire);
@@ -658,7 +664,7 @@ describe('opening names', () => {
     expect(t.app.openingAt()).toBeNull(); // the start position is not named
     t.app.goTo(rep.endOf(kids(t)[0] as NodeId));
     expect(t.app.openingAt()?.exact).toBe(true);
-    t.app.forward(); // e5: out of the (fake) book
+    t.app.play('e5'); // out of the (fake) book
     expect(t.app.openingAt()).toMatchObject({ name: "King's Pawn", exact: false, movesSince: 1 });
   });
 });

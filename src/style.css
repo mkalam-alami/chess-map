@@ -143,10 +143,7 @@ html[data-mode='edit'] .place:hover { background: var(--edit); color: var(--waln
 .recenter:hover { background: #fff; }
 .recenter[hidden], html[data-locating] .recenter { display: none; }
 @media (max-width: 767px) { .recenter .label { display: none; } .recenter { left: 8px; padding: 8px; } }
-.nav-buttons { position: absolute; z-index: 25; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; }
-html[data-locating] .nav-buttons { display: none; }
-.move-count { min-width: 56px; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--cream); background: rgba(46, 33, 24, 0.78); padding: 3px 8px; border-radius: 999px; }
-.maplibregl-ctrl-bottom-right { bottom: 0; }
+html[data-locating] .maplibregl-ctrl-bottom-right { bottom: 0; }
 @media (max-width: 767px) { .maplibregl-ctrl-bottom-right { display: none; } }
 
 /* ---- board marker ---- */

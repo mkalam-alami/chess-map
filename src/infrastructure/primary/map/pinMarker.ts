@@ -28,6 +28,7 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const node = m.node(s.cursor.nodeId);
     const out = new Map<NodeId, Kind>();
     if (vs.overview) for (const n of m.nodes()) out.set(n.id, 'overview');
+    if (vs.overview && !vs.boardOpen) return out.set(m.rootId, 'root'); // no board: the last cursor highlights nothing, every pin keeps its default look
     for (const id of m.pathTo(node.id)) out.set(id, id === m.rootId ? 'root' : 'ancestor');
     if (s.cursor.played === node.moves.length) for (const c of node.children) out.set(c, 'child');
     // Notes pinned by the user are landmarks: shown (faded like the overview) whatever the overview toggle says.
@@ -87,7 +88,8 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     lastPulse = vs.pulse;
     const editing = app.session.mode === 'edit';
     // Overview: the further from the cursor (in markers), the smaller the pin.
-    const dist = vs.overview ? m.distancesFrom(app.session.cursor.nodeId) : null;
+    const dist = vs.overview && vs.boardOpen ? m.distancesFrom(app.session.cursor.nodeId) : null;
+    const farthest = vs.overview && !vs.boardOpen; // nothing to measure from: all pins in the most distant state
     const shown = (n: { noteShown?: boolean; note?: string }): boolean => !!n.noteShown && !!n.note;
     for (const [id, kind] of want) {
       const node = m.node(id);
@@ -105,7 +107,7 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
       e.noteBox.textContent = shown(node) ? (node.note as string) : '';
       e.root.classList.remove('pin-child', 'pin-ancestor', 'pin-root', 'pin-overview');
       e.root.classList.add('pin', `pin-${kind}`);
-      const d = dist?.get(id) ?? 0;
+      const d = farthest ? (kind === 'root' ? 0 : 5) : dist?.get(id) ?? 0; // the start marker keeps its icon
       e.root.classList.toggle('pin-black', m.firstMoveIndex(id) % 2 === 1); // played by Black
       e.root.classList.toggle('pin-d2', d === 3 || d === 4);
       e.root.classList.toggle('pin-d5', d >= 5);

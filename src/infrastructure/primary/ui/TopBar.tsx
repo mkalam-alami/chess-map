@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
-import { formatLine, moveLabel, type Cursor, type LngLat, type Repertoire } from '../../../domain';
+import { formatLine, type Cursor, type LngLat, type Repertoire } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import { importFile, openInAnalysis } from './actions';
 import { Icon } from './Icon';
@@ -73,7 +73,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
   const rep = s.repertoire;
   const sans = rep.sanPath(s.cursor);
   const cursors = rep.lineCursors(s.cursor);
-  const future = rep.futureCursors(s.cursor); // what the forward key walks through: shown muted after the current move
+  const future = s.future; // what the forward key walks through: shown muted after the current move
   useLayoutEffect(() => {
     const el = line.current as HTMLDivElement;
     const cur = el.querySelector('.current'); // keep the current move in view (the muted future may extend past it)
@@ -180,17 +180,6 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
       <input type="file" accept=".json,application/json" data-testid="import-json-input" hidden ref={jsonInput} onChange={importPicked('json')} />
       <input type="file" accept=".pgn,text/plain" data-testid="import-pgn-input" hidden ref={pgnInput} onChange={importPicked('pgn')} />
     </header>
-  );
-}
-
-export function NavButtons() {
-  const app = useApp();
-  const sans = app.session.repertoire.sanPath(app.session.cursor);
-  const n = sans.length;
-  return (
-    <div class="nav-buttons">
-      <span class="move-count" data-testid="move-count">{n ? moveLabel(n - 1, sans[n - 1] as string) : 'Start'}</span>
-    </div>
   );
 }
 
