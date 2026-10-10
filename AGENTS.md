@@ -89,7 +89,7 @@ Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflow
 
 ## Docs
 
-When adding or changing a user-visible feature, shortcut or menu item, update `README.md`.
+`README.md` stays a short, high-level overview (what the app does, main shortcuts, how to run and deploy). Update it when a major feature, shortcut or menu item is added or removed, but never document detailed UI rules, edge cases or confirmation flows there: those belong in code comments, tests and `docs/ARCHITECTURE.md`.
 
 ## Commits
 

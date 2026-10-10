@@ -73,6 +73,14 @@ export class Board {
     await this.page.mouse.click(squareAt(box, sq).x, squareAt(box, sq).y);
   }
 
+  /** A right click on the board does not open the browser's context menu. */
+  contextMenuBlocked = () =>
+    this.surface.evaluate((el) => {
+      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+
   /** Draws a circle on a square with a right click. */
   async circle(sq: string): Promise<void> {
     const box = await this.settled();

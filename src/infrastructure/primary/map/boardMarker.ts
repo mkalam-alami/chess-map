@@ -96,6 +96,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     movable: { free: false, showDests: true, events: { after: (orig, dest) => onUserMove(orig, dest) } },
     draggable: { showGhost: true },
     // Right-click arrows and circles belong to the position: saved as they are drawn, and only the eraser button removes them.
+    disableContextMenu: true, // right-click draws, it must not open the browser menu
     drawable: { eraseOnClick: false, onChange: (shapes) => app.drawShapes(app.session.cursor, shapes.flatMap(toShape)) },
   });
   // The board moves with the map: chessground caches its bounds, so refresh them before it reads a pointer position.

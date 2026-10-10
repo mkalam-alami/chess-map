@@ -45,6 +45,7 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await expect(board.erase).toBeHidden();
   await board.circle('d4');
   await expect(board.circles).toHaveCount(1);
+  expect(await board.contextMenuBlocked()).toBe(true);
   await expect(board.erase).toBeVisible();
   await board.click('b1'); // a click on the board (selecting a piece) keeps them
   await expect(board.circles).toHaveCount(1);
