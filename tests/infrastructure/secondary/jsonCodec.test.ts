@@ -9,8 +9,8 @@ import { libraryOf, pinnedOf } from '../../domain/fixtures';
 /** A pinned segment split by a branch, with a note, a place, a size and a saved view. */
 function sample(): Library {
   const { session, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
-  let s = session.goTo({ nodeId: id, ply: 2 }).play('f4', [[4, 50]]).confirmPlacing();
-  s = s.annotate(id, 'King pawn').nameLocation(id, { label: 'Paris', country: 'France' }).resizeBoard(id, 0.75);
+  let s = session.goTo({ nodeId: id, played: 2 }).play('f4', [[4, 50]]).confirmPlacing();
+  s = s.annotate(id, 'King pawn').showNote(id, true).nameLocation(id, { label: 'Paris', country: 'France' }).resizeBoard(id, 0.75);
   const map = { ...s.repertoire.data, name: 'Test', view: { center: [1, 2] as [number, number], zoom: 3 }, boardZoom: 2 };
   return libraryOf(Repertoire.fromData(map));
 }
@@ -39,9 +39,9 @@ describe('library codec', () => {
 
   it('rejects illegal moves with a path', () => {
     const { json, map } = raw();
-    const seg = Object.values(map.nodes).find((n: any) => n.plies.includes('e5')) as any;
-    seg.plies[1] = 'Qh5';
-    expect(() => deserializeLibrary(json)).toThrow(expect.objectContaining({ path: `maps.${map.id}.nodes.${seg.id}.plies[1]` }));
+    const seg = Object.values(map.nodes).find((n: any) => n.moves.includes('e5')) as any;
+    seg.moves[1] = 'Qh5';
+    expect(() => deserializeLibrary(json)).toThrow(expect.objectContaining({ path: `maps.${map.id}.nodes.${seg.id}.moves[1]` }));
   });
 
   it.each([null, 'nope', '{oops', {}, { version: 99 }, { version: 'one' }, { version: 1, maps: [], activeMapId: 'x' }])('rejects %j', (bad) => {
@@ -50,15 +50,16 @@ describe('library codec', () => {
 
   it.each<[string, (r: ReturnType<typeof raw>) => void, RegExp]>([
     ['an unknown active map', (r) => void (r.json.activeMapId = 'missing'), /activeMapId/],
-    ['an orphan node', (r) => void (r.map.nodes.zzz = { id: 'zzz', parentId: null, plies: ['e4'], pinned: false, lngLat: [0, 0], children: [] }), /parent/],
+    ['an orphan node', (r) => void (r.map.nodes.zzz = { id: 'zzz', parentId: null, moves: ['e4'], pinned: false, lngLat: [0, 0], children: [] }), /parent/],
     ['a bad position', (r) => void (r.map.nodes[r.map.rootId].lngLat = [0, 'x']), /lngLat/],
     ['a node that is its own parent', (r) => void (r.nonRoot.parentId = r.nonRoot.id), /parent/],
+    ['a non-boolean noteShown', (r) => void (r.nonRoot.noteShown = 'yes'), /noteShown/],
     ['a non-numeric size', (r) => void (r.nonRoot.sizeDelta = 'big'), /sizeDelta/],
     ['a map stored under another id', (r) => void (r.map.id = 'other'), /maps\..*\.id/],
     ['an invalid orientation', (r) => void (r.map.orientation = 'green'), /orientation/],
     ['a node whose key differs from its id', (r) => void (r.nonRoot.id = 'else'), /must equal its key/],
     ['a lastChild that is not a child', (r) => void (r.map.nodes[r.map.rootId].lastChild = 'nowhere'), /lastChild/],
-    ['a segment without plies', (r) => void (r.nonRoot.plies = []), /at least one ply/],
+    ['a segment without moves', (r) => void (r.nonRoot.moves = []), /at least one move/],
   ])('rejects %s', (_, corrupt, message) => {
     const r = raw();
     corrupt(r);
@@ -84,6 +85,15 @@ describe('migrations', () => {
   it('the current version needs no migration', () => {
     const json = { version: LIBRARY_VERSION, maps: {} };
     expect(migrate(json)).toBe(json);
+  });
+
+  it('upgrades version 1 files: node `plies` became `moves`', () => {
+    const node = (plies: string[]) => ({ id: 'a', parentId: null, plies, pinned: false, lngLat: [0, 0], children: [] });
+    const lib = migrate({ version: 1, activeMapId: 'm', maps: { m: { id: 'm', nodes: { a: node(['e4']) } } } }) as any;
+    expect(lib).toMatchObject({ version: 2, maps: { m: { nodes: { a: { moves: ['e4'] } } } } });
+    expect(lib.maps.m.nodes.a).not.toHaveProperty('plies');
+    const file = migrate({ format: 'chess-map', version: 1, map: { id: 'm', nodes: { a: node([]) } } }) as any;
+    expect(file).toMatchObject({ version: 2, map: { nodes: { a: { moves: [] } } } });
   });
 });
 
@@ -113,7 +123,7 @@ describe('map file codec', () => {
   it('names the offending field of a broken map', () => {
     const file = JSON.parse(serializeMap(sample().active));
     const node = Object.values(file.map.nodes).find((n: any) => n.parentId !== null) as any;
-    node.plies[0] = 'Qh5';
+    node.moves[0] = 'Qh5';
     expect(() => deserializeMap(JSON.stringify(file))).toThrow(/illegal move "Qh5"/);
   });
 });

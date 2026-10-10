@@ -28,8 +28,9 @@ const coord = (n: number): string => String(Number(n.toFixed(5)));
 function headCommands(node: MapNodeData): string[] {
   const cmds = [`[%geo ${coord(node.lngLat[1])},${coord(node.lngLat[0])}]`];
   if (node.sizeDelta) cmds.push(`[%size ${node.sizeDelta}]`);
+  if (node.noteShown) cmds.push('[%noteshown 1]');
   if (node.pinned) cmds.push('[%pinned 1]');
-  else if (node.plies.length > 1) cmds.push('[%pinned 0]'); // unpinned multi-ply segment: keep it merged on re-import
+  else if (node.moves.length > 1) cmds.push('[%pinned 0]'); // unpinned multi-move segment: keep it merged on re-import
   if (node.place) {
     cmds.push(`[%place "${escapeArg(node.place.label)}"]`);
     if (node.place.country) cmds.push(`[%country "${escapeArg(node.place.country)}"]`);
@@ -42,7 +43,7 @@ const comment = (parts: string[]): string => `{${parts.join(' ')}}`;
 function mainlineCursor(rep: Repertoire): Cursor {
   let node = rep.node(rep.rootId);
   while (node.children.length) node = rep.node(node.children[0] as NodeId);
-  return { nodeId: node.id, ply: node.plies.length };
+  return { nodeId: node.id, played: node.moves.length };
 }
 
 export function exportPgn(map: ChessMapData, opts: ExportOptions = {}): string {
@@ -72,17 +73,17 @@ export function exportPgn(map: ChessMapData, opts: ExportOptions = {}): string {
   const out: string[] = [];
   let needNum = true;
 
-  /** Emits `id` (all its plies), its alternatives at the first ply, then its subtree. */
-  const writeLine = (ids: NodeId[], startPly: number): void => {
+  /** Emits `id` (all its moves), its alternatives at the first move, then its subtree. */
+  const writeLine = (ids: NodeId[], startIndex: number): void => {
     const [first, ...alts] = ids as [NodeId, ...NodeId[]];
     const node = rep.node(first);
-    let ply = startPly;
-    node.plies.forEach((san, i) => {
-      if (ply % 2 === 0) out.push(`${ply / 2 + 1}.`);
-      else if (needNum) out.push(`${(ply - 1) / 2 + 1}...`);
+    let index = startIndex;
+    node.moves.forEach((san, i) => {
+      if (index % 2 === 0) out.push(`${index / 2 + 1}.`);
+      else if (needNum) out.push(`${(index - 1) / 2 + 1}...`);
       needNum = false;
       out.push(san);
-      const last = i === node.plies.length - 1;
+      const last = i === node.moves.length - 1;
       const parts = i === 0 ? headCommands(node) : [];
       if (last && node.note?.trim()) parts.push(sanitizeNote(node.note));
       if (parts.length) {
@@ -93,16 +94,16 @@ export function exportPgn(map: ChessMapData, opts: ExportOptions = {}): string {
         for (const alt of alts) {
           const at = out.length;
           needNum = true;
-          writeLine([alt], startPly);
+          writeLine([alt], startIndex);
           out[at] = '(' + out[at];
           out[out.length - 1] += ')';
           needNum = true;
         }
       }
-      ply++;
+      index++;
     });
     const kids = childrenOf(node);
-    if (kids.length) writeLine(kids, ply);
+    if (kids.length) writeLine(kids, index);
   };
 
   const root = rep.node(rep.rootId);

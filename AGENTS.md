@@ -39,8 +39,8 @@ Clean (hexagonal) architecture; read `docs/ARCHITECTURE.md` (the contract) befor
 ## Core concepts
 
 - **Library → maps → nodes.** A `Library` holds several `Repertoire`s (maps); each is a tree of nodes keyed by id. The persisted plain shapes are `LibraryData` / `ChessMapData` / `MapNodeData` (`src/domain/repertoire/types.ts`).
-- **Nodes hold SAN plies.** The root has `[]`; a normal marker has 1 ply; a *pinned* node is a segment of n plies that grows as moves are recorded. Children always hang off the end of a node's segment (branching mid-segment splits it, see `branchAt` in `repertoire/tree.ts`).
-- **Cursor** is `{ nodeId, ply }`, where `ply` counts how many plies of that node's segment have been played. Read the comment on `Cursor` in `types.ts` before changing navigation.
+- **Nodes hold SAN moves (see the glossary in `docs/ARCHITECTURE.md`; the word "ply" is not used).** The root has `[]`; a normal marker has 1 move; a *pinned* node is a segment of n moves that grows as moves are recorded. Children always hang off the end of a node's segment (branching mid-segment splits it, see `branchAt` in `repertoire/tree.ts`).
+- **Cursor** is `{ nodeId, played }`, where `played` counts how many moves of that node's segment have been played. Read the comment on `Cursor` in `types.ts` before changing navigation.
 - **Board size** is a log2 `sizeDelta` relative to the parent, summed down the path (`repertoire/scale.ts`).
 - **Modes:** `explore` (training, only repertoire moves allowed) and `edit` (building). Placement of a new move is a transient `placing` state that is never persisted.
 - **Session and events.** Every user action is a `Session` method returning a new `Session` whose `events` (`focused`, `deadEnd`, `rejected`, `positionPlaced`, `mapEntered`) say what the outside world should do. `ChessMapApp` applies the action, saves what changed, runs side effects and notifies views.

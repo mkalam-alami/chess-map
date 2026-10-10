@@ -5,7 +5,7 @@ import { O, editSession, emptyRep, exploreSession, libraryOf, libraryWith, lineO
 const types = (s: Session): string[] => s.events.map((e) => e.type);
 const eventOf = <T extends DomainEvent['type']>(s: Session, type: T): Extract<DomainEvent, { type: T }> =>
   s.events.find((e) => e.type === type) as Extract<DomainEvent, { type: T }>;
-const children = (s: Session, id: NodeId): string[] => s.repertoire.node(id).children.map((c) => s.repertoire.node(c).plies.join(' '));
+const children = (s: Session, id: NodeId): string[] => s.repertoire.node(id).children.map((c) => s.repertoire.node(c).moves.join(' '));
 const rootOf = (s: Session): NodeId => s.repertoire.rootId;
 /** The user plays `san` in Edit and drops the marker at `at`. */
 const place = (s: Session, san: string, at: LngLat = [5, 5], tail?: LngLat): Session => s.play(san, tail ? [at, tail] : [at]).confirmPlacing();
@@ -49,7 +49,7 @@ describe('starting a session', () => {
 describe('navigating', () => {
   it('goTo moves the cursor and emits focused', () => {
     const { session, ids } = e4e5();
-    const to = { nodeId: ids[1] as string, ply: 1 };
+    const to = { nodeId: ids[1] as string, played: 1 };
     const s = session.goTo(to);
     expect(s.cursor).toEqual(to);
     expect(s.events).toEqual([{ type: 'focused', cursor: to, keepSize: false }]);
@@ -57,11 +57,11 @@ describe('navigating', () => {
 
   it('goTo can ask to keep the on-screen board size', () => {
     const { session, ids } = e4e5();
-    expect(eventOf(session.goTo({ nodeId: ids[1] as string, ply: 1 }, { keepSize: true }), 'focused').keepSize).toBe(true);
+    expect(eventOf(session.goTo({ nodeId: ids[1] as string, played: 1 }, { keepSize: true }), 'focused').keepSize).toBe(true);
   });
 
   it('goTo to an unknown node throws', () => {
-    expect(() => editSession().goTo({ nodeId: 'ghost', ply: 1 })).toThrow(/Unknown node/);
+    expect(() => editSession().goTo({ nodeId: 'ghost', played: 1 })).toThrow(/Unknown node/);
   });
 
   it('goTo the current cursor still focuses (views re-center)', () => {
@@ -69,21 +69,21 @@ describe('navigating', () => {
     expect(types(s.goTo(s.cursor))).toEqual(['focused']);
   });
 
-  it('back and forward step one ply at a time, keeping the board size on screen', () => {
+  it('back and forward step one move at a time, keeping the board size on screen', () => {
     const { session, id } = pinnedOf(['e4', 'e5', 'Nf3']);
-    expect(session.cursor).toEqual({ nodeId: id, ply: 3 });
+    expect(session.cursor).toEqual({ nodeId: id, played: 3 });
     const b = session.back();
-    expect(b.cursor).toEqual({ nodeId: id, ply: 2 });
+    expect(b.cursor).toEqual({ nodeId: id, played: 2 });
     expect(b.events).toEqual([{ type: 'focused', cursor: b.cursor, keepSize: true }]);
     const f = b.forward();
-    expect(f.cursor).toEqual({ nodeId: id, ply: 3 });
+    expect(f.cursor).toEqual({ nodeId: id, played: 3 });
     expect(eventOf(f, 'focused').keepSize).toBe(true);
   });
 
   it('back from a marker goes to the end of its parent', () => {
     const { session, ids } = e4e5();
-    const s = session.goTo({ nodeId: ids[2] as string, ply: 1 }).back();
-    expect(s.cursor).toEqual({ nodeId: ids[1], ply: 1 });
+    const s = session.goTo({ nodeId: ids[2] as string, played: 1 }).back();
+    expect(s.cursor).toEqual({ nodeId: ids[1], played: 1 });
   });
 
   it('back at the start position does nothing (same session, no events)', () => {
@@ -93,7 +93,7 @@ describe('navigating', () => {
 
   it('forward at a dead end keeps the cursor and emits deadEnd', () => {
     const { session, ids } = e4e5();
-    const end = session.goTo({ nodeId: ids[2] as string, ply: 1 });
+    const end = session.goTo({ nodeId: ids[2] as string, played: 1 });
     const s = end.forward();
     expect(s.cursor).toEqual(end.cursor);
     expect(s.events).toEqual([{ type: 'deadEnd' }]);
@@ -109,14 +109,14 @@ describe('navigating', () => {
   it('forward follows the last visited child', () => {
     const t = treeOf({ e4: {}, d4: {} });
     const s = exploreSession(t.session.repertoire);
-    expect(s.forward().cursor).toEqual({ nodeId: t.id('d4'), ply: 1 }); // d4 was created last
-    const back = s.goTo({ nodeId: t.id('e4'), ply: 1 }).back();
+    expect(s.forward().cursor).toEqual({ nodeId: t.id('d4'), played: 1 }); // d4 was created last
+    const back = s.goTo({ nodeId: t.id('e4'), played: 1 }).back();
     expect(back.cursor).toEqual(s.repertoire.rootCursor());
   });
 
   it('every navigation action is refused while a move is being placed or a location set', () => {
     const { session, ids } = e4e5();
-    const edit = session.goTo({ nodeId: ids[1] as string, ply: 1 });
+    const edit = session.goTo({ nodeId: ids[1] as string, played: 1 });
     const placing = edit.play('c5', [O]);
     const relocating = edit.startRelocating(null);
     for (const busy of [placing, relocating]) {
@@ -172,7 +172,7 @@ describe('exploring (training)', () => {
 
   it('follows a repertoire move and focuses it', () => {
     const s = exploreSession(rep()).play('e4');
-    expect(s.cursor.ply).toBe(1);
+    expect(s.cursor.played).toBe(1);
     expect(s.repertoire.sanPath(s.cursor)).toEqual(['e4']);
     expect(types(s)).toEqual(['focused']);
     expect(eventOf(s, 'focused')).toMatchObject({ cursor: s.cursor, keepSize: false });
@@ -201,7 +201,7 @@ describe('exploring (training)', () => {
   it('follows a move inside a pinned segment', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const s = exploreSession(p.session.repertoire).play('e4').play('e5');
-    expect(s.cursor).toEqual({ nodeId: p.id, ply: 2 });
+    expect(s.cursor).toEqual({ nodeId: p.id, played: 2 });
   });
 
   it('a followed move is still blocked while a location is being set', () => {
@@ -247,7 +247,7 @@ describe('editing: playing moves', () => {
     const { session, ids } = e4e5();
     const edit = session.goTo(session.repertoire.rootCursor());
     const s = edit.play('e4', [[1, 1]]);
-    expect(s.cursor).toEqual({ nodeId: ids[1], ply: 1 });
+    expect(s.cursor).toEqual({ nodeId: ids[1], played: 1 });
     expect(s.placing).toBeNull();
     expect(types(s)).toEqual(['focused']);
     expect(s.repertoire.data).toBe(edit.repertoire.data);
@@ -256,7 +256,7 @@ describe('editing: playing moves', () => {
   it('a move inside an existing segment navigates along it', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const s = p.session.goTo(p.session.repertoire.rootCursor()).play('e4').play('e5');
-    expect(s.cursor).toEqual({ nodeId: p.id, ply: 2 });
+    expect(s.cursor).toEqual({ nodeId: p.id, played: 2 });
     expect(s.placing).toBeNull();
   });
 
@@ -289,7 +289,7 @@ describe('editing: placing flow', () => {
   it('confirming drops the marker where the ghost is, keeps the cursor, and asks for a place name', () => {
     const s = editSession().play('e4', [[1, 1]]).movePlacing([15, 25]).confirmPlacing();
     const id = lastChildId(s, rootOf(s));
-    expect(s.repertoire.node(id)).toMatchObject({ plies: ['e4'], pinned: false, lngLat: [15, 25] });
+    expect(s.repertoire.node(id)).toMatchObject({ moves: ['e4'], pinned: false, lngLat: [15, 25] });
     expect(s.cursor).toEqual(s.repertoire.rootCursor()); // stays: the user can keep spawning alternatives
     expect(s.placing).toBeNull();
     expect(s.events).toEqual([{ type: 'positionPlaced', nodeId: id, at: [15, 25] }]);
@@ -321,28 +321,28 @@ describe('editing: placing flow', () => {
     const placing = editSession().play('e4', [O]);
     expect(placing.cancelPlacing().busy).toBe(false);
     const confirmed = placing.confirmPlacing();
-    const child = { nodeId: lastChildId(confirmed, rootOf(confirmed)), ply: 1 };
+    const child = { nodeId: lastChildId(confirmed, rootOf(confirmed)), played: 1 };
     expect(confirmed.goTo(child).cursor).toEqual(child);
   });
 
   it('placing a move mid-segment splits the segment and relocates the split-off tail to the second spot', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    const s = p.session.goTo({ nodeId: p.id, ply: 1 });
+    const s = p.session.goTo({ nodeId: p.id, played: 1 });
     const placed = place(s, 'c5', [10, 10], [20, 30]);
     const head = placed.repertoire.node(p.id);
-    expect(head.plies).toEqual(['e4']);
+    expect(head.moves).toEqual(['e4']);
     const [tail, fresh] = head.children.map((c) => placed.repertoire.node(c));
-    expect(tail).toMatchObject({ plies: ['e5', 'Nf3'], pinned: true, lngLat: [20, 30] });
-    expect(fresh).toMatchObject({ plies: ['c5'], lngLat: [10, 10] });
+    expect(tail).toMatchObject({ moves: ['e5', 'Nf3'], pinned: true, lngLat: [20, 30] });
+    expect(fresh).toMatchObject({ moves: ['c5'], lngLat: [10, 10] });
     expect(eventOf(placed, 'positionPlaced')).toMatchObject({ nodeId: fresh?.id, at: [10, 10] });
-    expect(placed.cursor).toEqual({ nodeId: p.id, ply: 1 }); // stays on the head
+    expect(placed.cursor).toEqual({ nodeId: p.id, played: 1 }); // stays on the head
   });
 
   it('the relocated tail takes its whole branch with it', () => {
     const p = pinnedOf(['e4', 'e5']);
     const withChild = place(p.session, 'Nf3', [3, 3]);
     const child = lastChildId(withChild, p.id);
-    const placed = place(withChild.goTo({ nodeId: p.id, ply: 1 }), 'c5', [10, 10], [40, 50]);
+    const placed = place(withChild.goTo({ nodeId: p.id, played: 1 }), 'c5', [10, 10], [40, 50]);
     const tail = placed.repertoire.node(placed.repertoire.node(p.id).children[0] as string);
     expect(tail.lngLat).toEqual([40, 50]);
     expect(placed.repertoire.node(child).lngLat).toEqual([40 + (3 - 1), 50 + (3 - 1)]); // pinned head sat at [1, 1]
@@ -350,14 +350,14 @@ describe('editing: placing flow', () => {
 
   it('without a tail spot the tail goes to the new marker\'s spot', () => {
     const p = pinnedOf(['e4', 'e5']);
-    const placed = place(p.session.goTo({ nodeId: p.id, ply: 1 }), 'c5', [10, 10]);
+    const placed = place(p.session.goTo({ nodeId: p.id, played: 1 }), 'c5', [10, 10]);
     expect(placed.repertoire.node(placed.repertoire.node(p.id).children[0] as string).lngLat).toEqual([10, 10]);
   });
 
   it('a split tail keeps the pin / place of the segment and the head keeps its note', () => {
     const p = pinnedOf(['e4', 'e5']);
     const named = p.session.nameLocation(p.id, { label: 'Paris' }).annotate(p.id, 'hello');
-    const placed = place(named.goTo({ nodeId: p.id, ply: 1 }), 'c5', [10, 10]);
+    const placed = place(named.goTo({ nodeId: p.id, played: 1 }), 'c5', [10, 10]);
     expect(placed.repertoire.node(p.id).note).toBe('hello');
     expect(placed.repertoire.node(placed.repertoire.node(p.id).children[0] as string).place).toEqual({ label: 'Paris' });
   });
@@ -399,7 +399,7 @@ describe('editing: where new markers may go', () => {
 
   it('the split tail spot is clamped the same way', () => {
     const p = pinnedOf(['e4', 'e5']);
-    const placed = place(p.session.goTo({ nodeId: p.id, ply: 1 }), 'c5', [10, 10], [200, 99]);
+    const placed = place(p.session.goTo({ nodeId: p.id, played: 1 }), 'c5', [10, 10], [200, 99]);
     expect(placed.repertoire.node(placed.repertoire.node(p.id).children[0] as string).lngLat).toEqual([-160, 60]);
   });
 });
@@ -408,8 +408,8 @@ describe('editing: recording', () => {
   it('the first recorded move spawns a pinned marker and focuses it, without placing', () => {
     const s = editSession().toggleRecording().play('e4', [[4, 5]]);
     const id = lastChildId(s, rootOf(s));
-    expect(s.repertoire.node(id)).toMatchObject({ plies: ['e4'], pinned: true, lngLat: [4, 5] });
-    expect(s.cursor).toEqual({ nodeId: id, ply: 1 });
+    expect(s.repertoire.node(id)).toMatchObject({ moves: ['e4'], pinned: true, lngLat: [4, 5] });
+    expect(s.cursor).toEqual({ nodeId: id, played: 1 });
     expect(s.placing).toBeNull();
     expect(types(s)).toEqual(['focused', 'positionPlaced']);
     expect(eventOf(s, 'focused')).toEqual({ type: 'focused', cursor: s.cursor, keepSize: false });
@@ -420,8 +420,8 @@ describe('editing: recording', () => {
     const s1 = editSession().toggleRecording().play('e4', [[4, 5]]);
     const s2 = s1.play('e5', [[9, 9]]);
     const id = s1.cursor.nodeId;
-    expect(s2.repertoire.node(id).plies).toEqual(['e4', 'e5']);
-    expect(s2.cursor).toEqual({ nodeId: id, ply: 2 });
+    expect(s2.repertoire.node(id).moves).toEqual(['e4', 'e5']);
+    expect(s2.cursor).toEqual({ nodeId: id, played: 2 });
     expect(s2.events).toEqual([]);
     expect(s2.repertoire.nodes()).toHaveLength(2);
   });
@@ -429,41 +429,41 @@ describe('editing: recording', () => {
   it('recording at the end of an unpinned leaf pins it and extends it', () => {
     const { session, ids } = lineOf(['e4']);
     const s = session.goTo(session.repertoire.endOf(ids[1] as string)).toggleRecording().play('e5');
-    expect(s.repertoire.node(ids[1] as string)).toMatchObject({ plies: ['e4', 'e5'], pinned: true });
-    expect(s.cursor).toEqual({ nodeId: ids[1], ply: 2 });
+    expect(s.repertoire.node(ids[1] as string)).toMatchObject({ moves: ['e4', 'e5'], pinned: true });
+    expect(s.cursor).toEqual({ nodeId: ids[1], played: 2 });
   });
 
   it('recording at a node with children spawns a new pinned child instead', () => {
     const { session, ids } = lineOf(['e4', 'e5']);
     const s = session.goTo(session.repertoire.endOf(ids[1] as string)).toggleRecording().play('c5', [[7, 7]]);
-    expect(s.repertoire.node(ids[1] as string).plies).toEqual(['e4']);
+    expect(s.repertoire.node(ids[1] as string).moves).toEqual(['e4']);
     const id = lastChildId(s, ids[1] as string);
-    expect(s.repertoire.node(id)).toMatchObject({ plies: ['c5'], pinned: true });
-    expect(s.cursor).toEqual({ nodeId: id, ply: 1 });
+    expect(s.repertoire.node(id)).toMatchObject({ moves: ['c5'], pinned: true });
+    expect(s.cursor).toEqual({ nodeId: id, played: 1 });
   });
 
   it('recording a move that already exists just navigates', () => {
     const { session, ids } = e4e5();
     const s = session.goTo(session.repertoire.rootCursor()).toggleRecording().play('e4', [O]);
-    expect(s.cursor).toEqual({ nodeId: ids[1], ply: 1 });
+    expect(s.cursor).toEqual({ nodeId: ids[1], played: 1 });
     expect(types(s)).toEqual(['focused']);
   });
 
   it('recording mid-segment with a new move splits the segment and moves into the new pinned branch', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    const s = p.session.goTo({ nodeId: p.id, ply: 2 }).toggleRecording().play('f4', [[10, 10], [20, 20]]);
+    const s = p.session.goTo({ nodeId: p.id, played: 2 }).toggleRecording().play('f4', [[10, 10], [20, 20]]);
     const head = s.repertoire.node(p.id);
-    expect(head.plies).toEqual(['e4', 'e5']);
+    expect(head.moves).toEqual(['e4', 'e5']);
     const [tail, fresh] = head.children.map((c) => s.repertoire.node(c));
-    expect(tail).toMatchObject({ plies: ['Nf3'], lngLat: [20, 20] });
-    expect(fresh).toMatchObject({ plies: ['f4'], pinned: true });
-    expect(s.cursor).toEqual({ nodeId: fresh?.id, ply: 1 });
+    expect(tail).toMatchObject({ moves: ['Nf3'], lngLat: [20, 20] });
+    expect(fresh).toMatchObject({ moves: ['f4'], pinned: true });
+    expect(s.cursor).toEqual({ nodeId: fresh?.id, played: 1 });
     expect(types(s)).toEqual(['focused', 'positionPlaced']);
   });
 
   it('recording at the root never extends the root', () => {
     const s = editSession().toggleRecording().play('e4');
-    expect(s.repertoire.node(rootOf(s)).plies).toEqual([]);
+    expect(s.repertoire.node(rootOf(s)).moves).toEqual([]);
   });
 
   it('with recording off the same move goes through placing', () => {
@@ -474,21 +474,21 @@ describe('editing: recording', () => {
     const s = editSession().play('e4', [[4, 5]]).toggleRecording().confirmPlacing();
     const id = lastChildId(s, rootOf(s));
     expect(s.repertoire.node(id).pinned).toBe(true);
-    expect(s.cursor).toEqual({ nodeId: id, ply: 1 });
+    expect(s.cursor).toEqual({ nodeId: id, played: 1 });
   });
 });
 
 describe('taking a move back', () => {
-  it('drops the last ply of the segment the cursor is at the end of', () => {
+  it('drops the last move of the segment the cursor is at the end of', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     expect(p.session.canTakeBack).toBe(true);
     const s = p.session.takeBack();
-    expect(s.repertoire.node(p.id).plies).toEqual(['e4', 'e5']);
-    expect(s.cursor).toEqual({ nodeId: p.id, ply: 2 });
+    expect(s.repertoire.node(p.id).moves).toEqual(['e4', 'e5']);
+    expect(s.cursor).toEqual({ nodeId: p.id, played: 2 });
     expect(s.events).toEqual([]);
   });
 
-  it('a marker keeps at least one ply: use deletePosition to remove it', () => {
+  it('a marker keeps at least one move: use deletePosition to remove it', () => {
     const p = pinnedOf(['e4', 'e5']);
     const one = p.session.takeBack();
     expect(one.canTakeBack).toBe(false);
@@ -497,7 +497,7 @@ describe('taking a move back', () => {
 
   it('is refused mid-segment, on nodes with children and at the start position', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    const mid = p.session.goTo({ nodeId: p.id, ply: 2 });
+    const mid = p.session.goTo({ nodeId: p.id, played: 2 });
     expect(mid.canTakeBack).toBe(false);
     expect(mid.takeBack()).toBe(mid);
     const withChild = place(p.session, 'Nc6');
@@ -522,7 +522,7 @@ describe('taking a move back', () => {
   it('after taking back, the recording continues from the shorter line', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const s = p.session.takeBack().toggleRecording().play('Nc6');
-    expect(s.repertoire.node(p.id).plies).toEqual(['e4', 'e5', 'Nc6']);
+    expect(s.repertoire.node(p.id).moves).toEqual(['e4', 'e5', 'Nc6']);
   });
 });
 
@@ -683,6 +683,19 @@ describe('notes and board size', () => {
     expect(n.events).toEqual([]);
   });
 
+  it('showNote keeps a note visible on its marker; it needs a note and goes away with it', () => {
+    const { session, ids } = e4e5();
+    const id = ids[1] as string;
+    expect(session.showNote(id, true).repertoire.node(id).noteShown).toBeUndefined(); // nothing to show
+    const noted = session.annotate(id, "King's Gambit");
+    const shown = noted.showNote(id, true);
+    expect(shown.repertoire.node(id).noteShown).toBe(true);
+    expect(shown.events).toEqual([]);
+    expect('noteShown' in shown.showNote(id, false).repertoire.node(id)).toBe(false);
+    expect(shown.annotate(id, 'Other').repertoire.node(id).noteShown).toBe(true); // editing keeps the flag
+    expect('noteShown' in shown.annotate(id, '  ').repertoire.node(id)).toBe(false); // removing the note drops it
+  });
+
   it('resizeBoard stores the size relative to the parent, snapped to 0.25', () => {
     const { session, ids } = e4e5();
     expect(session.resizeBoard(ids[1] as string, 0.4).repertoire.node(ids[1] as string).sizeDelta).toBe(0.5);
@@ -716,7 +729,7 @@ describe('deleting a position', () => {
 
   it('a cursor elsewhere stays where it is', () => {
     const t = treeOf({ e4: {}, d4: {} });
-    const at = t.session.goTo({ nodeId: t.id('d4'), ply: 1 });
+    const at = t.session.goTo({ nodeId: t.id('d4'), played: 1 });
     const s = at.deletePosition(t.id('e4'));
     expect(s.cursor).toEqual(at.cursor);
     expect(s.events).toEqual([]);
@@ -724,33 +737,33 @@ describe('deleting a position', () => {
 
   it('a cursor on the deleted position moves to the end of its parent', () => {
     const { session, ids } = lineOf(['e4', 'e5', 'Nf3']);
-    const at = session.goTo({ nodeId: ids[2] as string, ply: 1 });
-    expect(at.deletePosition(ids[2] as string).cursor).toEqual({ nodeId: ids[1], ply: 1 });
+    const at = session.goTo({ nodeId: ids[2] as string, played: 1 });
+    expect(at.deletePosition(ids[2] as string).cursor).toEqual({ nodeId: ids[1], played: 1 });
   });
 
   it('a cursor below the deleted position moves to the end of the deleted one\'s parent', () => {
     const { session, ids } = lineOf(['e4', 'e5', 'Nf3']);
-    const at = session.goTo({ nodeId: ids[3] as string, ply: 1 });
-    expect(at.deletePosition(ids[2] as string).cursor).toEqual({ nodeId: ids[1], ply: 1 });
+    const at = session.goTo({ nodeId: ids[3] as string, played: 1 });
+    expect(at.deletePosition(ids[2] as string).cursor).toEqual({ nodeId: ids[1], played: 1 });
   });
 
   it('the parent end is the end of its whole segment', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const withChild = place(p.session, 'Nc6');
     const child = lastChildId(withChild, p.id);
-    const at = withChild.goTo({ nodeId: child, ply: 1 });
-    expect(at.deletePosition(child).cursor).toEqual({ nodeId: p.id, ply: 3 });
+    const at = withChild.goTo({ nodeId: child, played: 1 });
+    expect(at.deletePosition(child).cursor).toEqual({ nodeId: p.id, played: 3 });
   });
 
   it('deleting a child at the start deletes back to the root cursor', () => {
     const { session, ids } = e4e5();
-    const at = session.goTo({ nodeId: ids[1] as string, ply: 1 });
+    const at = session.goTo({ nodeId: ids[1] as string, played: 1 });
     expect(at.deletePosition(ids[1] as string).cursor).toEqual(session.repertoire.rootCursor());
   });
 
   it('emits no event (the cursor moves silently)', () => {
     const { session, ids } = e4e5();
-    expect(session.goTo({ nodeId: ids[2] as string, ply: 1 }).deletePosition(ids[2] as string).events).toEqual([]);
+    expect(session.goTo({ nodeId: ids[2] as string, played: 1 }).deletePosition(ids[2] as string).events).toEqual([]);
   });
 });
 
@@ -797,7 +810,7 @@ describe('maps', () => {
 
     it('shows the other map from its start and emits mapEntered', () => {
       const { b, session } = two();
-      const s = session.goTo({ nodeId: session.repertoire.nodes()[1]?.id as string, ply: 1 }).switchMap(b.id);
+      const s = session.goTo({ nodeId: session.repertoire.nodes()[1]?.id as string, played: 1 }).switchMap(b.id);
       expect(s.repertoire.id).toBe(b.id);
       expect(s.cursor).toEqual(b.rootCursor());
       expect(s.events).toEqual([{ type: 'mapEntered', mapId: b.id }]);
@@ -812,7 +825,7 @@ describe('maps', () => {
 
     it('switching to the current map re-enters it from its start', () => {
       const { a, session } = two();
-      const deep = session.goTo({ nodeId: a.node(a.rootId).children[0] as string, ply: 1 });
+      const deep = session.goTo({ nodeId: a.node(a.rootId).children[0] as string, played: 1 });
       const s = deep.switchMap(a.id);
       expect(s.cursor).toEqual(a.rootCursor());
       expect(types(s)).toEqual(['mapEntered']);
@@ -883,7 +896,7 @@ describe('maps', () => {
 
     it('does not move the cursor', () => {
       const { session, ids } = e4e5();
-      const at = session.goTo({ nodeId: ids[1] as string, ply: 1 });
+      const at = session.goTo({ nodeId: ids[1] as string, played: 1 });
       expect(at.renameMap('Z').cursor).toEqual(at.cursor);
       expect(at.flipOrientation().cursor).toEqual(at.cursor);
     });
@@ -892,7 +905,7 @@ describe('maps', () => {
   describe('duplicating', () => {
     it('copies the active map as "<name> (copy)", switches to it, from its start', () => {
       const { session, ids } = e4e5();
-      const s = session.renameMap('Open').goTo({ nodeId: ids[2] as string, ply: 1 }).duplicateMap();
+      const s = session.renameMap('Open').goTo({ nodeId: ids[2] as string, played: 1 }).duplicateMap();
       expect(s.library.size).toBe(2);
       expect(s.repertoire.name).toBe('Open (copy)');
       expect(s.repertoire.id).not.toBe(session.repertoire.id);
@@ -935,7 +948,7 @@ describe('maps', () => {
     it('deleting another map keeps the active one but re-enters it from its start', () => {
       const { base, ids } = three();
       const deep = place(base, 'e4');
-      const at = deep.goTo({ nodeId: lastChildId(deep, rootOf(deep)), ply: 1 });
+      const at = deep.goTo({ nodeId: lastChildId(deep, rootOf(deep)), played: 1 });
       const s = at.deleteMap(ids[0]);
       expect(s.library.activeId).toBe(ids[2]);
       expect(s.library.has(ids[0])).toBe(false);
@@ -973,7 +986,7 @@ describe('maps', () => {
 describe('events belong to the action that produced them', () => {
   it('a following action replaces the previous events', () => {
     const { session, ids } = e4e5();
-    const a = session.goTo({ nodeId: ids[1] as string, ply: 1 });
+    const a = session.goTo({ nodeId: ids[1] as string, played: 1 });
     expect(types(a)).toEqual(['focused']);
     expect(a.toggleRecording().events).toEqual([]);
     expect(a.annotate(ids[1] as string, 'n').events).toEqual([]);
@@ -997,7 +1010,7 @@ describe('events belong to the action that produced them', () => {
 describe('immutability', () => {
   it('no action changes the session or the data it was called on', () => {
     const { session, ids } = e4e5();
-    const edit = session.goTo({ nodeId: ids[1] as string, ply: 1 });
+    const edit = session.goTo({ nodeId: ids[1] as string, played: 1 });
     const snapshot = JSON.stringify([edit.library.data, edit.cursor, edit.mode, edit.recording, edit.placing, edit.relocating]);
     const dataBefore = edit.library.data;
     const actions = [
@@ -1024,7 +1037,7 @@ describe('full scenarios', () => {
   it('a user builds a small repertoire, then trains on it', () => {
     let s = editSession();
     s = place(s, 'e4', [10, 20]);
-    s = s.goTo({ nodeId: lastChildId(s, rootOf(s)), ply: 1 });
+    s = s.goTo({ nodeId: lastChildId(s, rootOf(s)), played: 1 });
     s = place(s, 'e5', [11, 21]).play('c5', [[12, 22]]).confirmPlacing();
     expect(children(s, s.cursor.nodeId)).toEqual(['e5', 'c5']);
     s = s.switchMode('explore').goTo(s.repertoire.rootCursor());
@@ -1040,14 +1053,14 @@ describe('full scenarios', () => {
     let s = rec;
     for (const san of ['e4', 'e5', 'Nf3', 'Nc6']) s = s.play(san, [[1, 1], [2, 2]]);
     const id = s.cursor.nodeId;
-    expect(s.repertoire.node(id).plies).toEqual(['e4', 'e5', 'Nf3', 'Nc6']);
-    s = s.goTo({ nodeId: id, ply: 2 }).play('f4', [[8, 8], [9, 9]]);
+    expect(s.repertoire.node(id).moves).toEqual(['e4', 'e5', 'Nf3', 'Nc6']);
+    s = s.goTo({ nodeId: id, played: 2 }).play('f4', [[8, 8], [9, 9]]);
     const branchId = s.cursor.nodeId;
     expect(s.repertoire.sanPath(s.cursor)).toEqual(['e4', 'e5', 'f4']);
     s = s.play('exf4');
-    expect(s.repertoire.node(branchId).plies).toEqual(['f4', 'exf4']);
+    expect(s.repertoire.node(branchId).moves).toEqual(['f4', 'exf4']);
     expect(s.canTakeBack).toBe(true);
-    expect(s.takeBack().repertoire.node(branchId).plies).toEqual(['f4']);
+    expect(s.takeBack().repertoire.node(branchId).moves).toEqual(['f4']);
     // the split-off tail still holds the main line
     const tail = s.repertoire.node(id).children[0] as string;
     expect(s.repertoire.sanPath(s.repertoire.endOf(tail))).toEqual(['e4', 'e5', 'Nf3', 'Nc6']);
@@ -1056,6 +1069,6 @@ describe('full scenarios', () => {
   it('spawn helper agrees with the user flow', () => {
     const start = editSession();
     const r = spawn(start, start.repertoire.rootId, 'e4', [1, 1]);
-    expect(r.session.repertoire.node(r.id).plies).toEqual(['e4']);
+    expect(r.session.repertoire.node(r.id).moves).toEqual(['e4']);
   });
 });

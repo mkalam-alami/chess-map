@@ -11,10 +11,10 @@ test.describe('stepping through a line', () => {
   test('clicking a pin enters it; back and forward (buttons, then arrow keys) navigate', async ({ page }) => {
     await edit(page);
     await spawn(page, 'e2', 'e4');
-    await expect(page.getByTestId('ply-count')).toHaveText('Start');
+    await expect(page.getByTestId('move-count')).toHaveText('Start');
     await enterPin(page);
     await expect(line(page)).toHaveText('1. e4');
-    await expect(page.getByTestId('ply-count')).toHaveText('Ply 1');
+    await expect(page.getByTestId('move-count')).toHaveText('1.e4');
 
     await back(page);
     await expect(line(page)).toHaveText('');
@@ -34,7 +34,7 @@ test.describe('stepping through a line', () => {
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
     await expect(line(page)).toHaveText('1. e4');
-    await back(page, 2);
+    await back(page);
     await expect(line(page)).toHaveText('');
   });
 
@@ -42,8 +42,8 @@ test.describe('stepping through a line', () => {
     await edit(page);
     await page.getByTestId('pin-toggle').click();
     for (const [a, b] of [['e2', 'e4'], ['e7', 'e5'], ['g1', 'f3']] as const) await playMove(page, a, b);
-    await page.getByTestId('line-ply').first().click();
-    await expect(page.getByTestId('ply-count')).toHaveText('Ply 1');
+    await page.getByTestId('line-move').first().click();
+    await expect(page.getByTestId('move-count')).toHaveText('1.e4');
     await expect(page.getByTestId('board')).toHaveAttribute('data-fen', / b KQkq /);
   });
 
@@ -73,7 +73,7 @@ test.describe('boards', () => {
     await expect(card).toBeVisible();
   });
 
-  test('centered mode: zoom stays on the board; panning leaves it, Back to board and board switches restore it', async ({ page }) => {
+  test('centered mode: zoom stays on the board; panning away closes the board', async ({ page }) => {
     const backToBoard = page.getByTestId('back-to-board');
     await expect(backToBoard).toBeHidden();
     await settled(page);
@@ -84,16 +84,8 @@ test.describe('boards', () => {
     const c1 = (await snapshot(page)).center;
     expect(c1[0]).toBeCloseTo(c0[0], 5);
     expect(c1[1]).toBeCloseTo(c0[1], 5);
-    await panMap(page);
-    await expect(backToBoard).toBeVisible();
-    await backToBoard.click();
-    await expect(backToBoard).toBeHidden();
-    await expect.poll(async () => (await snapshot(page)).center[0]).toBeCloseTo(c0[0], 3);
-    await panMap(page);
-    await expect(backToBoard).toBeVisible();
-    await edit(page);
-    await spawn(page, 'e2', 'e4');
-    await enterPin(page); // switching boards restores it
+    await panMap(page); // leaving the board closes it, so there is nothing to go back to
+    await expect(page.getByTestId('board')).toBeHidden();
     await expect(backToBoard).toBeHidden();
   });
 });
@@ -140,5 +132,22 @@ test.describe('seeing the whole repertoire', () => {
     await playMove(page, 'h7', 'h6');
     await playMove(page, 'h2', 'h3');
     await expect(name).toHaveText(/^Ruy Lopez.* \+\d+$/);
+  });
+});
+
+test.describe('leaving the board', () => {
+  test('clicking or dragging the bare map closes the board; pins and markers do not', async ({ page }) => {
+    await edit(page);
+    await spawn(page, 'e2', 'e4');
+    await enterPin(page);
+    const card = page.getByTestId('board');
+    await expect(card).toBeVisible();
+    await page.mouse.click(60, 300);
+    await expect(card).toBeHidden();
+    await expect(page.getByTestId('back-to-board')).toBeHidden(); // nothing to go back to
+    await page.keyboard.press('ArrowLeft'); // navigating reopens it
+    await expect(card).toBeVisible();
+    await panMap(page);
+    await expect(card).toBeHidden();
   });
 });

@@ -36,6 +36,28 @@ private to that layer. The primary barrel is `src/infrastructure/primary/index.t
 (`startPrimary`); the secondary adapters have none, `main.ts` wires them one by one.
 Nothing may live in `src/` outside these layers (besides `style.css`).
 
+## Glossary (chess vocabulary)
+
+One vocabulary for code, comments, docs, tests and UI text. **The word "ply" is not used**: it is
+accurate but jargon, and it is not what chess players, SAN, PGN, chess.js or Lichess say.
+
+| Term | Meaning | In code |
+| --- | --- | --- |
+| **move** | One player's single action: White's `e4`, or Black's `e5`. This is a half-move in the strict sense, but "move" is what SAN/PGN/chess.js call it and what users say ("play a move", "undo move"). | `moves`, `san`, `play`, `MoveInput`, `movesSince`, `appendMove`, `undoLastMove` |
+| **move number** | The numeral of a *pair* of moves in notation: `1.` covers White's `e4` and Black's `e5`. Only used for display, never as a count of moves. | `moveLabel`, `formatLine` (`1.e4`, `1…e5`) |
+| **move index** | 0-based index of a move counted from the start of the game (0 = White's first move, 1 = Black's first move). Even = White, odd = Black. | `firstMoveIndex`, `startIndex`, `indexFromStart` |
+| **segment** | The run of consecutive moves held by one node (`MapNodeData.moves`): empty for the root, one move for a normal marker, n for a pinned node. Children hang off the end of a segment. | `moves`, `splitSegment` |
+| **line** | The sequence of moves from the start position to the cursor, across nodes. | `sanPath`, `lineCursors`, `formatLine`, the top bar's "line" |
+| **variation** | An alternative to a move: a sibling node branching from the same position. | `branch`, `branchAt`, `children` |
+| **position** | The board state after some move (the start position after none). A cursor designates exactly one position. | `fenAt`, `START_FEN`, `transpositions` |
+| **cursor** | `{ nodeId, played }`: a node and how many of its segment's moves have been played, i.e. the current position. | `Cursor.played` |
+| **node / marker / pin** | A tree node; a marker is a one-move node drawn on the map; a pin is a (possibly multi-move) node whose board you can open. | `MapNodeData`, `pinned` |
+
+Rules of thumb: say **move** for a single White or Black move everywhere (including the UI: "Undo move");
+say **move number** only when talking about the `1.` / `1…` numbering; never write "full move" or
+"half-move" in new code or text. The persisted node field is `moves` (it was `plies` up to
+`LIBRARY_VERSION` 1; migrated by `MIGRATIONS[1]`).
+
 ## Domain (`src/domain/`)
 
 Pure, immutable, synchronous. Every command returns a new object; nothing is mutated in place.
@@ -80,9 +102,9 @@ Read-only queries (used by views): `id`, `name`, `orientation`, `rootId`, `view`
 `endOf(nodeId)`, `pathTo(nodeId)`, `branchSize(nodeId)`, `fenAt(cursor)`, `fenPath(cursor)`,
 `sanPath(cursor)`, `lineCursors(cursor)`, `back(cursor)`, `forward(cursor)`,
 `next(cursor, san)`, `transpositions(cursor)`, `distancesFrom(nodeId)`, `sizeSum(nodeId)`,
-`effectiveBoardZoom(nodeId)`, `pinLabel(nodeId)`, `firstPlyIndex(nodeId)`, `branchIds(nodeId)`, `canTakeBack(cursor)`.
+`effectiveBoardZoom(nodeId)`, `pinLabel(nodeId)`, `firstMoveIndex(nodeId)`, `branchIds(nodeId)`, `canTakeBack(cursor)`.
 
-A `Repertoire` has no commands: renaming, flipping, recording a ply, branching, moving, annotating… are
+A `Repertoire` has no commands: renaming, flipping, recording a move, branching, moving, annotating… are
 `Session` actions that call the package-private `repertoire/commands.ts` and put the result in the `Library`
 (via `library/commands.ts`).
 
@@ -110,7 +132,7 @@ Actions (each returns a `Session`; a refused action returns `this` with `events:
 | Navigation | `goTo(cursor, {keepSize?})`, `back()`, `forward()` (emits `deadEnd` when nothing) |
 | Modes | `switchMode(mode)`, `toggleMode()`, `toggleRecording()` |
 | Moves | `play(san, spots)` — Explore: follow or `rejected`; Edit: existing → navigate, recording → record / spawn pinned, otherwise → enter `placing` at `spots[0]` (tail at `spots[1]`). `movePlacing(at)`, `confirmPlacing()`, `cancelPlacing()`, `takeBack()` |
-| Positions | `relocate(nodeId, at, {withBranch?, place?})`, `nameLocation(nodeId, place)` (system: geocoder result, ignored if the node was moved/removed since), `annotate(nodeId, note)`, `resizeBoard(nodeId, delta)`, `deletePosition(nodeId)` |
+| Positions | `relocate(nodeId, at, {withBranch?, place?})`, `nameLocation(nodeId, place)` (system: geocoder result, ignored if the node was moved/removed since), `annotate(nodeId, note)`, `showNote(nodeId, shown)` (keeps a note visible under its marker; needs a note, dropped with it), `resizeBoard(nodeId, delta)`, `deletePosition(nodeId)` |
 | Set-location flow | `startRelocating(nodeId \| null)`, `previewRelocation(at \| null)`, `endRelocating()` |
 | Maps | `createMap(name, orientation, at)`, `switchMap(id)`, `renameMap(name)`, `flipOrientation()`, `duplicateMap()`, `deleteMap(id?)`, `addMaps(repertoires)` (import), `rememberView(view)` |
 | Queries | `repertoire` (active), `busy`, `canTakeBack`, `moveExists(san)` |

@@ -1,7 +1,7 @@
 import type { LngLat, Place } from '../geo';
 import { newId } from '../id';
 import { Repertoire } from './Repertoire';
-import { appendPly, branchAt, deleteSubtree, getNode, moveNode, setNote, setPinned, setPlace, setSizeDelta, undoLastPly } from './tree';
+import { appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setSizeDelta, undoLastMove } from './tree';
 import type { ChessMapData, Cursor, NodeId, SavedView } from './types';
 
 // Package-private building blocks of `Session` (not in the domain barrel): they only enforce tree integrity, while
@@ -27,9 +27,9 @@ export const copyAs = (r: Repertoire, name: string): Repertoire => make({ ...r.d
  */
 export function extend(r: Repertoire, cursor: Cursor, san: string): Moved | null {
   const node = r.node(cursor.nodeId);
-  if (cursor.ply !== node.plies.length || node.parentId === null || node.children.length) return null;
+  if (cursor.played !== node.moves.length || node.parentId === null || node.children.length) return null;
   const pinned = node.pinned ? r.data : setPinned(r.data, node.id, true);
-  return { repertoire: make(appendPly(pinned, node.id, san)), cursor: { nodeId: node.id, ply: cursor.ply + 1 } };
+  return { repertoire: make(appendMove(pinned, node.id, san)), cursor: { nodeId: node.id, played: cursor.played + 1 } };
 }
 
 /**
@@ -39,7 +39,7 @@ export function extend(r: Repertoire, cursor: Cursor, san: string): Moved | null
  */
 export function branch(r: Repertoire, cursor: Cursor, san: string, at: LngLat, tailAt: LngLat, pinned: boolean): Moved & { nodeId: NodeId } {
   const node = r.node(cursor.nodeId);
-  const splits = cursor.ply < node.plies.length && node.plies[cursor.ply] !== san;
+  const splits = cursor.played < node.moves.length && node.moves[cursor.played] !== san;
   const res = branchAt(r.data, cursor, san, at);
   let d = res.map;
   if (splits) d = moveNode(d, getNode(d, node.id).children[0] as NodeId, tailAt, { withSubtree: true });
@@ -47,9 +47,9 @@ export function branch(r: Repertoire, cursor: Cursor, san: string, at: LngLat, t
   return { repertoire: make(d), cursor: res.cursor, nodeId: res.cursor.nodeId };
 }
 
-/** Drops the last ply when `canTakeBack`; otherwise returns `r`. */
+/** Drops the last move when `canTakeBack`; otherwise returns `r`. */
 export const takeBack = (r: Repertoire, cursor: Cursor): Repertoire =>
-  r.canTakeBack(cursor) ? make(undoLastPly(r.data, cursor.nodeId)) : r;
+  r.canTakeBack(cursor) ? make(undoLastMove(r.data, cursor.nodeId)) : r;
 
 /** Moves a position (and its whole branch with `withBranch`). */
 export const moveTo = (r: Repertoire, nodeId: NodeId, at: LngLat, withBranch: boolean): Repertoire =>
@@ -57,6 +57,9 @@ export const moveTo = (r: Repertoire, nodeId: NodeId, at: LngLat, withBranch: bo
 
 /** A blank note removes it. */
 export const annotate = (r: Repertoire, nodeId: NodeId, note: string): Repertoire => make(setNote(r.data, nodeId, note));
+
+/** Keeps the note visible under the marker; ignored without a note. */
+export const showNote = (r: Repertoire, nodeId: NodeId, shown: boolean): Repertoire => make(setNoteShown(r.data, nodeId, shown));
 
 /** Absolute log2 board size relative to the parent, snapped to 0.25; 0 inherits. */
 export const resize = (r: Repertoire, nodeId: NodeId, delta: number): Repertoire => make(setSizeDelta(r.data, nodeId, delta));

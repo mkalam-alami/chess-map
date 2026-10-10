@@ -24,12 +24,12 @@ export function spawn(session: Session, parent: NodeId, san: string, at: LngLat,
   if (!placing.placing) throw new Error(`spawn: "${san}" did not enter placing`);
   const next = placing.confirmPlacing();
   const rep = next.repertoire;
-  const id = rep.node(parent).children.find((c) => rep.node(c).plies[0] === san);
+  const id = rep.node(parent).children.find((c) => rep.node(c).moves[0] === san);
   if (!id) throw new Error(`spawn: no child "${san}"`);
   return { session: next, id };
 }
 
-/** root -> sans[0] -> sans[1] ... as 1-ply markers. `ids[0]` is the root; marker i sits at [i, i]. */
+/** root -> sans[0] -> sans[1] ... as 1-move markers. `ids[0]` is the root; marker i sits at [i, i]. */
 export function lineOf(sans: string[], base: Repertoire = emptyRep()): { session: Session; map: ChessMapData; ids: NodeId[] } {
   let session = editSession(base);
   const ids: NodeId[] = [base.rootId];
@@ -53,7 +53,7 @@ export function pinnedOf(sans: string[], base: Repertoire = emptyRep()): { sessi
 export interface Spec { [san: string]: Spec }
 
 /**
- * Builds a map of 1-ply markers from a spec. `id('e4 c5')` returns the node reached by that line
+ * Builds a map of 1-move markers from a spec. `id('e4 c5')` returns the node reached by that line
  * (`id('')` is the root). Markers get distinct positions [n, n / 2] in creation order.
  */
 export function treeOf(spec: Spec, base: Repertoire = emptyRep()): { session: Session; map: ChessMapData; id: (line: string) => NodeId } {

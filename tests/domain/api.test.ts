@@ -26,7 +26,7 @@ describe('public API of the domain', () => {
     expect(Object.getOwnPropertyNames(domain.Repertoire).filter((k) => !['length', 'name', 'prototype'].includes(k)).sort()).toEqual(['create', 'fromData']);
     expect(Object.getOwnPropertyNames(domain.Repertoire.prototype).sort()).toEqual([
       'back', 'boardZoom', 'branchIds', 'branchSize', 'canTakeBack', 'constructor', 'data', 'distancesFrom', 'effectiveBoardZoom', 'endOf',
-      'fenAt', 'fenPath', 'firstPlyIndex', 'forward', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
+      'fenAt', 'fenPath', 'firstMoveIndex', 'forward', 'futureCursors', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
       'pathTo', 'pinLabel', 'rootCursor', 'rootId', 'sanPath', 'sizeSum', 'transpositions', 'view',
     ]);
   });
@@ -36,7 +36,7 @@ describe('public API of the domain', () => {
     expect(typeof domain.Session.empty).toBe('function');
     for (const action of [
       'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'movePlacing', 'confirmPlacing', 'cancelPlacing', 'takeBack',
-      'relocate', 'nameLocation', 'annotate', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
+      'relocate', 'nameLocation', 'annotate', 'showNote', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
       'createMap', 'switchMap', 'addMaps', 'renameMap', 'flipOrientation', 'duplicateMap', 'deleteMap', 'rememberView',
     ]) {
       expect(typeof (domain.Session.prototype as unknown as Record<string, unknown>)[action], action).toBe('function');

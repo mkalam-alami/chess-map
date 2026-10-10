@@ -53,7 +53,7 @@ test.describe('playing moves', () => {
 });
 
 test.describe('recording a segment (Pin mode)', () => {
-  test('Pin mode records a segment, replays it and undoes the last ply', async ({ page }) => {
+  test('Pin mode records a segment, replays it and undoes the last move', async ({ page }) => {
     await edit(page);
     await page.getByTestId('pin-toggle').click();
     for (const [a, b] of [['e2', 'e4'], ['e7', 'e5'], ['g1', 'f3']] as const) await playMove(page, a, b);
@@ -64,15 +64,15 @@ test.describe('recording a segment (Pin mode)', () => {
     await forward(page, 3);
     await expect(line(page)).toHaveText('1. e4 e5 2. Nf3');
 
-    await expect(page.getByTestId('undo-ply')).toBeEnabled();
-    await page.getByTestId('undo-ply').click();
+    await expect(page.getByTestId('undo-move')).toBeEnabled();
+    await page.getByTestId('undo-move').click();
     await expect(line(page)).toHaveText('1. e4 e5');
   });
 
   test('back-to-back moves with no waits are not dropped', async ({ page }) => {
     await edit(page);
     await page.getByTestId('pin-toggle').click();
-    await playMove(page, 'e2', 'e4'); // creates the pinned node and recenters; the following plies are appended in place
+    await playMove(page, 'e2', 'e4'); // creates the pinned node and recenters; the following moves are appended in place
     const box = await settled(page);
     const at = (sq: string) => squareAt(box, sq);
     await page.mouse.move(at('e7').x, at('e7').y);
@@ -84,7 +84,7 @@ test.describe('recording a segment (Pin mode)', () => {
     await expect(line(page)).toHaveText('1. e4 e5 2. Nf3');
   });
 
-  test('Backspace and Ctrl+Z undo the last recorded ply', async ({ page }) => {
+  test('Backspace and Ctrl+Z undo the last recorded move', async ({ page }) => {
     await edit(page);
     await page.keyboard.press('p'); // the shortcut for the Pin button
     await expect(page.getByTestId('pin-toggle')).toHaveAttribute('aria-pressed', 'true');
@@ -96,9 +96,9 @@ test.describe('recording a segment (Pin mode)', () => {
     await expect(line(page)).toHaveText('1. e4');
   });
 
-  test('Undo ply is disabled while there is nothing to take back', async ({ page }) => {
+  test('Undo move is disabled while there is nothing to take back', async ({ page }) => {
     await edit(page);
-    await expect(page.getByTestId('undo-ply')).toBeDisabled();
+    await expect(page.getByTestId('undo-move')).toBeDisabled();
   });
 });
 
@@ -174,6 +174,26 @@ test.describe('notes', () => {
     await expect(page.getByTestId('pin').locator('.pin-note')).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(page.getByTestId('note-text')).toContainText('King pawn, Lisbon trip');
+  });
+
+  test('a note pinned to the map stays under its marker on the map, and survives a reload', async ({ page }) => {
+    await edit(page);
+    await spawn(page, 'e2', 'e4');
+    await enterPin(page);
+    await page.getByTestId('board-note').click();
+    await page.getByTestId('note-input').fill("King's pawn");
+    await page.getByTestId('note-pin').click(); // available while editing too, and the editor stays open
+    await expect(page.getByTestId('note-pin')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('note-input')).toBeVisible();
+    await page.keyboard.press('Enter');
+    await back(page); // the board returns to the start position; e4 is a pin again
+    await expect(page.getByTestId('pin').getByTestId('pin-notebox')).toHaveText("King's pawn");
+    await page.reload();
+    await expect(page.getByTestId('pin').getByTestId('pin-notebox')).toHaveText("King's pawn");
+    await page.keyboard.press('ArrowRight');
+    await page.getByTestId('note-pin').click(); // unpin again
+    await back(page);
+    await expect(page.getByTestId('pin-notebox')).toBeHidden();
   });
 
   test('a note survives a reload', async ({ page }) => {

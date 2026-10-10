@@ -46,11 +46,22 @@ test.describe('with a repertoire', () => {
   test('the board handle shows no drag hint or edit buttons', async ({ page }) => {
     await expect(page.getByTestId('board-locate')).toBeHidden();
     await expect(page.locator('.board-handle .grip')).toBeHidden();
+    await expect(page.getByTestId('board-more')).toBeHidden();
     await edit(page);
-    await expect(page.getByTestId('board-locate')).toBeVisible();
+    // This board is small (a child of the start board): the header keeps close and a "…" menu with the other actions.
+    await expect(page.getByTestId('board-locate')).toBeHidden();
+    await expect(page.getByTestId('board-close')).toBeVisible();
+    await expect(page.getByTestId('board-more')).toBeVisible();
     await expect(page.getByTestId('pin-toggle')).toBeVisible();
     await explore(page);
     await expect(page.getByTestId('pin-toggle')).toBeHidden();
+  });
+
+  test('on a small board the "…" menu gives access to the header actions', async ({ page }) => {
+    await edit(page);
+    await page.getByTestId('board-more').click();
+    await page.getByTestId('board-more-locate').click();
+    await expect(page.getByTestId('locate-title')).toBeVisible();
   });
 
   test('edit shortcuts do nothing: no pin mode, no deletion', async ({ page }) => {

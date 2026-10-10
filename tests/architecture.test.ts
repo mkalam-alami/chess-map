@@ -51,7 +51,7 @@ const RULES: Record<Exclude<Layer, 'main'>, { packages: string[]; assets: string
     allows: (t) => inDir(t, 'src/application') || isBarrel(t, 'src/domain'),
   },
   primary: {
-    packages: ['preact', 'maplibre-gl', 'chessground'], assets: ['.css'],
+    packages: ['preact', 'maplibre-gl', 'chessground'], assets: ['.css', '.js?url'],
     allows: (t) => inDir(t, PRIMARY) || isBarrel(t, 'src/domain') || isBarrel(t, 'src/application'),
   },
   secondary: {

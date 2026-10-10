@@ -8,7 +8,7 @@ export type Orientation = 'white' | 'black';
 export type Mode = 'explore' | 'edit';
 
 /** Version of the persisted `LibraryData` shape. Bump it together with a migration (see the storage codec). */
-export const LIBRARY_VERSION = 1;
+export const LIBRARY_VERSION = 2;
 
 export interface SavedView { center: LngLat; zoom: number }
 
@@ -16,13 +16,15 @@ export interface SavedView { center: LngLat; zoom: number }
 export interface MapNodeData {
   id: NodeId;
   parentId: NodeId | null;
-  /** SAN plies. Root: []; normal marker: 1 ply; pinned segment: n plies. */
-  plies: string[];
-  /** Pinned: new moves are appended to `plies` instead of spawning children. */
+  /** SAN moves. Root: []; normal marker: 1 move; pinned segment: n moves. */
+  moves: string[];
+  /** Pinned: new moves are appended to `moves` instead of spawning children. */
   pinned: boolean;
   lngLat: LngLat;
   place?: Place;
   note?: string;
+  /** The note stays visible under the marker while the board is closed (default false = absent). */
+  noteShown?: boolean;
   /** Ordered. Children always hang off the END of this node's segment. */
   children: NodeId[];
   /** What "forward" follows when there are several children. */
@@ -51,12 +53,12 @@ export interface LibraryData {
 }
 
 /**
- * Cursor convention: `ply` is the NUMBER of plies of the node's segment that
- * have been played (0..plies.length). The position at a cursor is the one
- * after those plies. So:
+ * Cursor convention: `played` is the NUMBER of moves of the node's segment that
+ * have been played (0..moves.length). The position at a cursor is the one
+ * after those moves. So:
  *  - root is {rootId, 0} (start position);
- *  - entering a 1-ply marker gives {id, 1};
- *  - back from {id, 1} goes to the parent at its end ({parent, parent.plies.length});
- *  - non-root cursors always have ply >= 1.
+ *  - entering a 1-move marker gives {id, 1};
+ *  - back from {id, 1} goes to the parent at its end ({parent, parent.moves.length});
+ *  - non-root cursors always have played >= 1 (a node has at least one move).
  */
-export interface Cursor { nodeId: NodeId; ply: number }
+export interface Cursor { nodeId: NodeId; played: number }

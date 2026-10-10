@@ -181,8 +181,8 @@ export function LocatePanel({ map }: { map: maplibregl.Map }) {
                 if (type !== 'touch' && type !== 'pen') confirm();
               }}
             >
-              <strong>{first}</strong>
-              <span class="muted">{rest.length ? ` ${rest.join(', ')}` : ''}</span>
+              <strong dir="auto">{first}</strong>
+              <span class="muted" dir="auto">{rest.length ? ` ${rest.join(', ')}` : ''}</span>
             </button>
           );
         })}

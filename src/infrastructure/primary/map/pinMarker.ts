@@ -14,6 +14,7 @@ interface Entry {
   root: HTMLElement;
   label: HTMLElement;
   note: HTMLElement;
+  noteBox: HTMLElement;
   kind: Kind;
 }
 
@@ -28,7 +29,9 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const out = new Map<NodeId, Kind>();
     if (vs.overview) for (const n of m.nodes()) out.set(n.id, 'overview');
     for (const id of m.pathTo(node.id)) out.set(id, id === m.rootId ? 'root' : 'ancestor');
-    if (s.cursor.ply === node.plies.length) for (const c of node.children) out.set(c, 'child');
+    if (s.cursor.played === node.moves.length) for (const c of node.children) out.set(c, 'child');
+    // Notes pinned by the user are landmarks: shown (faded like the overview) whatever the overview toggle says.
+    for (const n of m.nodes()) if (n.noteShown && n.note && !out.has(n.id)) out.set(n.id, 'overview');
     out.delete(node.id); // the board stands there
     if (!vs.boardOpen) out.set(node.id, node.id === m.rootId ? 'root' : 'ancestor'); // closed: its pin is the way back
     return out;
@@ -38,14 +41,15 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const root = el('div', 'pin');
     const label = el('span', 'pin-label');
     const note = el('span', 'pin-note', '✎');
-    root.append(label, note);
+    const noteBox = el('div', 'pin-notebox', '', { 'data-testid': 'pin-notebox' });
+    root.append(label, note, noteBox);
     shieldFromMap(root);
     const marker = new maplibregl.Marker({ element: root, anchor: 'bottom' }).setLngLat([0, 0]).addTo(map);
-    const entry: Entry = { marker, root, label, note, kind };
+    const entry: Entry = { marker, root, label, note, noteBox, kind };
     const enter = (): void => {
       const { cursor, repertoire } = app.session;
       if (cursor.nodeId === id) app.goTo(cursor); // the closed board's own pin: reopen where it was
-      else app.goTo(entry.kind === 'ancestor' || entry.kind === 'root' ? repertoire.endOf(id) : { nodeId: id, ply: 1 });
+      else app.goTo(entry.kind === 'ancestor' || entry.kind === 'root' ? repertoire.endOf(id) : { nodeId: id, played: 1 });
     };
     const dragged = makeDraggable({
       map,
@@ -84,6 +88,7 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const editing = app.session.mode === 'edit';
     // Overview: the further from the cursor (in markers), the smaller the pin.
     const dist = vs.overview ? m.distancesFrom(app.session.cursor.nodeId) : null;
+    const shown = (n: { noteShown?: boolean; note?: string }): boolean => !!n.noteShown && !!n.note;
     for (const [id, kind] of want) {
       const node = m.node(id);
       let e = entries.get(id);
@@ -95,11 +100,13 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
       e.marker.setLngLat(preview.overrides.get(id) ?? node.lngLat);
       const text = m.pinLabel(id);
       e.label.textContent = text;
-      e.note.hidden = !node.note;
+      e.note.hidden = !node.note || shown(node); // the shown note replaces the pencil hint
+      e.noteBox.hidden = !shown(node);
+      e.noteBox.textContent = shown(node) ? (node.note as string) : '';
       e.root.classList.remove('pin-child', 'pin-ancestor', 'pin-root', 'pin-overview');
       e.root.classList.add('pin', `pin-${kind}`);
       const d = dist?.get(id) ?? 0;
-      e.root.classList.toggle('pin-black', m.firstPlyIndex(id) % 2 === 1); // played by Black
+      e.root.classList.toggle('pin-black', m.firstMoveIndex(id) % 2 === 1); // played by Black
       e.root.classList.toggle('pin-d2', d === 3 || d === 4);
       e.root.classList.toggle('pin-d5', d >= 5);
       e.root.classList.toggle('editable', editing);

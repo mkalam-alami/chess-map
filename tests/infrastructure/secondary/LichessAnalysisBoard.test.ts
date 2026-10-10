@@ -20,7 +20,7 @@ describe('LichessAnalysisBoard', () => {
     writeClipboard: vi.fn(clipboard),
     writePgn: vi.fn((m: Repertoire) => `PGN of ${m.name}`),
   });
-  /** A line of `n` plies that goes back and forth, so its URL is as long as we like. */
+  /** A line of `n` moves that goes back and forth, so its URL is as long as we like. */
   const shuffle = (n: number) => Array.from({ length: n }, (_, i) => ['Nf3', 'Nf6', 'Ng1', 'Ng8'][i % 4] as string);
   const board = (sans: string[], name = 'long') => {
     const { map, ids } = lineOf(sans);

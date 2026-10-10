@@ -2,12 +2,13 @@ import maplibregl from 'maplibre-gl';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Key } from 'chessground/types';
-import { NOMINAL_PX, inCheck, legalDests, moveSquares, promotionColor, tryMove, turnColor, wrapNear, type Cursor, type LngLat, type Mode } from '../../../domain';
+import { NOMINAL_PX, inCheck, legalDests, moveSquares, openingText, promotionColor, tryMove, turnColor, wrapNear, type Cursor, type LngLat, type Mode } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
 import { openInAnalysis } from '../ui/actions';
 import { confirmDeleteNode } from '../ui/confirmDelete';
-import { el, iconButton, shieldFromMap } from '../ui/dom';
+import { openBoardMenu } from '../ui/BoardMenu';
+import { button, el, iconButton, shieldFromMap } from '../ui/dom';
 import { askPromotion } from '../ui/promotion';
 import { toast } from '../ui/toast';
 import { createBoardSizer } from './boardSize';
@@ -16,6 +17,8 @@ import type { DragPreview } from './dragPreview';
 import { createNoteEditor } from './noteEditor';
 import { spawnAngles } from './spawn';
 
+const placeText = (label: string, country?: string): string => (country && !label.includes(country) ? `${label}, ${country}` : label);
+
 export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: ViewState, preview: DragPreview): { update: () => void } {
   const cursorId = (): string => app.session.cursor.nodeId;
   const note = createNoteEditor(app);
@@ -23,15 +26,25 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
   trash.addEventListener('click', () => void confirmDeleteNode(app, cursorId()));
   const locate = iconButton('mapPin', 'board-locate', 'Set location by city (L)', 'size-btn locate-btn');
   locate.addEventListener('click', () => app.startRelocating(cursorId()));
-  const closeBtn = iconButton('close', 'board-close', 'Close the board', 'size-btn');
+  const closeBtn = iconButton('close', 'board-close', 'Close the board', 'size-btn board-close');
   closeBtn.addEventListener('click', () => vs.closeBoard());
   const lichess = iconButton('external', 'board-lichess', 'Open this line in Lichess', 'size-btn');
   lichess.addEventListener('click', () => openInAnalysis(app));
 
+  // On small boards (container query in style.css) the header keeps only this menu on the left and the close button.
+  const more = button('…', 'board-more', 'size-btn board-more');
+  more.title = 'Board actions';
+  more.addEventListener('click', () => openBoardMenu(more, () => [
+    { label: 'Edit the note', testid: 'board-more-note', run: () => note.toggle.click() },
+    { label: 'Set location by city', testid: 'board-more-locate', run: () => locate.click() },
+    { label: 'Open in Lichess', testid: 'board-more-lichess', run: () => lichess.click() },
+    { label: 'Delete this position', testid: 'board-more-delete', run: () => trash.click(), hidden: app.session.repertoire.node(cursorId()).parentId === null },
+  ]));
+
   // Equal-width side groups keep the grip hint centred whatever icons are shown.
   const left = el('div', 'handle-side');
   const right = el('div', 'handle-side right');
-  left.append(note.toggle, locate, lichess);
+  left.append(note.toggle, locate, lichess, more);
   right.append(trash, closeBtn);
   const handle = el('div', 'board-handle');
   handle.append(left, el('span', 'grip', '⠇⠇⠇'), right);
@@ -39,8 +52,26 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
   const grip = el('div', 'board-grip', '', { 'data-testid': 'board-grip', title: 'Drag to resize' });
   const card = el('div', 'board-card', '', { 'data-testid': 'board-card' });
   card.append(handle, wrap, grip);
+  // Previous / next move on either side of the board; shown only when there is somewhere to go (see update()).
+  const prev = iconButton('chevron', 'btn-back', 'Back (←)', 'board-nav prev', 22);
+  prev.addEventListener('click', () => app.back());
+  const next = iconButton('chevron', 'btn-forward', 'Forward (→)', 'board-nav next', 22);
+  next.addEventListener('click', () => void app.forward());
+  // Opening and place above the card, the note below: out of flow (the board stays centred on its position) and
+  // not as narrow as a small board.
+  const openingName = el('span', 'opening-name', '', { 'data-testid': 'opening-name' });
+  const opening = el('div', 'opening', '', { 'data-testid': 'opening' });
+  opening.append(openingName);
+  const place = el('button', 'place', '', { type: 'button', 'data-testid': 'place-label' });
+  const placeSpan = el('span', 'place-text', '', { dir: 'auto' });
+  place.append(placeSpan);
+  place.addEventListener('click', () => app.session.mode === 'edit' && app.startRelocating(cursorId()));
+  const above = el('div', 'board-above board-info');
+  above.append(opening, place);
+  const below = el('div', 'board-below');
+  below.append(note.box);
   const root = el('div', 'board-root');
-  root.append(card, note.box);
+  root.append(above, card, below, prev, next);
   shieldFromMap(root);
 
   const marker = new maplibregl.Marker({ element: root, anchor: 'center' }).setLngLat(app.session.repertoire.node(cursorId()).lngLat).addTo(map);
@@ -160,6 +191,18 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     wrap.dataset.fen = fen;
     card.dataset.mode = s.mode;
     note.update(node, s.mode === 'edit');
+    const op = app.openingAt(s.cursor);
+    opening.hidden = !op;
+    opening.classList.toggle('inexact', !!op && !op.exact);
+    opening.title = op ? `${op.eco} · ${openingText(op)}` : '';
+    openingName.textContent = op ? openingText(op) : '';
+    const pl = node.place;
+    placeSpan.textContent = pl ? placeText(pl.label, pl.country) : '';
+    place.classList.toggle('empty', !pl);
+    place.disabled = s.mode !== 'edit';
+    place.title = s.mode === 'edit' ? 'Set location by city (L)' : placeSpan.textContent;
+    prev.hidden = !m.back(s.cursor);
+    next.hidden = !m.forward(s.cursor);
     trash.style.visibility = node.parentId === null ? 'hidden' : '';
     root.style.display = vs.boardOpen ? '' : 'none';
     card.classList.toggle('placing', !!s.placing);

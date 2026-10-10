@@ -12,24 +12,24 @@ const asFile = (name: string, text: string) => ({ name, mimeType: 'text/plain', 
 const importJson = (page: Page, name: string, text: string) => page.getByTestId('import-json-input').setInputFiles(asFile(name, text));
 const importPgn = (page: Page, name: string, text: string) => page.getByTestId('import-pgn-input').setInputFiles(asFile(name, text));
 
-/** A map holding one pinned board with `plies` knight moves back and forth: a line too long for a Lichess URL. */
-const longLineMap = (plies: number): string => {
+/** A map holding one pinned board with `moves` knight moves back and forth: a line too long for a Lichess URL. */
+const longLineMap = (moves: number): string => {
   const cycle = ['Nf3', 'Nf6', 'Ng1', 'Ng8'];
-  const root = { id: 'r', parentId: null, plies: [], pinned: false, lngLat: [2.35, 48.85], children: ['a'] };
-  const line = { id: 'a', parentId: 'r', plies: Array.from({ length: plies }, (_, i) => cycle[i % 4]), pinned: true, lngLat: [2.6, 48.9], children: [] };
+  const root = { id: 'r', parentId: null, moves: [], pinned: false, lngLat: [2.35, 48.85], children: ['a'] };
+  const line = { id: 'a', parentId: 'r', moves: Array.from({ length: moves }, (_, i) => cycle[i % 4]), pinned: true, lngLat: [2.6, 48.9], children: [] };
   const map = { id: 'long', name: 'Shuffle', orientation: 'white', rootId: 'r', nodes: { r: root, a: line } };
-  return JSON.stringify({ format: 'chess-map', version: 1, map });
+  return JSON.stringify({ format: 'chess-map', version: 2, map });
 };
 
-/** Plies of the shuffling game: enough for a Lichess URL over 2000 characters (about 240). */
+/** Moves of the shuffling game: enough for a Lichess URL over 2000 characters (about 240). */
 const LONG = 260;
 
-/** Presses → `plies` times (all in one go: hundreds of real key presses with a board animating are slow). */
-async function walkTo(page: Page, plies: number): Promise<void> {
+/** Presses → `moves` times (all in one go: hundreds of real key presses with a board animating are slow). */
+async function walkTo(page: Page, moves: number): Promise<void> {
   await page.evaluate((n) => {
     for (let i = 0; i < n; i++) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-  }, plies);
-  await expect(page.getByTestId('ply-count')).toHaveText(`Ply ${plies}`);
+  }, moves);
+  await expect(page.getByTestId('move-count')).toHaveText(`${Math.floor((moves - 1) / 2) + 1}${moves % 2 ? '.' : '…'}${["Nf3", "Nf6", "Ng1", "Ng8"][(moves - 1) % 4]}`);
 }
 
 test.describe('JSON', () => {
@@ -53,7 +53,7 @@ test.describe('JSON', () => {
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('menu-export-json').click()]);
     const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
     expect(file.format).toBe('chess-map');
-    expect(Object.values(file.map.nodes).flatMap((n) => (n as { plies: string[] }).plies)).toEqual(['e4']);
+    expect(Object.values(file.map.nodes).flatMap((n) => (n as { moves: string[] }).moves)).toEqual(['e4']);
   });
 
   test('an invalid file explains what is wrong and changes nothing', async ({ page }) => {
@@ -66,12 +66,12 @@ test.describe('JSON', () => {
 
   test('a map with an illegal move is refused', async ({ page }) => {
     const bad = {
-      format: 'chess-map', version: 1,
+      format: 'chess-map', version: 2,
       map: {
         id: 'm', name: 'Bad', orientation: 'white', rootId: 'r',
         nodes: {
-          r: { id: 'r', parentId: null, plies: [], pinned: false, lngLat: [0, 0], children: ['a'] },
-          a: { id: 'a', parentId: 'r', plies: ['e5'], pinned: false, lngLat: [1, 1], children: [] },
+          r: { id: 'r', parentId: null, moves: [], pinned: false, lngLat: [0, 0], children: ['a'] },
+          a: { id: 'a', parentId: 'r', moves: ['e5'], pinned: false, lngLat: [1, 1], children: [] },
         },
       },
     };

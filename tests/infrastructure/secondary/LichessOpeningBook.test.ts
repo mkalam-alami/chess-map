@@ -53,15 +53,15 @@ describe('LichessOpeningBook with the real data', () => {
     beforeAll(() => book.load());
 
     it('names the Ruy Lopez exactly', () => {
-      expect(at(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])).toMatchObject({ eco: 'C60', name: 'Ruy Lopez', exact: true, pliesSince: 0 });
+      expect(at(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])).toMatchObject({ eco: 'C60', name: 'Ruy Lopez', exact: true, movesSince: 0 });
     });
 
-    it('reports plies since the last named position when out of book', () => {
+    it('reports moves since the last named position when out of book', () => {
       const o = at(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'h3', 'h6', 'a3']);
       expect(o?.name).toContain('Ruy Lopez');
       expect(o?.exact).toBe(false);
-      expect(o?.pliesSince).toBeGreaterThan(0);
-      expect(openingText(o!)).toBe(`${o?.name} +${o?.pliesSince}`);
+      expect(o?.movesSince).toBeGreaterThan(0);
+      expect(openingText(o!)).toBe(`${o?.name} +${o?.movesSince}`);
     });
 
     it('names transpositions reached by another move order', () => {

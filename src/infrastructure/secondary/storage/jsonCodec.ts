@@ -15,9 +15,27 @@ export class ValidationError extends Error {
 type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** Renames a field on every node of a library (`maps`) or single-map (`map`) JSON and bumps its version by one. */
+function renameNodeField(raw: Json, from: string, to: string): Json {
+  const renameIn = (m: unknown): unknown => {
+    if (!isObj(m) || !isObj(m.nodes)) return m;
+    const nodes = Object.fromEntries(Object.entries(m.nodes).map(([id, n]) => {
+      if (!isObj(n) || !(from in n)) return [id, n];
+      const { [from]: value, ...rest } = n;
+      return [id, { ...rest, [to]: value }];
+    }));
+    return { ...m, nodes };
+  };
+  const out: Json = { ...raw, version: (raw.version as number) + 1 };
+  if (isObj(raw.maps)) out.maps = Object.fromEntries(Object.entries(raw.maps).map(([k, m]) => [k, renameIn(m)]));
+  if ('map' in raw) out.map = renameIn(raw.map);
+  return out;
+}
+
 /** Steps from version N to N + 1, keyed by N. */
 export const MIGRATIONS: Record<number, (raw: Json) => Json> = {
-  // 1: (raw) => ({ ...raw, version: 2 }),  // add one entry per schema bump
+  // 1 -> 2: `MapNodeData.plies` became `moves` (the word "ply" left the vocabulary, see the glossary in docs/ARCHITECTURE.md).
+  1: (raw) => renameNodeField(raw, 'plies', 'moves'),
 };
 
 /** Upgrades older library JSON to the current version; throws on unknown/newer versions. */
@@ -77,14 +95,18 @@ function validateMap(raw: unknown, path: string): ChessMapData {
     if (!isObj(rn)) throw new ValidationError(p, 'expected an object');
     if (rn.id !== key) throw new ValidationError(`${p}.id`, 'must equal its key');
     const parentId = rn.parentId === null ? null : str(rn.parentId, `${p}.parentId`);
-    if (!Array.isArray(rn.plies) || !rn.plies.every((s) => typeof s === 'string')) throw new ValidationError(`${p}.plies`, 'expected string[]');
+    if (!Array.isArray(rn.moves) || !rn.moves.every((s) => typeof s === 'string')) throw new ValidationError(`${p}.moves`, 'expected string[]');
     if (typeof rn.pinned !== 'boolean') throw new ValidationError(`${p}.pinned`, 'expected boolean');
     if (!Array.isArray(rn.children) || !rn.children.every((s) => typeof s === 'string')) throw new ValidationError(`${p}.children`, 'expected string[]');
     const node: MapNodeData = {
-      id: key, parentId, plies: rn.plies as string[], pinned: rn.pinned,
+      id: key, parentId, moves: rn.moves as string[], pinned: rn.pinned,
       lngLat: lngLat(rn.lngLat, `${p}.lngLat`), children: rn.children as string[],
     };
     if (rn.note !== undefined) node.note = str(rn.note, `${p}.note`);
+    if (rn.noteShown !== undefined) {
+      if (typeof rn.noteShown !== 'boolean') throw new ValidationError(`${p}.noteShown`, 'expected boolean');
+      if (rn.noteShown) node.noteShown = true;
+    }
     if (rn.sizeDelta !== undefined) node.sizeDelta = num(rn.sizeDelta, `${p}.sizeDelta`);
     if (rn.lastChild !== undefined) {
       node.lastChild = str(rn.lastChild, `${p}.lastChild`);
@@ -104,7 +126,7 @@ function validateMap(raw: unknown, path: string): ChessMapData {
   for (const node of Object.values(nodes)) {
     const p = `${path}.nodes.${node.id}`;
     if (node.id !== rootId && node.parentId === null) throw new ValidationError(`${p}.parentId`, 'only the root may have no parent');
-    if (node.id !== rootId && node.plies.length === 0) throw new ValidationError(`${p}.plies`, 'non-root node needs at least one ply');
+    if (node.id !== rootId && node.moves.length === 0) throw new ValidationError(`${p}.moves`, 'non-root node needs at least one move');
     if (new Set(node.children).size !== node.children.length) throw new ValidationError(`${p}.children`, 'duplicate child');
     node.children.forEach((c, i) => {
       if (nodes[c]?.parentId !== node.id) throw new ValidationError(`${p}.children[${i}]`, `${c} is missing or has a different parent`);
@@ -116,9 +138,9 @@ function validateMap(raw: unknown, path: string): ChessMapData {
   const walk = (node: MapNodeData, startFen: string): void => {
     seen.add(node.id);
     let fen = startFen;
-    node.plies.forEach((san, i) => {
+    node.moves.forEach((san, i) => {
       const r = tryMove(fen, san);
-      if (!r) throw new ValidationError(`${path}.nodes.${node.id}.plies[${i}]`, `illegal move "${san}"`);
+      if (!r) throw new ValidationError(`${path}.nodes.${node.id}.moves[${i}]`, `illegal move "${san}"`);
       fen = r.fen;
     });
     for (const c of node.children) {

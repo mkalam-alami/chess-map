@@ -20,12 +20,12 @@ function book(): OpeningLookup {
 
 describe('openingAt', () => {
   it('names the current position exactly', () => {
-    expect(openingAt(fensOf(['e4', 'e5']), book())).toEqual({ eco: 'C20', name: 'Open Game', exact: true, pliesSince: 0 });
+    expect(openingAt(fensOf(['e4', 'e5']), book())).toEqual({ eco: 'C20', name: 'Open Game', exact: true, movesSince: 0 });
   });
 
-  it('falls back to the deepest named position and counts the plies since', () => {
-    expect(openingAt(fensOf(['e4', 'e5', 'Nf3', 'Nc6']), book())).toEqual({ eco: 'C20', name: 'Open Game', exact: false, pliesSince: 2 });
-    expect(openingAt(fensOf(['e4', 'c5']), book())).toEqual({ eco: 'B00', name: "King's Pawn", exact: false, pliesSince: 1 });
+  it('falls back to the deepest named position and counts the moves since', () => {
+    expect(openingAt(fensOf(['e4', 'e5', 'Nf3', 'Nc6']), book())).toEqual({ eco: 'C20', name: 'Open Game', exact: false, movesSince: 2 });
+    expect(openingAt(fensOf(['e4', 'c5']), book())).toEqual({ eco: 'B00', name: "King's Pawn", exact: false, movesSince: 1 });
   });
 
   it('is null when nothing on the way is named (including the start position)', () => {
@@ -57,7 +57,7 @@ describe('openingAt', () => {
 
 describe('openingText', () => {
   it('is the bare name when exact and has a +n suffix out of book', () => {
-    expect(openingText({ eco: 'C20', name: 'Open Game', exact: true, pliesSince: 0 })).toBe('Open Game');
-    expect(openingText({ eco: 'C20', name: 'Open Game', exact: false, pliesSince: 3 })).toBe('Open Game +3');
+    expect(openingText({ eco: 'C20', name: 'Open Game', exact: true, movesSince: 0 })).toBe('Open Game');
+    expect(openingText({ eco: 'C20', name: 'Open Game', exact: false, movesSince: 3 })).toBe('Open Game +3');
   });
 });

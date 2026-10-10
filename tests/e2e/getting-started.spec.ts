@@ -30,7 +30,8 @@ test('the repertoire is still there after a reload', async ({ page }) => {
   await spawn(page, 'e2', 'e4');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('chess-map:library')?.includes('"e4"'))).toBe(true);
   await page.reload();
-  await expect(page.getByTestId('board')).toBeVisible();
+  await expect(page.getByTestId('board')).toBeHidden(); // a loaded repertoire opens as pins only
+  await expect(page.getByTestId('pin')).toHaveAttribute('data-label', '1.e4');
   await expect(page.getByTestId('pin')).toHaveAttribute('data-label', '1.e4');
 });
 

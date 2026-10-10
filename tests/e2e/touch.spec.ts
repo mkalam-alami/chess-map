@@ -41,5 +41,5 @@ test('tapping a placed pin enters it', async ({ page }) => {
   await settled(page);
   const pb = (await page.getByTestId('pin').boundingBox())!;
   await page.touchscreen.tap(pb.x + 6, pb.y + pb.height / 2 - 4); // the part of the pin that is not under the board
-  await expect(page.getByTestId('ply-count')).toHaveText('Ply 1');
+  await expect(page.getByTestId('move-count')).toHaveText('1.e4');
 });

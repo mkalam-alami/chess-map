@@ -155,6 +155,10 @@ export class ChessMapApp {
     this.apply(this.current.annotate(nodeId, note));
   }
 
+  showNote(nodeId: NodeId, shown: boolean): void {
+    this.apply(this.current.showNote(nodeId, shown));
+  }
+
   resizeBoard(nodeId: NodeId, delta: number): void {
     this.apply(this.current.resizeBoard(nodeId, delta));
   }

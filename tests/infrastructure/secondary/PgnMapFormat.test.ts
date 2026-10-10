@@ -17,7 +17,7 @@ const importOne = (pgn: string, opts?: Parameters<typeof importPgn>[1]): ChessMa
 function shape(map: ChessMap, id = map.rootId): unknown {
   const n: MapNode = getNode(map, id);
   return {
-    plies: n.plies, pinned: n.pinned, note: n.note, place: n.place, sizeDelta: n.sizeDelta,
+    moves: n.moves, pinned: n.pinned, note: n.note, noteShown: n.noteShown, place: n.place, sizeDelta: n.sizeDelta,
     lngLat: n.lngLat.map((x) => Math.round(x * 1e5) / 1e5),
     children: n.children.map((c) => shape(map, c)),
   };
@@ -32,7 +32,7 @@ function sample(): ChessMap {
   for (const san of ['Nc6', 'Bb5', 'a6']) s = s.play(san);
   s = s.toggleRecording();
   const ba4 = spawn(s, nf3, 'Ba4', [0.5, 0.5]);
-  s = ba4.session.annotate(ba4.id, 'Ruy "Lopez" line');
+  s = ba4.session.annotate(ba4.id, 'Ruy "Lopez" line').showNote(ba4.id, true);
   s = s.nameLocation(nf3, { label: 'Porto, Portugal', country: 'Portugal' }).nameLocation(id('d4'), { label: 'Odd {name} "x" [%y]' });
   s = s.annotate(s.repertoire.rootId, 'Start here').resizeBoard(id('e4'), 0.5).resizeBoard(id('e4 c5'), -1.25);
   return { ...s.repertoire.data, boardZoom: 2.5 };
@@ -57,6 +57,7 @@ describe('exportPgn', () => {
   it('writes geo, pinned, place and notes, escaping what would break the comment', () => {
     expect(pgn).toContain('{[%geo 20,10] Start here}');
     expect(pgn).toContain('[%geo 21.25,11.5]');
+    expect(pgn).toContain('[%noteshown 1]'); // on the Ba4 marker, whose note is pinned to the map
     expect(pgn).toContain('[%geo 40.1,-5.12346] [%pinned 1] [%place "Porto, Portugal"] [%country "Portugal"]');
     expect(pgn).toContain('Ruy "Lopez" line}');
     expect(pgn).not.toMatch(/Odd \{/);
@@ -65,13 +66,13 @@ describe('exportPgn', () => {
 
   it('lineOnly gives the plain SAN line to the cursor', () => {
     const m = sample();
-    expect(exportPgn(m, { lineOnly: true, fromCursor: { nodeId: nodeAt(m, 0, 0).id, ply: 1 } })).toBe('1. e4 e5');
-    expect(exportPgn(m, { lineOnly: true, fromCursor: { nodeId: nodeAt(m, 0).id, ply: 1 } })).toBe('1. e4');
+    expect(exportPgn(m, { lineOnly: true, fromCursor: { nodeId: nodeAt(m, 0, 0).id, played: 1 } })).toBe('1. e4 e5');
+    expect(exportPgn(m, { lineOnly: true, fromCursor: { nodeId: nodeAt(m, 0).id, played: 1 } })).toBe('1. e4');
   });
 
   it('fromCursor drops sibling branches on the path but keeps the subtree', () => {
     const m = sample();
-    const fromC5 = exportPgn(m, { fromCursor: { nodeId: nodeAt(m, 0, 1).id, ply: 1 } });
+    const fromC5 = exportPgn(m, { fromCursor: { nodeId: nodeAt(m, 0, 1).id, played: 1 } });
     expect(fromC5).toContain('1. e4');
     expect(fromC5).toContain('c5');
     expect(fromC5).not.toContain('d4');
@@ -90,12 +91,18 @@ describe('importPgn', () => {
     const map = importOne(TEXT, { origin: [5, 5] });
     expect(map).toMatchObject({ name: 'Hand', orientation: 'black' });
     expect(nodeAt(map)).toMatchObject({ lngLat: [5, 5], children: { length: 2 } });
-    expect(nodeAt(map, 0)).toMatchObject({ plies: ['e4'], note: 'Best by test', pinned: false });
-    expect(nodeAt(map, 1).plies).toEqual(['d4']);
-    expect(nodeAt(map, 1, 0)).toMatchObject({ plies: ['d5'], note: 'answer' });
-    expect(nodeAt(map, 1, 1).plies).toEqual(['Nf6']);
-    expect(Repertoire.fromData(map).sanPath({ nodeId: nodeAt(map, 1, 1, 0).id, ply: 1 })).toEqual(['d4', 'Nf6', 'c4']);
-    expect(nodeAt(map, 0, 0, 0, 0).plies).toEqual(['Nc6']);
+    expect(nodeAt(map, 0)).toMatchObject({ moves: ['e4'], note: 'Best by test', pinned: false });
+    expect(nodeAt(map, 1).moves).toEqual(['d4']);
+    expect(nodeAt(map, 1, 0)).toMatchObject({ moves: ['d5'], note: 'answer' });
+    expect(nodeAt(map, 1, 1).moves).toEqual(['Nf6']);
+    expect(Repertoire.fromData(map).sanPath({ nodeId: nodeAt(map, 1, 1, 0).id, played: 1 })).toEqual(['d4', 'Nf6', 'c4']);
+    expect(nodeAt(map, 0, 0, 0, 0).moves).toEqual(['Nc6']);
+  });
+
+  it('reads [%noteshown 1] on a noted move, and ignores it without a note', () => {
+    const map = importOne('1. e4 {[%geo 1,2] [%noteshown 1] King pawn} e5 {[%geo 3,4] [%noteshown 1]} *');
+    expect(nodeAt(map, 0).noteShown).toBe(true);
+    expect('noteShown' in nodeAt(map, 0, 0)).toBe(false);
   });
 
   it('reports illegal moves with the move number', () => {
@@ -120,13 +127,13 @@ describe('importPgn', () => {
 
   it('accepts a bare [%pinned] marker and merges geo-less follow-ups', () => {
     const m = importOne('1. e4 {[%geo 10,20] [%pinned]} e5 2. Nf3 {[%geo 11,21]} *');
-    expect(nodeAt(m, 0)).toMatchObject({ pinned: true, plies: ['e4', 'e5'], lngLat: [20, 10] });
-    expect(nodeAt(m, 0, 0).plies).toEqual(['Nf3']);
+    expect(nodeAt(m, 0)).toMatchObject({ pinned: true, moves: ['e4', 'e5'], lngLat: [20, 10] });
+    expect(nodeAt(m, 0, 0).moves).toEqual(['Nf3']);
   });
 
   it('does not merge when the next move has variations', () => {
     const m = importOne('1. e4 {[%geo 10,20] [%pinned]} e5 (1... c5) 2. Nf3 *');
-    expect(nodeAt(m, 0)).toMatchObject({ plies: ['e4'], children: { length: 2 } });
+    expect(nodeAt(m, 0)).toMatchObject({ moves: ['e4'], children: { length: 2 } });
   });
 });
 
@@ -164,7 +171,7 @@ describe('round trip', () => {
     expect(r).toMatchObject({ name: m.name, orientation: 'black', boardZoom: 2.5 });
   });
 
-  it('keeps unpinned multi-ply segments and moved roots', () => {
+  it('keeps unpinned multi-move segments and moved roots', () => {
     const { map, id } = pinnedOf(['e4', 'e5']);
     const unpinned = patchNode(Repertoire.fromData(map), id, { pinned: false });
     const m = editSession(unpinned).relocate(map.rootId, [3, 4]).repertoire.data;

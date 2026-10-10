@@ -17,6 +17,7 @@ interface Meta {
   geo?: LngLat;
   pinned?: boolean;
   size?: number;
+  noteShown?: boolean;
   /** `[%pinned 0|1]` was present: following geo-less moves belong to this node. */
   merge: boolean;
   place?: string;
@@ -50,6 +51,7 @@ function metaOf(diag: Record<string, unknown> | null | undefined): Meta {
   }
   const size = Number(str(d.size));
   if (str(d.size) && Number.isFinite(size) && size !== 0) meta.size = size;
+  if (str(d.noteshown)?.trim() === '1') meta.noteShown = true;
   const place = str(d.place);
   if (place) meta.place = unquote(place);
   const country = str(d.country);
@@ -86,13 +88,14 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
 
   const rootMeta = metaOf(tree.gameComment as Record<string, unknown> | undefined);
   const root: MapNodeData = {
-    id: newId(), parentId: null, plies: [], pinned: rootMeta.pinned === true,
+    id: newId(), parentId: null, moves: [], pinned: rootMeta.pinned === true,
     lngLat: rootMeta.geo ?? opts.origin ?? DEFAULT_CENTER, children: [],
   };
   const rootPlace = placeOf(rootMeta);
   if (rootPlace) root.place = rootPlace;
   if (rootMeta.note) root.note = rootMeta.note;
   if (rootMeta.size) root.sizeDelta = rootMeta.size;
+  if (rootMeta.noteShown && root.note) root.noteShown = true;
   const drafts = new Map<NodeId, Draft>([[root.id, { node: root, hasGeo: true }]]);
 
   const play = (m: PgnMoveLike, fen: string): { san: string; fen: string } =>
@@ -114,7 +117,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
       let r = play(head, parentFen);
       const meta = metaOfMove(head);
       const node: MapNodeData = {
-        id: newId(), parentId, plies: [r.san], pinned: meta.pinned === true, lngLat: meta.geo ?? [0, 0], children: [],
+        id: newId(), parentId, moves: [r.san], pinned: meta.pinned === true, lngLat: meta.geo ?? [0, 0], children: [],
       };
       const p = placeOf(meta);
       if (p) node.place = p;
@@ -133,11 +136,12 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
         const nm = metaOfMove(next);
         if (nm.geo || nm.merge) break;
         r = play(next, r.fen);
-        node.plies.push(r.san);
+        node.moves.push(r.san);
         if (nm.note) notes.push(nm.note);
         j++;
       }
       if (notes.length) node.note = notes.join(' ');
+      if (meta.noteShown && node.note) node.noteShown = true;
       if (ln[j]) build(node.id, r.fen, ln, j);
     }
   };

@@ -22,10 +22,14 @@ export interface ViewData {
  * only needs `subscribe` here to hear about both.
  */
 export class ViewState implements ViewData {
-  private data: ViewData = { overview: true, recenter: 0, boardOpen: true, centered: true, keepSize: false, pulse: 0 };
+  private data: ViewData;
   private readonly listeners = new Set<() => void>();
 
   constructor(private readonly app: ChessMapApp) {
+    // A loaded repertoire opens as pins only; the board shows up at once only in the empty (forced Edit) case.
+    const rep = app.session.repertoire;
+    const empty = rep.node(rep.rootId).children.length === 0;
+    this.data = { overview: true, recenter: 0, boardOpen: empty, centered: true, keepSize: false, pulse: 0 };
     app.on('focused', (e) => this.patch({ recenter: this.data.recenter + 1, keepSize: e.keepSize, boardOpen: true, centered: true }, false));
     app.on('deadEnd', () => this.patch({ pulse: this.data.pulse + 1 }, false));
     app.on('mapEntered', () => this.patch({ boardOpen: true, centered: true }, false));
@@ -54,7 +58,7 @@ export class ViewState implements ViewData {
 
   /** Hides the board (every board may be closed, the root included); refused while a transient flow owns the input. */
   closeBoard(): void {
-    if (!this.app.session.busy) this.patch({ boardOpen: false });
+    if (this.data.boardOpen && !this.app.session.busy) this.patch({ boardOpen: false });
   }
 
   toggleOverview(): void {

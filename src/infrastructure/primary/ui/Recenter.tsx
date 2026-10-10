@@ -5,7 +5,7 @@ import { useViewState } from './hooks';
 export function RecenterButton() {
   const view = useViewState();
   return (
-    <button type="button" class="recenter" data-testid="back-to-board" hidden={view.centered} title="Center the map on the board again" onClick={() => view.setCentered(true)}>
+    <button type="button" class="recenter" data-testid="back-to-board" hidden={view.centered || !view.boardOpen} title="Center the map on the board again" onClick={() => view.setCentered(true)}>
       <Icon name="crosshair" />
       <span class="label">Back to board</span>
     </button>

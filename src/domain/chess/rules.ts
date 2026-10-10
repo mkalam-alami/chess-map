@@ -53,19 +53,19 @@ export function turnColor(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'b' ? 'black' : 'white';
 }
 
-/** "1. e4 e5 2. Nf3"; `startPly` is the game ply index of sans[0] (0 = white's first move). */
-export function formatLine(sans: string[], startPly = 0): string {
+/** "1. e4 e5 2. Nf3"; `startIndex` is the game move index (0-based) of sans[0] (0 = white's first move). */
+export function formatLine(sans: string[], startIndex = 0): string {
   return sans
     .map((san, i) => {
-      const ply = startPly + i;
-      if (ply % 2 === 0) return `${ply / 2 + 1}. ${san}`;
-      return i === 0 ? `${(ply - 1) / 2 + 1}… ${san}` : san;
+      const index = startIndex + i;
+      if (index % 2 === 0) return `${index / 2 + 1}. ${san}`;
+      return i === 0 ? `${(index - 1) / 2 + 1}… ${san}` : san;
     })
     .join(' ');
 }
 
-/** "1.e4" for even plyIndexFromStart (0-based), "1…e5" for odd. */
-export function moveLabel(plyIndexFromStart: number, san: string): string {
-  const n = Math.floor(plyIndexFromStart / 2) + 1;
-  return `${n}${plyIndexFromStart % 2 === 0 ? '.' : '…'}${san}`;
+/** "1.e4" for even indexFromStart (0-based), "1…e5" for odd. */
+export function moveLabel(indexFromStart: number, san: string): string {
+  const n = Math.floor(indexFromStart / 2) + 1;
+  return `${n}${indexFromStart % 2 === 0 ? '.' : '…'}${san}`;
 }

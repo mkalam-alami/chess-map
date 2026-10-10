@@ -30,7 +30,7 @@ function spawn(t: ReturnType<typeof makeApp>, san: string, at: LngLat = spots[0]
   t.app.play(san, [at, spots[1] as LngLat]);
   t.app.confirmPlacing();
   const rep = t.app.session.repertoire;
-  return rep.node(rep.rootId).children.find((c) => rep.node(c).plies[0] === san) as NodeId;
+  return rep.node(rep.rootId).children.find((c) => rep.node(c).moves[0] === san) as NodeId;
 }
 const placeOf = (t: ReturnType<typeof makeApp>, id: NodeId) => t.app.session.repertoire.node(id).place;
 
@@ -140,6 +140,7 @@ describe('persistence', () => {
 
   it.each<[string, (t: ReturnType<typeof started>) => void]>([
     ['annotate', (t) => t.app.annotate(root(t), 'n')],
+    ['showNote', (t) => { t.app.annotate(root(t), 'n'); t.app.showNote(root(t), true); }],
     ['resizeBoard', (t) => t.app.resizeBoard(kids(t)[0] as NodeId, 1)],
     ['deletePosition', (t) => t.app.deletePosition(kids(t)[0] as NodeId)],
     ['relocate', (t) => t.app.relocate(root(t), [3, 4], { place: NAMED })],
@@ -369,7 +370,7 @@ describe('placing', () => {
   it('confirming creates the marker where the ghost was dropped', () => {
     const t = started('edit');
     const id = (t.app.play('c4', spots), t.app.movePlacing([33, 44]), t.app.confirmPlacing(), kids(t).at(-1) as NodeId);
-    expect(t.app.session.repertoire.node(id)).toMatchObject({ plies: ['c4'], lngLat: [33, 44] });
+    expect(t.app.session.repertoire.node(id)).toMatchObject({ moves: ['c4'], lngLat: [33, 44] });
   });
 });
 
@@ -644,11 +645,11 @@ describe('opening names', () => {
     expect(t.app.openingAt(e4)).toBeNull();
     t.openings.finishLoading();
     await settle();
-    expect(t.app.openingAt(e4)).toMatchObject({ eco: 'B00', name: "King's Pawn", exact: true, pliesSince: 0 });
+    expect(t.app.openingAt(e4)).toMatchObject({ eco: 'B00', name: "King's Pawn", exact: true, movesSince: 0 });
     expect(fn).toHaveBeenCalled();
   });
 
-  it('defaults to the current cursor, and reports plies since the last named position', async () => {
+  it('defaults to the current cursor, and reports moves since the last named position', async () => {
     const t = started();
     const rep = t.app.session.repertoire;
     t.openings.names.set(epd(rep.fenAt(rep.endOf(kids(t)[0] as NodeId))), { eco: 'B00', name: "King's Pawn" });
@@ -658,7 +659,7 @@ describe('opening names', () => {
     t.app.goTo(rep.endOf(kids(t)[0] as NodeId));
     expect(t.app.openingAt()?.exact).toBe(true);
     t.app.forward(); // e5: out of the (fake) book
-    expect(t.app.openingAt()).toMatchObject({ name: "King's Pawn", exact: false, pliesSince: 1 });
+    expect(t.app.openingAt()).toMatchObject({ name: "King's Pawn", exact: false, movesSince: 1 });
   });
 });
 

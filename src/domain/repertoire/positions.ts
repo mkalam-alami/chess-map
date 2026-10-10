@@ -3,8 +3,8 @@ import { START_FEN } from '../chess/rules';
 import { getNode } from './tree';
 import type { ChessMapData, Cursor, MapNodeData } from './types';
 
-// FEN after each ply of a node (index 0 = before its first ply), cached per
-// node object. Nodes are immutable and an ancestor's plies never change
+// FEN after each move of a node (index 0 = before its first move), cached per
+// node object. Nodes are immutable and an ancestor's moves never change
 // without descendants being replaced too (splitting re-parents children).
 const fenCache = new WeakMap<MapNodeData, string[]>();
 
@@ -16,7 +16,7 @@ function fensOf(map: ChessMapData, node: MapNodeData): string[] {
   const start = node.parentId === null ? START_FEN : lastOf(fensOf(map, getNode(map, node.parentId)));
   const fens = [start];
   const chess = new Chess(start);
-  for (const san of node.plies) {
+  for (const san of node.moves) {
     chess.move(san);
     fens.push(chess.fen());
   }
@@ -25,15 +25,15 @@ function fensOf(map: ChessMapData, node: MapNodeData): string[] {
 }
 
 export function fenAt(map: ChessMapData, cursor: Cursor): string {
-  const fen = fensOf(map, getNode(map, cursor.nodeId))[cursor.ply];
-  if (fen === undefined) throw new Error(`Bad cursor ply ${cursor.ply}`);
+  const fen = fensOf(map, getNode(map, cursor.nodeId))[cursor.played];
+  if (fen === undefined) throw new Error(`Bad cursor move ${cursor.played}`);
   return fen;
 }
 
 /** FENs from the start position up to the cursor (one more than sanPath), from the per-node cache. */
 export function fenPath(map: ChessMapData, cursor: Cursor): string[] {
   let node = getNode(map, cursor.nodeId);
-  let out = fensOf(map, node).slice(1, cursor.ply + 1);
+  let out = fensOf(map, node).slice(1, cursor.played + 1);
   while (node.parentId !== null) {
     node = getNode(map, node.parentId);
     out = [...fensOf(map, node).slice(1), ...out];

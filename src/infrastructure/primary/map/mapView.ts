@@ -1,5 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// Relative path: the package's exports map hides dist/. Bundled as an asset, so no external script is fetched.
+import rtlTextPluginUrl from '../../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
@@ -33,8 +35,13 @@ function viewOfActive(app: ChessMapApp): SavedView {
   return rep.view ?? { center: rep.node(rep.rootId).lngLat, zoom: INITIAL_ZOOM };
 }
 
+/** A two-finger gesture pans too, but it is a pinch/zoom, not the user leaving the board. */
+const isPinch = (e: Event | undefined): boolean => !!e && 'touches' in e && (e as TouchEvent).touches.length > 1;
+
 export function createMapView(container: HTMLElement, app: ChessMapApp, vs: ViewState): maplibregl.Map {
   const view = viewOfActive(app);
+  // Lazy: the bundled plugin is only fetched once a tile contains right-to-left text (Arabic, Hebrew...).
+  void maplibregl.setRTLTextPlugin(rtlTextPluginUrl, true).catch(() => {});
   const map = new maplibregl.Map({
     container,
     style: STYLE_URL,
@@ -71,8 +78,16 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
   });
 
   // Centered mode: zooming keeps the board in the middle; panning the map leaves it.
-  map.on('dragstart', () => vs.setCentered(false));
+  map.on('dragstart', (e) => {
+    vs.setCentered(false);
+    if (!isPinch(e.originalEvent)) vs.closeBoard();
+  });
   map.on('boxzoomend', () => vs.setCentered(false));
+  // Clicking the bare map drops the board's focus. Markers and controls own their clicks (a pin click focuses, so it must not close).
+  // Registered before the placing click handler so a click that drops a pin is still seen as busy and ignored.
+  map.on('click', (e) => {
+    if (!(e.originalEvent.target as Element | null)?.closest('.maplibregl-marker, .maplibregl-ctrl, .maplibregl-popup')) vs.closeBoard();
+  });
   map.on('dblclick', () => vs.centered && map.zoomIn({ duration: 300 })); // MapLibre's own double-click zoom is off while centered
   const anchorZoom = (centered: boolean): void => {
     const opts = centered ? { around: 'center' as const } : undefined;
@@ -129,7 +144,7 @@ function fitZoom(map: maplibregl.Map, app: ChessMapApp): number {
   const m = app.session.repertoire;
   const { cursor } = app.session;
   const node = m.node(cursor.nodeId);
-  if (cursor.ply !== node.plies.length) return Infinity;
+  if (cursor.played !== node.moves.length) return Infinity;
   const view = visibleSize(map);
   const halfW = Math.max(40, view.width / 2 - 80);
   const halfH = Math.max(40, view.height / 2 - 30);

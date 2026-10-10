@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
-import { formatLine, openingText, type Cursor, type LngLat } from '../../../domain';
+import { formatLine, moveLabel, type Cursor, type LngLat, type Repertoire } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import { importFile, openInAnalysis } from './actions';
 import { Icon } from './Icon';
@@ -48,8 +48,6 @@ function Menu({ app, close, getCenter, pickJson, pickPgn }: { app: ChessMapApp; 
   );
 }
 
-const placeText = (label: string, country?: string): string => (country && !label.includes(country) ? `${label}, ${country}` : label);
-
 export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
   const app = useApp();
   const view = useViewState();
@@ -75,15 +73,20 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
   const rep = s.repertoire;
   const sans = rep.sanPath(s.cursor);
   const cursors = rep.lineCursors(s.cursor);
+  const future = rep.futureCursors(s.cursor); // what the forward key walks through: shown muted after the current move
   useLayoutEffect(() => {
     const el = line.current as HTMLDivElement;
-    el.scrollLeft = el.scrollWidth; // keep the latest ply in view
+    const cur = el.querySelector('.current'); // keep the current move in view (the muted future may extend past it)
+    if (!cur) el.scrollLeft = 0;
+    else {
+      const c = cur.getBoundingClientRect();
+      const v = el.getBoundingClientRect();
+      if (c.right > v.right) el.scrollLeft += c.right - v.right;
+      else if (c.left < v.left) el.scrollLeft -= v.left - c.left;
+    }
   });
 
-  const op = app.openingAt(s.cursor);
-  const pl = rep.node(s.cursor.nodeId).place;
-  const place = pl ? placeText(pl.label, pl.country) : '';
-  const others = s.cursor.ply > 0 ? rep.transpositions(s.cursor) : [];
+  const others = s.cursor.played > 0 ? rep.transpositions(s.cursor) : [];
   const chipTarget: Cursor | undefined = others[0];
 
   const importPicked = (format: 'json' | 'pgn') => async (e: Event): Promise<void> => {
@@ -123,11 +126,11 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
           <div class="tb-edit" hidden={!edit}>
             <button type="button" data-testid="pin-toggle" class={s.recording ? 'tool active' : 'tool'} aria-pressed={s.recording} title="Record moves into one pinned board (P)" onClick={() => app.toggleRecording()}>
               <Icon name="pin" size={16} />
-              <span>Pin</span>
+              <span>Pin board</span>
             </button>
-            <button type="button" data-testid="undo-ply" class="tool" disabled={!s.canTakeBack} title="Remove the last recorded ply (Ctrl+Z)" onClick={() => app.takeBack()}>
+            <button type="button" data-testid="undo-move" class="tool" disabled={!s.canTakeBack} title="Remove the last recorded move (Ctrl+Z)" onClick={() => app.takeBack()}>
               <Icon name="undo" size={16} />
-              <span>Undo ply</span>
+              <span>Undo move</span>
             </button>
           </div>
           <button type="button" data-testid="overview-toggle" class={view.overview ? 'tool view-tool active' : 'tool view-tool'} aria-pressed={view.overview} title="Show the whole tree, faded" onClick={() => view.toggleOverview()}>
@@ -146,26 +149,32 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
       {/* Context: the line (primary), where it is (secondary), and its transpositions. */}
       <div class="tb-context">
         <div class="tb-linecol">
-          <div class="line" data-testid="line" ref={line}>
+          <div class="line" ref={line}>
+            <span data-testid="line">
             {sans.map((san, i) => (
               <>
                 {i > 0 && ' '}
-                <button type="button" class={i === sans.length - 1 ? 'ply current' : 'ply'} data-testid="line-ply" onClick={() => app.goTo(cursors[i] as Cursor)}>
+                <button type="button" class={i === sans.length - 1 ? 'move current' : 'move'} data-testid="line-move" onClick={() => app.goTo(cursors[i] as Cursor)}>
                   {i % 2 === 0 ? formatLine([san], i) : san}
                 </button>
               </>
             ))}
+            </span>
+            <span data-testid="line-future-list">
+              {future.map((c, i) => (
+              <>
+                {' '}
+                <button type="button" class="move future" data-testid="line-future" onClick={() => app.goTo(c)}>
+                  {(sans.length + i) % 2 === 0 ? formatLine([futureSan(rep, c)], sans.length + i) : futureSan(rep, c)}
+                </button>
+              </>
+            ))}
+            </span>
           </div>
           <button type="button" class="chip" data-testid="transposition" hidden={!chipTarget} onClick={() => chipTarget && app.goTo(chipTarget)}>
             {chipTarget && `⇄ also reached via ${formatLine(rep.sanPath(chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`}
           </button>
         </div>
-        <div class={op && !op.exact ? 'opening inexact' : 'opening'} data-testid="opening" hidden={!op} title={op ? `${op.eco} · ${openingText(op)}` : ''}>
-          <span class="opening-name" data-testid="opening-name">{op && openingText(op)}</span>
-        </div>
-        <button type="button" class="place" data-testid="place-label" disabled={!edit} title={edit ? 'Set location by city (L)' : place} onClick={() => edit && app.startRelocating(s.cursor.nodeId)}>
-          {place}
-        </button>
       </div>
 
       <input type="file" accept=".json,application/json" data-testid="import-json-input" hidden ref={jsonInput} onChange={importPicked('json')} />
@@ -176,16 +185,14 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
 
 export function NavButtons() {
   const app = useApp();
-  const n = app.session.repertoire.sanPath(app.session.cursor).length;
+  const sans = app.session.repertoire.sanPath(app.session.cursor);
+  const n = sans.length;
   return (
     <div class="nav-buttons">
-      <button type="button" class="nav" data-testid="btn-back" title="Back (←)" aria-label="Back" onClick={() => app.back()}>
-        <Icon name="chevron" size={22} />
-      </button>
-      <span class="ply-count" data-testid="ply-count">{n ? `Ply ${n}` : 'Start'}</span>
-      <button type="button" class="nav" data-testid="btn-forward" title="Forward (→)" aria-label="Forward" onClick={() => void app.forward()}>
-        <Icon name="chevron" size={22} />
-      </button>
+      <span class="move-count" data-testid="move-count">{n ? moveLabel(n - 1, sans[n - 1] as string) : 'Start'}</span>
     </div>
   );
 }
+
+/** The move that reaching `c` plays. */
+const futureSan = (rep: Repertoire, c: Cursor): string => rep.node(c.nodeId).moves[c.played - 1] as string;

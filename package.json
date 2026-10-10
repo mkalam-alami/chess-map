@@ -19,6 +19,7 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
+    "@mapbox/mapbox-gl-rtl-text": "^0.3.0",
     "@mliebelt/pgn-parser": "^1.4.19",
     "chess.js": "^1.4.0",
     "chessground": "^9.2.1",

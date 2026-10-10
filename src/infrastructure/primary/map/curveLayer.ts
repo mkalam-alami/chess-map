@@ -47,7 +47,7 @@ export function createCurveLayer(map: MlMap, app: ChessMapApp, vs: ViewState, pr
     if (vs.overview) for (const n of m.nodes()) if (n.parentId) add(m.node(n.parentId), n, 'overview');
     const path = m.pathTo(node.id);
     for (let i = 1; i < path.length; i++) add(m.node(path[i - 1] as string), m.node(path[i] as string), 'ancestor');
-    if (s.cursor.ply === node.plies.length) for (const c of node.children) add(node, m.node(c), 'active');
+    if (s.cursor.played === node.moves.length) for (const c of node.children) add(node, m.node(c), 'active');
     const rel = s.relocating;
     const target = rel?.nodeId && m.hasNode(rel.nodeId) ? m.node(rel.nodeId) : undefined;
     if (rel?.preview && target?.parentId) add(m.node(target.parentId), { ...target, id: '__relocate', lngLat: rel.preview }, 'ghost');

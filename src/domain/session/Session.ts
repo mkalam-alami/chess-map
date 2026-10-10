@@ -206,11 +206,11 @@ export class Session {
     return this.placing ? this.next({ placing: null }) : this;
   }
 
-  /** Drops the last ply of the current leaf segment (see `canTakeBack`). */
+  /** Drops the last move of the current leaf segment (see `canTakeBack`). */
   takeBack(): Session {
     if (!this.canTakeBack) return this;
     const c = this.cursor;
-    return this.commit(edit.takeBack(this.repertoire, c), { cursor: { nodeId: c.nodeId, ply: c.ply - 1 } });
+    return this.commit(edit.takeBack(this.repertoire, c), { cursor: { nodeId: c.nodeId, played: c.played - 1 } });
   }
 
   // ---- positions ----
@@ -240,6 +240,11 @@ export class Session {
   /** A blank note removes it. */
   annotate(nodeId: NodeId, note: string): Session {
     return this.commit(edit.annotate(this.repertoire, nodeId, note));
+  }
+
+  /** Pins (or unpins) the note under the node's marker while its board is closed. Needs a note; allowed in both modes. */
+  showNote(nodeId: NodeId, shown: boolean): Session {
+    return this.commit(edit.showNote(this.repertoire, nodeId, shown));
   }
 
   /** Absolute log2 board size relative to the parent (snapped to 0.25). */

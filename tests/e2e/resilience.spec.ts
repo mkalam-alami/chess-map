@@ -85,7 +85,7 @@ test.describe('stored library', () => {
   });
 
   test('valid JSON of the wrong shape is kept as "corrupt" too', async ({ page }) => {
-    const wrong = JSON.stringify({ version: 1, maps: { x: { id: 'x' } }, activeMapId: 'x' });
+    const wrong = JSON.stringify({ version: 2, maps: { x: { id: 'x' } }, activeMapId: 'x' });
     await seedLibrary(page, wrong);
     await openApp(page);
     expect(await mapNames(page)).toEqual(['My repertoire']);
@@ -102,20 +102,21 @@ test.describe('stored library', () => {
 
   test('a hand-written library of the current version loads, notes and places included', async ({ page }) => {
     const library = {
-      version: 1,
+      version: 2,
       activeMapId: 'm1',
       maps: {
         m1: {
           id: 'm1', name: 'Saved earlier', orientation: 'black', rootId: 'r',
           nodes: {
-            r: { id: 'r', parentId: null, plies: [], pinned: false, lngLat: [2.35, 48.85], children: ['a'], place: { label: 'Paris, France' } },
-            a: { id: 'a', parentId: 'r', plies: ['d4', 'd5'], pinned: true, lngLat: [2.6, 48.9], children: [], note: 'Queen pawn' },
+            r: { id: 'r', parentId: null, moves: [], pinned: false, lngLat: [2.35, 48.85], children: ['a'], place: { label: 'Paris, France' } },
+            a: { id: 'a', parentId: 'r', moves: ['d4', 'd5'], pinned: true, lngLat: [2.6, 48.9], children: [], note: 'Queen pawn' },
           },
         },
       },
     };
     await seedLibrary(page, JSON.stringify(library));
-    await openApp(page);
+    await page.goto('./'); // a loaded repertoire opens as pins only, so no board to wait for
+    await expect(page.getByTestId('pin')).toBeVisible();
     expect(await mapNames(page)).toEqual(['Saved earlier']);
     await expect(page.getByTestId('place-label')).toHaveText('Paris, France');
     await expect(page.getByTestId('mode-explore')).toHaveAttribute('aria-checked', 'true'); // not empty: Explore
