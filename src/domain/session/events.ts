@@ -9,6 +9,8 @@ export type DomainEvent =
   | { type: 'deadEnd' }
   /** Explore: the move is not in the repertoire. */
   | { type: 'rejected'; san: string }
+  /** Recording: `san` already exists as the start of the board ahead. Merging it into the current board needs a confirmation (`extractMove`). */
+  | { type: 'extractAsked'; cursor: Cursor; san: string }
   /** A position was spawned, confirmed or relocated without a place name: it needs reverse geocoding. */
   | { type: 'positionPlaced'; nodeId: NodeId; at: LngLat }
   /** Switched to, created or imported a map. */

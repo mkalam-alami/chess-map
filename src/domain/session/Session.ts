@@ -167,7 +167,7 @@ export class Session {
    * Plays `san` at the cursor. `spots[0]` is where a new marker goes, `spots[1]` where a split-off tail is
    * relocated (so it does not hide under the board); both default sensibly.
    *  - Explore: follows the repertoire, otherwise emits `rejected`.
-   *  - Edit, existing move: navigates to it.
+   *  - Edit, existing move: navigates to it. While recording, when it starts the only board ahead, asks (`extractAsked`) to pull it out of there.
    *  - Edit, recording: extends the pinned leaf segment, or spawns a pinned marker and focuses it.
    *  - Edit, otherwise: enters `placing` so the user can drop the new marker.
    * Refused while a move is being placed.
@@ -175,11 +175,19 @@ export class Session {
   play(san: string, spots: LngLat[] = []): Session {
     if (this.mode === 'explore') return this.follow(san);
     if (this.placing) return this;
+    if (this.recording && edit.canAbsorb(this.repertoire, this.cursor, san)) return this.next({}, [{ type: 'extractAsked', cursor: this.cursor, san }]);
     if (!this.recording && !this.moveExists(san)) {
       const at = spots[0] ?? this.repertoire.node(this.cursor.nodeId).lngLat;
       return this.next({ placing: { parentCursor: this.cursor, san, lngLat: at, tailLngLat: spots[1] ?? at } });
     }
     return this.playEdit(san, spots);
+  }
+
+  /** Confirmed `extractAsked`: the move leaves the board ahead and joins the segment at the cursor (see `edit.absorb`). */
+  extractMove(cursor: Cursor, san: string): Session {
+    if (this.mode !== 'edit' || this.busy) return this;
+    const r = edit.absorb(this.repertoire, cursor, san);
+    return r ? this.commit(r.repertoire, { cursor: r.cursor }) : this;
   }
 
   private follow(san: string): Session {

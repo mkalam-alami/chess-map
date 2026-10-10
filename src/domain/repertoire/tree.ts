@@ -104,6 +104,44 @@ export function splitSegment(map: ChessMapData, nodeId: NodeId, keep: number): {
   return { map: put(map, head, tail, ...moved), tailId: tail.id };
 }
 
+/** Drops the field `key` from a node and, when `value` is set, puts it back with that value. */
+const withField = <K extends keyof MapNodeData>(node: MapNodeData, key: K, value: MapNodeData[K] | undefined): MapNodeData => {
+  const { [key]: _old, ...rest } = node;
+  return (value === undefined ? rest : { ...rest, [key]: value }) as MapNodeData;
+};
+
+const nonEmpty = (shapes: Record<number, BoardShape[]>): Record<number, BoardShape[]> | undefined => (Object.keys(shapes).length ? shapes : undefined);
+
+/**
+ * Moves the first move of the only child of `nodeId` to the end of the node's segment (which becomes pinned).
+ * A child left with moves keeps its marker, note and place; a one-move child disappears, its children hang off the node
+ * and keep their on-screen size (the child's own size delta is added to theirs). Precondition: see `Repertoire` command `absorb`.
+ */
+export function absorbChildMove(map: ChessMapData, nodeId: NodeId): ChessMapData {
+  const node = getNode(map, nodeId);
+  const child = getNode(map, node.children[0] as NodeId);
+  const played = node.moves.length + 1;
+  const first = child.shapes?.[1] ?? [];
+  const shapes = nonEmpty({ ...node.shapes, ...(first.length ? { [played]: first } : {}) });
+  const grown: MapNodeData = withField({ ...node, pinned: true, moves: [...node.moves, child.moves[0] as string] }, 'shapes', shapes);
+  if (child.moves.length > 1) {
+    const rest: Record<number, BoardShape[]> = {};
+    for (const [k, list] of Object.entries(child.shapes ?? {})) if (Number(k) > 1) rest[Number(k) - 1] = list;
+    const trimmed = withField({ ...child, moves: child.moves.slice(1) }, 'shapes', nonEmpty(rest));
+    return put(map, grown, trimmed);
+  }
+  const nodes = { ...map.nodes };
+  delete nodes[child.id];
+  const carried = child.children.map((id) => {
+    const g = getNode(map, id);
+    const delta = (g.sizeDelta ?? 0) + (child.sizeDelta ?? 0);
+    return withField({ ...g, parentId: node.id }, 'sizeDelta', delta ? delta : undefined);
+  });
+  const lastChild = child.lastChild;
+  const merged = withField({ ...grown, children: child.children }, 'lastChild', lastChild);
+  return put({ ...map, nodes }, merged, ...carried);
+}
+
 /** Plays `san` at the cursor, splitting a segment mid-way if needed. Existing moves are reused. */
 export function branchAt(map: ChessMapData, cursor: Cursor, san: string, lngLat: LngLat): { map: ChessMapData; cursor: Cursor } {
   const node = getNode(map, cursor.nodeId);

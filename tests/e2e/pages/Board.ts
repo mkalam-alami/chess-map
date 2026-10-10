@@ -67,6 +67,12 @@ export class Board {
     await this.page.mouse.click(squareAt(box, to).x, squareAt(box, to).y);
   }
 
+  /** A plain left click on a square (selects a piece, plays nothing). */
+  async click(sq: string): Promise<void> {
+    const box = await this.settled();
+    await this.page.mouse.click(squareAt(box, sq).x, squareAt(box, sq).y);
+  }
+
   /** Draws a circle on a square with a right click. */
   async circle(sq: string): Promise<void> {
     const box = await this.settled();

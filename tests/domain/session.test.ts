@@ -1019,6 +1019,60 @@ describe('maps', () => {
   });
 });
 
+describe('recording a move that already starts the board ahead', () => {
+  const circle = { orig: 'e4', brush: 'green' } as const;
+
+  /** `e4` (pinned, with `e5 Nf3` ahead as a separate board), the cursor at the end of the first. */
+  function ahead() {
+    const base = pinnedOf(['e4']);
+    let s = base.session.play('e5', [[2, 2]]).confirmPlacing(); // non-recording: a child marker
+    const child = s.repertoire.node(base.id).children[0] as string;
+    s = s.goTo({ nodeId: child, played: 1 }).toggleRecording().play('Nf3'); // grows the child into e5 Nf3
+    return { s: s.toggleRecording().goTo({ nodeId: base.id, played: 1 }), parent: base.id, child };
+  }
+
+  it('asks first, without changing anything', () => {
+    const { s, parent } = ahead();
+    const asked = s.toggleRecording().play('e5');
+    expect(asked.events).toEqual([{ type: 'extractAsked', cursor: { nodeId: parent, played: 1 }, san: 'e5' }]);
+    expect(asked.repertoire).toBe(s.repertoire);
+    expect(asked.cursor).toEqual(s.cursor);
+  });
+
+  it('on confirmation moves the first move into this board and leaves the rest ahead', () => {
+    const { s, parent, child } = ahead();
+    const done = s.toggleRecording().extractMove({ nodeId: parent, played: 1 }, 'e5');
+    expect(done.repertoire.node(parent)).toMatchObject({ moves: ['e4', 'e5'], pinned: true, children: [child] });
+    expect(done.repertoire.node(child).moves).toEqual(['Nf3']);
+    expect(done.cursor).toEqual({ nodeId: parent, played: 2 });
+    expect(done.repertoire.sanPath(done.repertoire.endOf(child))).toEqual(['e4', 'e5', 'Nf3']);
+  });
+
+  it('a one-move board ahead is absorbed: its children hang off this board and keep their size', () => {
+    const one = pinnedOf(['e4']);
+    let t = one.session.play('e5', [[2, 2]]).confirmPlacing();
+    const e5 = t.repertoire.node(one.id).children[0] as string;
+    t = t.resizeBoard(e5, 1).goTo({ nodeId: e5, played: 1 }).play('Nf3', [[3, 3]]).confirmPlacing();
+    const nf3 = t.repertoire.node(e5).children[0] as string;
+    t = t.resizeBoard(nf3, 0.5).drawShapes({ nodeId: e5, played: 1 }, [circle]);
+    const done = t.goTo({ nodeId: one.id, played: 1 }).toggleRecording().extractMove({ nodeId: one.id, played: 1 }, 'e5');
+    expect(done.repertoire.hasNode(e5)).toBe(false);
+    expect(done.repertoire.node(one.id)).toMatchObject({ moves: ['e4', 'e5'], children: [nf3], shapes: { 2: [circle] } });
+    expect(done.repertoire.node(nf3)).toMatchObject({ parentId: one.id, sizeDelta: 1.5 });
+  });
+
+  it('only applies when recording, in Edit, at the end of a non-root board with the move as its only child', () => {
+    const { s, parent } = ahead();
+    expect(types(s.play('e5'))).toEqual(['focused']); // not recording: it just navigates
+    const rec = s.toggleRecording();
+    expect(types(rec.play('c5', [[4, 4]]))).not.toContain('extractAsked'); // a different move is a new one
+    expect(rec.extractMove({ nodeId: parent, played: 1 }, 'c5')).toBe(rec);
+    expect(rec.toggleMode().extractMove({ nodeId: parent, played: 1 }, 'e5')).toEqual(expect.objectContaining({ mode: 'explore' }));
+    const root = rec.goTo(rec.repertoire.rootCursor());
+    expect(types(root.play('e4'))).toEqual(['focused']); // the root cannot grow
+  });
+});
+
 describe('board annotations', () => {
   const circle = { orig: 'e4', brush: 'green' } as const;
   const arrow = { orig: 'g1', dest: 'f3', brush: 'red' } as const;

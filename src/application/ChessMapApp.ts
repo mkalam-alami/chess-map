@@ -125,6 +125,11 @@ export class ChessMapApp {
     return !this.apply(this.current.play(san, spots)).events.some((e) => e.type === 'rejected');
   }
 
+  /** Confirmed `extractAsked`: merges the move into the board at `cursor`. */
+  extractMove(cursor: Cursor, san: string): void {
+    this.apply(this.current.extractMove(cursor, san));
+  }
+
   /** Moves the ghost of the move being placed; only `subscribePlacing` listeners hear about it. */
   movePlacing(at: LngLat): void {
     if (!this.current.placing) return;

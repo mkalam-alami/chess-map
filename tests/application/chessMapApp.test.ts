@@ -105,6 +105,27 @@ describe('start', () => {
   });
 });
 
+describe('recording a move that starts the board ahead', () => {
+  it('announces it, changes nothing until extractMove, then saves the merge', () => {
+    const t = started('edit');
+    const rep = t.app.session.repertoire;
+    const e4 = kids(t)[0] as NodeId;
+    t.app.goTo(rep.endOf(e4));
+    t.app.toggleRecording();
+    const asked = vi.fn();
+    t.app.on('extractAsked', asked);
+    const saved = t.library.saved.length;
+    expect(t.app.play('e5')).toBe(true);
+    expect(asked).toHaveBeenCalledWith({ type: 'extractAsked', cursor: { nodeId: e4, played: 1 }, san: 'e5' });
+    expect(t.app.session.repertoire.node(e4).moves).toEqual(['e4']);
+    expect(t.library.saved).toHaveLength(saved);
+    t.app.extractMove({ nodeId: e4, played: 1 }, 'e5');
+    expect(t.app.session.repertoire.node(e4).moves).toEqual(['e4', 'e5']);
+    expect(t.app.session.cursor).toEqual({ nodeId: e4, played: 2 });
+    expect(t.library.saved).toHaveLength(saved + 1);
+  });
+});
+
 describe('board annotations', () => {
   it('are saved when drawn in Edit and cleared, but not when nothing changes', () => {
     const t = started('edit');

@@ -35,7 +35,7 @@ describe('public API of the domain', () => {
     expect(typeof domain.Session.start).toBe('function'); // (private statics are only hidden by the compiler)
     expect(typeof domain.Session.empty).toBe('function');
     for (const action of [
-      'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'movePlacing', 'confirmPlacing', 'cancelPlacing', 'takeBack',
+      'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'extractMove', 'movePlacing', 'confirmPlacing', 'cancelPlacing', 'takeBack',
       'relocate', 'nameLocation', 'annotate', 'drawShapes', 'showNote', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
       'createMap', 'switchMap', 'addMaps', 'renameMap', 'flipOrientation', 'duplicateMap', 'deleteMap', 'rememberView',
     ]) {

@@ -1,7 +1,7 @@
 import type { LngLat, Place } from '../geo';
 import { newId } from '../id';
 import { Repertoire } from './Repertoire';
-import { appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setShapes, setSizeDelta, undoLastMove } from './tree';
+import { absorbChildMove, appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setShapes, setSizeDelta, undoLastMove } from './tree';
 import type { BoardShape, ChessMapData, Cursor, NodeId, SavedView } from './types';
 
 // Package-private building blocks of `Session` (not in the domain barrel): they only enforce tree integrity, while
@@ -30,6 +30,18 @@ export function extend(r: Repertoire, cursor: Cursor, san: string): Moved | null
   if (cursor.played !== node.moves.length || node.parentId === null || node.children.length) return null;
   const pinned = node.pinned ? r.data : setPinned(r.data, node.id, true);
   return { repertoire: make(appendMove(pinned, node.id, san)), cursor: { nodeId: node.id, played: cursor.played + 1 } };
+}
+
+/** True if recording `san` at `cursor` can pull it out of an existing board: the end of a non-root node whose only child starts with `san`. */
+export function canAbsorb(r: Repertoire, cursor: Cursor, san: string): boolean {
+  const node = r.node(cursor.nodeId);
+  return node.parentId !== null && cursor.played === node.moves.length && node.children.length === 1 && r.node(node.children[0] as NodeId).moves[0] === san;
+}
+
+/** Pulls `san` out of the node's only child and into the node's own segment; the cursor lands after it. Null unless `canAbsorb`. */
+export function absorb(r: Repertoire, cursor: Cursor, san: string): Moved | null {
+  if (!canAbsorb(r, cursor, san)) return null;
+  return { repertoire: make(absorbChildMove(r.data, cursor.nodeId)), cursor: { nodeId: cursor.nodeId, played: cursor.played + 1 } };
 }
 
 /**

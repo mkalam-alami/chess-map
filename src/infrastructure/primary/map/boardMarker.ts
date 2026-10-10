@@ -8,6 +8,7 @@ import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
 import { openInAnalysis } from '../ui/actions';
 import { confirmDeleteNode } from '../ui/confirmDelete';
+import { confirmDialog } from '../ui/overlay';
 import { openBoardMenu } from '../ui/BoardMenu';
 import { button, el, iconButton, shieldFromMap } from '../ui/dom';
 import { askPromotion } from '../ui/promotion';
@@ -241,6 +242,15 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     viewOnly = !!s.placing;
     sizer.apply();
   }
+
+  // Recording a move that starts the board ahead: pulling it out of there changes that board, so ask first.
+  app.on('extractAsked', ({ cursor, san }) => {
+    const rep = app.session.repertoire;
+    const ahead = rep.node(rep.node(cursor.nodeId).children[0] as string);
+    const lost = ahead.moves.length === 1 && (ahead.note || ahead.place) ? ' Its note and place are lost.' : '';
+    const text = ahead.moves.length === 1 ? 'This move already has its own position: merge it into this board?' : 'This move starts the next board: take it out of there and into this one?';
+    void confirmDialog(text + lost, 'Merge').then((ok) => ok && app.extractMove(cursor, san));
+  });
 
   update();
   vs.subscribe(update);

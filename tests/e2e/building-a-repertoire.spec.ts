@@ -46,9 +46,8 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await board.circle('d4');
   await expect(board.circles).toHaveCount(1);
   await expect(board.erase).toBeVisible();
-  await board.playMove('b1', 'c3'); // a click on the board (selecting a piece) keeps them
+  await board.click('b1'); // a click on the board (selecting a piece) keeps them
   await expect(board.circles).toHaveCount(1);
-  await page.keyboard.press('Escape');
   await page.keyboard.press('ArrowLeft');
   await expect(board.circles).toHaveCount(0);
   await expect(board.erase).toBeHidden();
@@ -57,4 +56,17 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await board.erase.click();
   await expect(board.circles).toHaveCount(0);
   await expect(board.erase).toBeHidden();
+
+  // Recording a move that already exists as the next board pulls it into this one, after a confirmation.
+  await page.keyboard.press('p');
+  await app.spawn('g1', 'f3');
+  await page.keyboard.press('p');
+  const before = await app.nodeCount();
+  await board.playMove('g1', 'f3');
+  await dialog.cancel.click();
+  expect(await app.nodeCount()).toBe(before);
+  await board.playMove('g1', 'f3');
+  await dialog.confirm();
+  await expect(topBar.line).toHaveText('1. e4 e5 2. Nf3');
+  await expect.poll(() => app.nodeCount()).toBe(before - 1);
 });
