@@ -33,4 +33,4 @@ Pushes to `main` run `.github/workflows/deploy.yml`, which builds and publishes 
 
 ## Opening names
 
-The top bar (under the move line), and pin tooltips show the opening name for the current position, looked up by position (EPD) so transpositions are named too; out of book it shows the last named opening with a `+n` plies suffix. Data: [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) (CC0 1.0), vendored as `src/chess/openings.json` and loaded lazily as a separate chunk. Regenerate with `node scripts/gen-openings.mjs` (needs network).
+The top bar (under the move line), and pin tooltips show the opening name for the current position, looked up by position (EPD) so transpositions are named too; out of book it shows the last named opening with a `+n` plies suffix. Data: [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) (CC0 1.0), vendored as `src/infrastructure/secondary/openings/openings.json` and loaded lazily as a separate chunk. Regenerate with `node scripts/gen-openings.mjs` (needs network).

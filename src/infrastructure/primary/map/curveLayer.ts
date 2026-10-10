@@ -1,0 +1,113 @@
+import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
+import { sameLngLat, type LngLat, type MapNodeData } from '../../../domain';
+import type { ChessMapApp } from '../../../application';
+import type { ViewState } from '../viewState';
+import { curveCoords } from './curves';
+import type { DragPreview } from './dragPreview';
+
+type Kind = 'active' | 'ancestor' | 'overview' | 'ghost';
+const RANK: Record<Kind, number> = { overview: 0, ancestor: 1, active: 2, ghost: 3 };
+
+const SOURCE = 'chess-map-curves';
+const ARROW = 'chess-map-arrow';
+
+/** Small right-pointing triangle drawn on a canvas (no font glyphs needed). */
+function arrowImage(): ImageData {
+  const c = document.createElement('canvas');
+  c.width = c.height = 24;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  ctx.fillStyle = '#6b4423';
+  ctx.strokeStyle = '#fbf5e9';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(6, 4);
+  ctx.lineTo(20, 12);
+  ctx.lineTo(6, 20);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fill();
+  return ctx.getImageData(0, 0, 24, 24);
+}
+
+/** One GeoJSON source of curved edges; layers are added once the style has loaded. */
+export function createCurveLayer(map: MlMap, app: ChessMapApp, vs: ViewState, preview: DragPreview): { update: () => void } {
+  let ready = false;
+  let queued = false;
+
+  function edges(): { a: MapNodeData; b: MapNodeData; kind: Kind }[] {
+    const s = app.session;
+    const m = s.repertoire;
+    const found = new Map<string, { a: MapNodeData; b: MapNodeData; kind: Kind }>();
+    const add = (a: MapNodeData, b: MapNodeData, kind: Kind): void => {
+      const key = `${a.id}>${b.id}`;
+      const old = found.get(key);
+      if (!old || RANK[kind] > RANK[old.kind]) found.set(key, { a, b, kind });
+    };
+    const node = m.node(s.cursor.nodeId);
+    if (vs.overview) for (const n of m.nodes()) if (n.parentId) add(m.node(n.parentId), n, 'overview');
+    const path = m.pathTo(node.id);
+    for (let i = 1; i < path.length; i++) add(m.node(path[i - 1] as string), m.node(path[i] as string), 'ancestor');
+    if (s.cursor.ply === node.plies.length) for (const c of node.children) add(node, m.node(c), 'active');
+    const rel = s.relocating;
+    const target = rel?.nodeId && m.hasNode(rel.nodeId) ? m.node(rel.nodeId) : undefined;
+    if (rel?.preview && target?.parentId) add(m.node(target.parentId), { ...target, id: '__relocate', lngLat: rel.preview }, 'ghost');
+    if (s.placing) add(node, { ...node, id: '__ghost', lngLat: s.placing.lngLat }, 'ghost');
+    return [...found.values()];
+  }
+
+  function draw(): void {
+    queued = false;
+    if (!ready) return;
+    const pos = (n: MapNodeData): LngLat => preview.overrides.get(n.id) ?? n.lngLat;
+    const features = edges().flatMap(({ a, b, kind }) => {
+      const pa = pos(a);
+      const pb = pos(b);
+      if (sameLngLat(pa, pb)) return [];
+      return [{ type: 'Feature' as const, properties: { kind }, geometry: { type: 'LineString' as const, coordinates: curveCoords(pa, pb) } }];
+    });
+    (map.getSource(SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+  }
+
+  const update = (): void => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(draw);
+  };
+
+  function addLayers(): void {
+    if (map.getSource(SOURCE)) return;
+    map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    const line = (kind: Kind, paint: Record<string, unknown>): void => {
+      map.addLayer({
+        id: `${SOURCE}-${kind}`, type: 'line', source: SOURCE, filter: ['==', ['get', 'kind'], kind],
+        layout: { 'line-cap': 'round', 'line-join': 'round' }, paint,
+      } as never);
+    };
+    line('overview', { 'line-color': '#5a4130', 'line-width': 1.5, 'line-opacity': 0.25 });
+    line('ancestor', { 'line-color': '#8a5a2b', 'line-width': 2.5, 'line-opacity': 0.4, 'line-dasharray': [2, 2] });
+    line('ghost', { 'line-color': '#d9902a', 'line-width': 3.5, 'line-opacity': 0.9, 'line-dasharray': [1.5, 1.5] });
+    line('active', { 'line-color': '#6b4423', 'line-width': 3.5, 'line-opacity': 0.9 });
+    if (!map.hasImage(ARROW)) map.addImage(ARROW, arrowImage());
+    const arrow = (kind: Kind, opacity: number): void => {
+      map.addLayer({
+        id: `${SOURCE}-${kind}-arrow`, type: 'symbol', source: SOURCE, filter: ['==', ['get', 'kind'], kind],
+        layout: { 'symbol-placement': 'line-center', 'icon-image': ARROW, 'icon-size': 0.7, 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true },
+        paint: { 'icon-opacity': opacity },
+      } as never);
+    };
+    arrow('ancestor', 0.45);
+    arrow('active', 1);
+    ready = true;
+    draw();
+  }
+
+  map.on('load', addLayers);
+  map.on('style.load', () => {
+    ready = false;
+    addLayers();
+  });
+  vs.subscribe(update);
+  app.subscribePlacing(update);
+  preview.onChange(update);
+  return { update };
+}

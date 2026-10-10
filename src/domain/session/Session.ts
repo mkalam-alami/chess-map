@@ -1,0 +1,322 @@
+import { DEFAULT_CENTER, sameLngLat, wrapLng, type LngLat, type Place } from '../geo';
+import { Library } from '../library/Library';
+import { activateMap, addMap, removeMap, replaceMap } from '../library/commands';
+import { Repertoire } from '../repertoire/Repertoire';
+import * as edit from '../repertoire/commands';
+import type { Cursor, MapId, Mode, NodeId, Orientation, SavedView } from '../repertoire/types';
+import type { DomainEvent } from './events';
+
+/** A new move waiting to be dropped somewhere on the map (transient, never persisted). */
+export interface Placing { parentCursor: Cursor; san: string; lngLat: LngLat; tailLngLat: LngLat }
+
+/** Set-location flow: `nodeId` is the board / pin being moved (null = plain "go to place"); `preview` the highlighted candidate. */
+export interface Relocating { nodeId: NodeId | null; preview: LngLat | null }
+
+interface Fields {
+  library: Library;
+  cursor: Cursor;
+  mode: Mode;
+  recording: boolean;
+  placing: Placing | null;
+  relocating: Relocating | null;
+  events: DomainEvent[];
+}
+
+/** Spawned markers stay within +-60 degrees of latitude at root scale (+-80 for rescaled boards). */
+const spawnAt = (ll: LngLat, limit: number): LngLat => {
+  const w = wrapLng(ll);
+  return [w[0], Math.max(-limit, Math.min(limit, w[1]))];
+};
+
+/**
+ * The user's working session and aggregate root of the domain: every user action goes through here.
+ *
+ * Immutable: each action returns a new Session whose `events` say what the outside world should do
+ * (focus the map, geocode a position…). A refused action returns `this` with no events, so callers can
+ * detect it with `===`. The only exceptions are actions that report something without changing state
+ * (`forward` at a dead end, `play` of a rejected Explore move): they return a copy carrying the event.
+ */
+export class Session {
+  readonly library: Library;
+  readonly cursor: Cursor;
+  readonly mode: Mode;
+  /** Edit mode "recording" (the old "pin" toggle): moves extend a pinned segment instead of spawning markers. */
+  readonly recording: boolean;
+  readonly placing: Placing | null;
+  readonly relocating: Relocating | null;
+  /** Produced by the action that created this session (empty for a fresh start). */
+  readonly events: DomainEvent[];
+
+  private constructor(f: Fields) {
+    this.library = f.library;
+    this.cursor = f.cursor;
+    this.mode = f.mode;
+    this.recording = f.recording;
+    this.placing = f.placing;
+    this.relocating = f.relocating;
+    this.events = f.events;
+  }
+
+  // ---- construction ----
+
+  /** Opens `library` on its active map. An empty repertoire has nothing to explore, so it forces Edit. */
+  static start(library: Library, preferredMode: Mode | null = null): Session {
+    return Session.entered(library, preferredMode ?? 'explore', []);
+  }
+
+  /** A first-time session: the initial library, in Edit because it is empty (unless a mode was remembered and the map has moves). */
+  static empty(preferredMode: Mode | null = null): Session {
+    return Session.start(Library.initial(), preferredMode);
+  }
+
+  /** Showing a map from its start: cursor at the root, flows reset. */
+  private static entered(library: Library, mode: Mode, events: DomainEvent[]): Session {
+    const rep = library.active;
+    const empty = rep.node(rep.rootId).children.length === 0;
+    return new Session({
+      library, cursor: rep.rootCursor(), mode: empty ? 'edit' : mode, recording: false, placing: null, relocating: null, events,
+    });
+  }
+
+  private next(patch: Partial<Fields> = {}, events: DomainEvent[] = []): Session {
+    return new Session({ ...this, ...patch, events });
+  }
+
+  private commit(repertoire: Repertoire, patch: Partial<Fields> = {}, events: DomainEvent[] = []): Session {
+    return this.next({ library: replaceMap(this.library, repertoire), ...patch }, events);
+  }
+
+  // ---- queries ----
+
+  /** The active map. */
+  get repertoire(): Repertoire { return this.library.active; }
+
+  /** A transient flow (placing a move, setting a location) owns the input: navigation and mode changes wait. */
+  get busy(): boolean { return this.placing !== null || this.relocating !== null; }
+
+  /** Take-back is offered at the end of a leaf segment, outside the transient flows. */
+  get canTakeBack(): boolean { return !this.busy && this.repertoire.canTakeBack(this.cursor); }
+
+  /** True if playing `san` here would navigate to an existing position instead of creating one. */
+  moveExists(san: string): boolean { return this.repertoire.next(this.cursor, san) !== null; }
+
+  // ---- navigation ----
+
+  /** Moves the cursor (throws on an unknown node). `keepSize`: keep the board's on-screen size when focusing. */
+  goTo(cursor: Cursor, opts: { keepSize?: boolean } = {}): Session {
+    if (this.busy) return this;
+    this.repertoire.node(cursor.nodeId);
+    return this.focused(cursor, !!opts.keepSize);
+  }
+
+  private focused(cursor: Cursor, keepSize: boolean): Session {
+    return this.next({ cursor }, [{ type: 'focused', cursor, keepSize }]);
+  }
+
+  back(): Session {
+    if (this.busy) return this;
+    const c = this.repertoire.back(this.cursor);
+    return c ? this.goTo(c, { keepSize: true }) : this;
+  }
+
+  /** Emits `deadEnd` (and keeps the cursor) when there is nowhere to go. */
+  forward(): Session {
+    if (this.busy) return this;
+    const c = this.repertoire.forward(this.cursor);
+    return c ? this.goTo(c, { keepSize: true }) : this.next({}, [{ type: 'deadEnd' }]);
+  }
+
+  // ---- modes ----
+
+  switchMode(mode: Mode): Session {
+    return this.busy || mode === this.mode ? this : this.next({ mode });
+  }
+
+  toggleMode(): Session {
+    return this.switchMode(this.mode === 'edit' ? 'explore' : 'edit');
+  }
+
+  /** Never blocked: the toggle is only read when the next move is played. */
+  toggleRecording(): Session {
+    return this.next({ recording: !this.recording });
+  }
+
+  // ---- moves ----
+
+  /**
+   * Plays `san` at the cursor. `spots[0]` is where a new marker goes, `spots[1]` where a split-off tail is
+   * relocated (so it does not hide under the board); both default sensibly.
+   *  - Explore: follows the repertoire, otherwise emits `rejected`.
+   *  - Edit, existing move: navigates to it.
+   *  - Edit, recording: extends the pinned leaf segment, or spawns a pinned marker and focuses it.
+   *  - Edit, otherwise: enters `placing` so the user can drop the new marker.
+   * Refused while a move is being placed.
+   */
+  play(san: string, spots: LngLat[] = []): Session {
+    if (this.mode === 'explore') return this.follow(san);
+    if (this.placing) return this;
+    if (!this.recording && !this.moveExists(san)) {
+      const at = spots[0] ?? this.repertoire.node(this.cursor.nodeId).lngLat;
+      return this.next({ placing: { parentCursor: this.cursor, san, lngLat: at, tailLngLat: spots[1] ?? at } });
+    }
+    return this.playEdit(san, spots);
+  }
+
+  private follow(san: string): Session {
+    const to = this.repertoire.next(this.cursor, san);
+    return to ? this.goTo(to) : this.next({}, [{ type: 'rejected', san }]);
+  }
+
+  /** Edit-mode move that takes effect now (no placing step). */
+  private playEdit(san: string, spots: LngLat[]): Session {
+    const rep = this.repertoire;
+    const existing = rep.next(this.cursor, san);
+    if (existing) return this.focused(existing, false);
+    if (this.recording) {
+      const r = edit.extend(rep, this.cursor, san);
+      if (r) return this.commit(r.repertoire, { cursor: r.cursor });
+    }
+    return this.spawn(san, spots);
+  }
+
+  private spawn(san: string, spots: LngLat[]): Session {
+    const rep = this.repertoire;
+    const node = rep.node(this.cursor.nodeId);
+    const limit = rep.sizeSum(node.id) === 0 ? 60 : 80;
+    const at = spawnAt(spots[0] ?? node.lngLat, limit);
+    const r = edit.branch(rep, this.cursor, san, at, spawnAt(spots[1] ?? at, limit), this.recording);
+    const placed: DomainEvent = { type: 'positionPlaced', nodeId: r.nodeId, at };
+    if (this.recording) return this.commit(r.repertoire, { cursor: r.cursor }, [{ type: 'focused', cursor: r.cursor, keepSize: false }, placed]);
+    return this.commit(r.repertoire, {}, [placed]); // cursor stays: the user can keep spawning alternatives
+  }
+
+  /** Moves the ghost of the move being placed (no event, nothing else changes). */
+  movePlacing(at: LngLat): Session {
+    return this.placing ? this.next({ placing: { ...this.placing, lngLat: at } }) : this;
+  }
+
+  /** Drops the new marker where the ghost is. */
+  confirmPlacing(): Session {
+    const p = this.placing;
+    if (!p) return this;
+    return this.next({ placing: null }).playEdit(p.san, [p.lngLat, p.tailLngLat]);
+  }
+
+  cancelPlacing(): Session {
+    return this.placing ? this.next({ placing: null }) : this;
+  }
+
+  /** Drops the last ply of the current leaf segment (see `canTakeBack`). */
+  takeBack(): Session {
+    if (!this.canTakeBack) return this;
+    const c = this.cursor;
+    return this.commit(edit.takeBack(this.repertoire, c), { cursor: { nodeId: c.nodeId, ply: c.ply - 1 } });
+  }
+
+  // ---- positions ----
+
+  /**
+   * Moves a position (and its whole branch with `withBranch`); the longitude is wrapped. With a `place`
+   * (e.g. a search result) the label is set directly, otherwise `positionPlaced` asks for geocoding.
+   */
+  relocate(nodeId: NodeId, at: LngLat, opts: { withBranch?: boolean; place?: Place } = {}): Session {
+    const w = wrapLng(at);
+    const moved = edit.moveTo(this.repertoire, nodeId, w, !!opts.withBranch);
+    if (opts.place) return this.commit(edit.namePlace(moved, nodeId, opts.place));
+    return this.commit(moved, {}, [{ type: 'positionPlaced', nodeId, at: w }]);
+  }
+
+  /**
+   * System action: a geocoder named the place of a position. Ignored when the node no longer exists or,
+   * if `requestedAt` (the coordinates that were looked up) is given, when the node has moved since.
+   */
+  nameLocation(nodeId: NodeId, place: Place, requestedAt?: LngLat): Session {
+    const rep = this.repertoire;
+    if (!rep.hasNode(nodeId)) return this;
+    if (requestedAt && !sameLngLat(requestedAt, rep.node(nodeId).lngLat)) return this;
+    return this.commit(edit.namePlace(rep, nodeId, place));
+  }
+
+  /** A blank note removes it. */
+  annotate(nodeId: NodeId, note: string): Session {
+    return this.commit(edit.annotate(this.repertoire, nodeId, note));
+  }
+
+  /** Absolute log2 board size relative to the parent (snapped to 0.25). */
+  resizeBoard(nodeId: NodeId, delta: number): Session {
+    return this.commit(edit.resize(this.repertoire, nodeId, delta));
+  }
+
+  /** Deletes a position and its branch (not the root). A cursor on that line moves to the parent's end. */
+  deletePosition(nodeId: NodeId): Session {
+    const rep = this.repertoire;
+    const node = rep.node(nodeId);
+    if (node.parentId === null) return this;
+    const cursor = rep.pathTo(this.cursor.nodeId).includes(nodeId) ? rep.endOf(node.parentId) : this.cursor;
+    return this.commit(edit.remove(rep, nodeId), { cursor });
+  }
+
+  // ---- set-location flow ----
+
+  /** `nodeId` = the board / pin to move (Edit only); null = plain "go to place" without relocation. */
+  startRelocating(nodeId: NodeId | null): Session {
+    if (this.placing || (nodeId !== null && this.mode !== 'edit')) return this;
+    if (nodeId !== null) this.repertoire.node(nodeId);
+    return this.next({ relocating: { nodeId, preview: null } });
+  }
+
+  previewRelocation(at: LngLat | null): Session {
+    return this.relocating ? this.next({ relocating: { ...this.relocating, preview: at } }) : this;
+  }
+
+  endRelocating(): Session {
+    return this.relocating ? this.next({ relocating: null }) : this;
+  }
+
+  // ---- maps ----
+
+  private entering(library: Library): Session {
+    return Session.entered(library, this.mode, [{ type: 'mapEntered', mapId: library.activeId }]);
+  }
+
+  /** Adds an empty map (a blank name becomes "Untitled") and switches to it. */
+  createMap(name: string, orientation: Orientation, at: LngLat = DEFAULT_CENTER): Session {
+    return this.addMaps([Repertoire.create(name.trim() || 'Untitled', orientation, wrapLng(at))]);
+  }
+
+  /** Switches to another map, from its start. */
+  switchMap(id: MapId): Session {
+    return this.library.has(id) ? this.entering(activateMap(this.library, id)) : this;
+  }
+
+  /** Adds validated maps (e.g. an import) and switches to the last one. */
+  addMaps(repertoires: Repertoire[]): Session {
+    if (!repertoires.length) return this;
+    return this.entering(repertoires.reduce(addMap, this.library));
+  }
+
+  /** A blank name keeps the current one. */
+  renameMap(name: string): Session {
+    return this.commit(edit.rename(this.repertoire, name.trim() || this.repertoire.name));
+  }
+
+  flipOrientation(): Session {
+    return this.commit(edit.flip(this.repertoire));
+  }
+
+  /** Copies the active map as "<name> (copy)" and switches to the copy. */
+  duplicateMap(): Session {
+    return this.addMaps([edit.copyAs(this.repertoire, `${this.repertoire.name} (copy)`)]);
+  }
+
+  /** Deletes a map (the active one by default); the last map can't be deleted. Re-enters the resulting active map. */
+  deleteMap(id: MapId = this.library.activeId): Session {
+    const library = removeMap(this.library, id);
+    return library === this.library ? this : this.entering(library);
+  }
+
+  /** Remembers the viewport of the active map. */
+  rememberView(view: SavedView): Session {
+    return this.commit(edit.withView(this.repertoire, view));
+  }
+}

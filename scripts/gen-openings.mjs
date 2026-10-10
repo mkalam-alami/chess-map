@@ -1,4 +1,4 @@
-// One-off generator for src/chess/openings.json from lichess-org/chess-openings (CC0).
+// One-off generator for src/infrastructure/secondary/openings/openings.json from lichess-org/chess-openings (CC0).
 // Usage: node scripts/gen-openings.mjs   (needs network; the output is committed)
 import { Chess } from 'chess.js';
 import { writeFileSync } from 'node:fs';
@@ -16,5 +16,5 @@ for (const f of ['a', 'b', 'c', 'd', 'e']) {
     out[epd] = [eco, name];
   }
 }
-writeFileSync(new URL('../src/chess/openings.json', import.meta.url), JSON.stringify(out));
+writeFileSync(new URL('../src/infrastructure/secondary/openings/openings.json', import.meta.url), JSON.stringify(out));
 console.log(Object.keys(out).length, 'positions');

@@ -1,73 +1,77 @@
 # AGENTS.md
 
-Chess Map: a chess opening repertoire drawn as a "mind map" on a world map. Positions are pins (MapLibre markers), a chessground board sits on the map, and each move is a node placed somewhere on the globe. Static single-page app, no backend; data lives in `localStorage`. See `README.md` for the user-facing feature list and keyboard shortcuts.
+Chess Map: a chess opening repertoire drawn as a "mind map" on a world map. Positions are pins (MapLibre markers), a chessground board sits on the map, and each move is a node placed somewhere on the globe. Static single-page app, no backend; data lives in `localStorage`. See `README.md` for the user-facing feature list and keyboard shortcuts, and `docs/ARCHITECTURE.md` for the architecture.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev         # Vite dev server (served under /chess-map/)
-npm test            # Vitest unit tests (tests/*.test.ts)
+npm test            # Vitest unit tests (tests/**/*.test.ts)
 npm run typecheck   # tsc --noEmit
 npm run build       # typecheck + vite build to dist/
 npm run e2e         # Playwright (tests/e2e); builds and serves on :4173 first
 ```
 
-Before finishing a change, run `npm run typecheck` and `npm test`. Run `npm run e2e` when touching UI, map interaction or the store wiring. Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright.
+Before finishing a change, run `npm run typecheck` and `npm test` (this includes `tests/architecture.test.ts`, which enforces the layer rules). Run `npm run e2e` when touching UI, map interaction or the application wiring. Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright.
+
+## Architecture
+
+Clean (hexagonal) architecture; read `docs/ARCHITECTURE.md` (the contract) before changing structure. In short: a pure **domain** at the center, an **application** layer (`ChessMapApp`) orchestrating use cases through **ports**, **primary** adapters (what the user touches: Preact UI, MapLibre map, chessground board, keyboard) that call the app, and **secondary** adapters (storage, geocoding, formats, Lichess, file download…) that implement the ports. Primary and secondary never know each other; only `src/main.ts` sees both and wires them (constructor injection, no container).
 
 ## Stack
 
-- TypeScript (strict, `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`), ES modules, Vite. UI chrome is Preact (JSX, `jsxImportSource: preact`, no `preact/compat`); the MapLibre markers and the chessground board stay imperative DOM (`src/map/`, helpers in `src/ui/dom.ts`).
-- `maplibre-gl` (OpenFreeMap tiles), `chessground` (board), `chess.js` (move legality / FEN), `@mliebelt/pgn-parser` (PGN import).
+- TypeScript (strict, `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`), ES modules, Vite. UI chrome is Preact (JSX, `jsxImportSource: preact`, no `preact/compat`); the MapLibre markers and the chessground board stay imperative DOM (`src/infrastructure/primary/map/`, helpers in `src/infrastructure/primary/ui/dom.ts`).
+- `maplibre-gl` (OpenFreeMap tiles), `chessground` (board), `chess.js` (move legality / FEN, domain only), `@mliebelt/pgn-parser` (PGN import, secondary only).
 - Vite `base` is `/chess-map/` (GitHub Pages path). Keep asset URLs relative to it.
 
 ## Layout
 
 | Path | Role |
 | --- | --- |
-| `src/model/` | Pure data layer: types, immutable tree operations, cursor navigation, board scale math, JSON (de)serialization + validation + migrations. No DOM. |
-| `src/chess/` | `replay.ts` (SAN replay, FEN, legal moves via chess.js), `openings.ts` (lazy opening-name lookup by EPD). |
-| `src/store/` | `store.ts`: single global state, `set()` + `subscribe()`, all user actions. `persist.ts`: debounced `localStorage` autosave. |
-| `src/map/` | MapLibre view and everything drawn on it: board marker, pins, curves, drag, placing ghost, relocation. |
-| `src/ui/` | Preact components: `TopBar` (+ nav), `Locate`, `Recenter`, `overlay` (popover + dialogs, promise API), `toast`, `promotion`; `App.tsx` mounts them. `hooks.ts` has `useStore` / `atom`. |
-| `src/pgn/`, `src/lichess/`, `src/geo/` | PGN import/export, Lichess analysis URLs, Nominatim / Photon geocoding. |
-| `src/integration.ts` | Connects geocoding and the PGN / Lichess menu items to `hooks` in the store. |
-| `src/main.ts` | Entry point: builds the DOM, creates views, subscribes them to the store. |
-| `tests/` | Vitest unit tests for the pure modules; `tests/e2e/smoke.spec.ts` for Playwright. |
+| `src/domain/` | Pure, immutable, synchronous model. `Session` (aggregate root, every user action), `Library` / `Repertoire` (read-only queries + `fromData` / `data`), chess rules, cursor / tree / scale math, persisted `*Data` types. Public API: `src/domain/index.ts` only. No DOM, no I/O. |
+| `src/application/` | `ChessMapApp` (use cases, owns the current `Session`, `subscribe` / `on` for views), `ports.ts` (interfaces the secondary adapters implement), `errors.ts`. Public API: `src/application/index.ts`. |
+| `src/infrastructure/primary/` | Driving adapters: `index.ts` (`startPrimary`), `viewState.ts` (presentation-only state), `keyboard.ts`, `ui/` (Preact: `TopBar`, `Locate`, `Recenter`, `overlay`, `toast`, `promotion`, `hooks.ts` with `AppContext` / `useApp` / `useViewState` / `atom`), `map/` (MapLibre view, board marker, pins, curves, drag, placing ghost, relocation, pure `viewMath` / `curves` / `spawn`). |
+| `src/infrastructure/secondary/` | Driven adapters implementing the ports: `storage/` (localStorage repository, preferences, `jsonCodec.ts` versioned (de)serialization), `formats/` (JSON, PGN), `geocoding/` (Nominatim, Photon), `openings/` (lazy `openings.json`), `lichess/`, `browser/` (file download). |
+| `src/main.ts` | Composition root: real `localStorage` / `fetch` / clipboard / `window.open`, `new ChessMapApp(ports)`, `app.start()`, `startPrimary`, `pagehide` flush. |
+| `tests/` | `tests/domain`, `tests/application` (in-memory fakes of the ports), `tests/infrastructure/{primary,secondary}`, `tests/architecture.test.ts`, `tests/e2e/` (Playwright, one spec per user journey: see `tests/README.md` and `tests/e2e/README.md`; e2e = user journeys, business rules go in `tests/domain`, side effects in `tests/application`, adapter error cases in `tests/infrastructure/secondary`). |
 
 ## Core concepts
 
-- **Library → maps → nodes.** A `Library` holds several `ChessMap`s; each map is a tree of `MapNode`s keyed by id (`src/model/types.ts`).
-- **Nodes hold SAN plies.** The root has `[]`; a normal marker has 1 ply; a *pinned* node is a segment of n plies that grows as moves are recorded. Children always hang off the end of a node's segment (branching mid-segment splits it, see `branchAt`).
+- **Library → maps → nodes.** A `Library` holds several `Repertoire`s (maps); each is a tree of nodes keyed by id. The persisted plain shapes are `LibraryData` / `ChessMapData` / `MapNodeData` (`src/domain/repertoire/types.ts`).
+- **Nodes hold SAN plies.** The root has `[]`; a normal marker has 1 ply; a *pinned* node is a segment of n plies that grows as moves are recorded. Children always hang off the end of a node's segment (branching mid-segment splits it, see `branchAt` in `repertoire/tree.ts`).
 - **Cursor** is `{ nodeId, ply }`, where `ply` counts how many plies of that node's segment have been played. Read the comment on `Cursor` in `types.ts` before changing navigation.
-- **Board size** is a log2 `sizeDelta` relative to the parent, summed down the path (`src/model/scale.ts`).
+- **Board size** is a log2 `sizeDelta` relative to the parent, summed down the path (`repertoire/scale.ts`).
 - **Modes:** `explore` (training, only repertoire moves allowed) and `edit` (building). Placement of a new move is a transient `placing` state that is never persisted.
+- **Session and events.** Every user action is a `Session` method returning a new `Session` whose `events` (`focused`, `deadEnd`, `rejected`, `positionPlaced`, `mapEntered`) say what the outside world should do. `ChessMapApp` applies the action, saves what changed, runs side effects and notifies views.
 
 ## Conventions
 
-- Model functions are pure and immutable: they take a `ChessMap` and return a new one. Don't mutate nodes in place. The store applies them and calls `commitLibrary` (which saves) or `set` (UI-only state).
-- Views don't hold their own copy of the data. Preact components call `useStore()` (re-renders on every store change) and read `getState()` / `activeMap()`; the imperative map views do the same in `update()` via `subscribe`. UI-only state that isn't in the store (toast, popover, dialog) lives in an `atom` read with `useAtom`.
-- Components must not keep derived copies of store data in `useState`; keep `useState` for local form/transient state (e.g. the locate panel's query). Use refs for values read by timers and async callbacks.
+- The domain public surface is meaningful actions only: `Library` and `Repertoire` are read-only (queries, `fromData`, `data`, `create` / `initial`); all changes go through `Session`. Tree surgery and the package-private `commands.ts` files are not in the barrel. Domain functions are pure and immutable: never mutate data in place.
+- Outside a layer, import only its barrel (`src/domain`, `src/application`, `src/infrastructure/primary`). The dependency table is in `docs/ARCHITECTURE.md` and enforced by `tests/architecture.test.ts`.
+- Views don't hold copies of data. Preact components call `useApp()` (re-renders on every application change) and read `app.session.…` through the domain models; `useViewState()` gives the presentation state (`boardOpen`, `centered`, `overview`…). The imperative map views receive `app` and the `ViewState` as parameters and do the same in `update()` via `viewState.subscribe`. UI-only state that is in neither (toast, popover, dialog) lives in an `atom` read with `useAtom`.
+- Components must not keep derived copies of application data in `useState`; keep `useState` for local form/transient state (e.g. the locate panel's query). Use refs for values read by timers and async callbacks.
 - Popovers and dialogs are opened imperatively (`openPopover`, `confirmDialog`, `formDialog`) and rendered by `OverlayHost`. Dialogs open in a layout effect so keys pressed right after are not lost.
-- Keep side effects (network, clipboard, file dialogs) out of `model/` and `store/`; wire them through `hooks` in `integration.ts`.
-- Use `getNode(map, id)` instead of indexing `map.nodes` directly when the node must exist (it throws on unknown ids).
+- Side effects (network, storage, clipboard, file dialogs, `window.open`) live behind ports in `src/infrastructure/secondary/`, implemented there and wired in `src/main.ts`. Primary code never calls them directly; it calls `ChessMapApp`.
+- No module-level singleton holds application state: `ChessMapApp` and `ViewState` are created in `main.ts` / `startPrimary` and passed down (Preact context for components, parameters for map views).
+- Use `repertoire.node(id)` (throws on unknown ids) instead of indexing `data.nodes` directly; prefer the model queries over raw `.data` access outside serialization.
 - Match the existing style: short functions, single quotes, terse JSDoc on exported functions explaining *why* or the non-obvious contract.
-- New pure logic should come with a Vitest test in `tests/`.
+- New logic comes with a Vitest test next to its layer: domain rules through `Session` in `tests/domain/`, use cases with the fake ports in `tests/application/`, adapters in `tests/infrastructure/`.
 
 ## Persistence and schema
 
 - Storage key: `chess-map:library`. Invalid stored data is moved to `chess-map:library:corrupt` instead of being dropped.
-- The JSON format is versioned (`LIBRARY_VERSION` in `src/model/serialize.ts`). Any change to the persisted shape of `Library` / `ChessMap` / `MapNode` must bump the version, add a step to `MIGRATIONS`, update validation in `serialize.ts`, and add a test in `tests/serialize.test.ts`. Optional new fields that default sensibly don't need a bump, but still need validation.
-- PGN export stores node positions in `[%geo]` comments and notes as comments; keep `pgn/export.ts` and `pgn/import.ts` round-trippable (`tests/pgn.test.ts`).
+- The JSON format is versioned (`LIBRARY_VERSION` in `src/domain/repertoire/types.ts`; codec, validation and `MIGRATIONS` in `src/infrastructure/secondary/storage/jsonCodec.ts`). Any change to the persisted shape of `LibraryData` / `ChessMapData` / `MapNodeData` must bump the version, add a step to `MIGRATIONS`, update validation in `jsonCodec.ts`, and add a test in `tests/infrastructure/secondary/jsonCodec.test.ts`. Optional new fields that default sensibly don't need a bump, but still need validation.
+- PGN export stores node positions in `[%geo]` comments and notes as comments; keep `formats/pgn/export.ts` and `formats/pgn/import.ts` (under `src/infrastructure/secondary/`) round-trippable (`tests/infrastructure/secondary/PgnMapFormat.test.ts`).
 
 ## External services
 
 - Reverse geocoding: Nominatim; place search: Photon; tiles: OpenFreeMap. All are free public services: don't add request loops or anything that would hammer them.
-- E2E tests mock all of these with `page.route` (see `mockNetwork` in `tests/e2e/smoke.spec.ts`). Any new external request must be mocked there too; tests must not hit the network.
+- E2E tests mock all of these through the auto fixture in `tests/e2e/fixtures.ts` (import `test` from there, not from `@playwright/test`); it fails the test on any unmocked external request. Any new external request must be mocked there too; tests must not hit the network.
 
 ## Generated data
 
-`src/chess/openings.json` is generated from lichess-org/chess-openings (CC0) by `node scripts/gen-openings.mjs` (needs network). Don't edit it by hand. It is loaded lazily as its own chunk; keep it out of the main bundle.
+`src/infrastructure/secondary/openings/openings.json` is generated from lichess-org/chess-openings (CC0) by `node scripts/gen-openings.mjs` (needs network). Don't edit it by hand. It is loaded lazily as its own chunk; keep it out of the main bundle.
 
 ## Deploy
 
