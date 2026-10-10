@@ -4,7 +4,7 @@ import { activateMap, addMap, removeMap, replaceMap } from '../library/commands'
 import { Repertoire } from '../repertoire/Repertoire';
 import * as edit from '../repertoire/commands';
 import { sameCursor } from '../repertoire/cursor';
-import type { Cursor, MapId, Mode, NodeId, Orientation, SavedView } from '../repertoire/types';
+import { SHAPE_BRUSHES, type BoardShape, type Cursor, type MapId, type Mode, type NodeId, type Orientation, type SavedView } from '../repertoire/types';
 import type { DomainEvent } from './events';
 
 /** A new move waiting to be dropped somewhere on the map (transient, never persisted). */
@@ -23,6 +23,9 @@ interface Fields {
   relocating: Relocating | null;
   events: DomainEvent[];
 }
+
+const SQUARE = /^[a-h][1-8]$/;
+const isShape = (s: BoardShape): boolean => SQUARE.test(s.orig) && (s.dest === undefined || SQUARE.test(s.dest)) && SHAPE_BRUSHES.includes(s.brush);
 
 /** Spawned markers stay within +-60 degrees of latitude at root scale (+-80 for rescaled boards). */
 const spawnAt = (ll: LngLat, limit: number): LngLat => {
@@ -268,6 +271,18 @@ export class Session {
   /** Pins (or unpins) the note under the node's marker while its board is closed. Needs a note; allowed in both modes. */
   showNote(nodeId: NodeId, shown: boolean): Session {
     return this.commit(edit.showNote(this.repertoire, nodeId, shown));
+  }
+
+  /**
+   * Stores the right-click annotations of the position at `cursor` (Edit only; an empty list clears them). Anything that
+   * is not a circle or arrow on real squares in a known colour is dropped. Returns `this` when nothing changes.
+   */
+  drawShapes(cursor: Cursor, shapes: BoardShape[]): Session {
+    if (this.mode !== 'edit' || this.busy) return this;
+    const clean = shapes.filter(isShape).map(({ orig, dest, brush }): BoardShape => (dest === undefined ? { orig, brush } : { orig, dest, brush }));
+    const rep = this.repertoire;
+    const same = JSON.stringify(rep.shapesAt(cursor)) === JSON.stringify(clean);
+    return same ? this : this.commit(edit.draw(rep, cursor, clean));
   }
 
   /** Absolute log2 board size relative to the parent (snapped to 0.25). */

@@ -4,7 +4,7 @@ import * as domain from '../../src/domain';
 describe('public API of the domain', () => {
   it('exports models and pure helpers, and no tree surgery', () => {
     expect(Object.keys(domain).sort()).toEqual([
-      'DEFAULT_BOARD_ZOOM', 'DEFAULT_CENTER', 'LIBRARY_VERSION', 'Library', 'NOMINAL_PX', 'Repertoire', 'START_FEN', 'Session',
+      'DEFAULT_BOARD_ZOOM', 'DEFAULT_CENTER', 'LIBRARY_VERSION', 'Library', 'NOMINAL_PX', 'Repertoire', 'SHAPE_BRUSHES', 'START_FEN', 'Session',
       'epd', 'formatLine', 'inCheck', 'legalDests', 'moveLabel', 'moveSquares', 'newId', 'openingAt', 'openingText',
       'promotionColor', 'sameCursor', 'sameLngLat', 'tryMove', 'turnColor', 'wrapLng', 'wrapNear',
     ]);
@@ -27,7 +27,7 @@ describe('public API of the domain', () => {
     expect(Object.getOwnPropertyNames(domain.Repertoire.prototype).sort()).toEqual([
       'back', 'boardZoom', 'branchIds', 'branchSize', 'canTakeBack', 'constructor', 'data', 'distancesFrom', 'effectiveBoardZoom', 'endOf',
       'fenAt', 'fenPath', 'firstMoveIndex', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
-      'pathTo', 'pinLabel', 'rootCursor', 'rootId', 'sanPath', 'sizeSum', 'transpositions', 'view',
+      'pathTo', 'pinLabel', 'rootCursor', 'rootId', 'sanPath', 'shapesAt', 'sizeSum', 'transpositions', 'view',
     ]);
   });
 
@@ -36,7 +36,7 @@ describe('public API of the domain', () => {
     expect(typeof domain.Session.empty).toBe('function');
     for (const action of [
       'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'movePlacing', 'confirmPlacing', 'cancelPlacing', 'takeBack',
-      'relocate', 'nameLocation', 'annotate', 'showNote', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
+      'relocate', 'nameLocation', 'annotate', 'drawShapes', 'showNote', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
       'createMap', 'switchMap', 'addMaps', 'renameMap', 'flipOrientation', 'duplicateMap', 'deleteMap', 'rememberView',
     ]) {
       expect(typeof (domain.Session.prototype as unknown as Record<string, unknown>)[action], action).toBe('function');

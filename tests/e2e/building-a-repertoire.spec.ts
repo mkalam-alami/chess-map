@@ -40,4 +40,21 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await board.writeNote('Open game');
   await expect(board.noteText).toContainText('Open game');
   await expect.poll(async () => Object.values((await app.snapshot()).nodes).some((n) => n.note === 'Open game')).toBe(true);
+
+  // Right-click circles belong to the position: a left click does not erase them, only the eraser does.
+  await expect(board.erase).toBeHidden();
+  await board.circle('d4');
+  await expect(board.circles).toHaveCount(1);
+  await expect(board.erase).toBeVisible();
+  await board.playMove('b1', 'c3'); // a click on the board (selecting a piece) keeps them
+  await expect(board.circles).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowLeft');
+  await expect(board.circles).toHaveCount(0);
+  await expect(board.erase).toBeHidden();
+  await page.keyboard.press('ArrowRight');
+  await expect(board.circles).toHaveCount(1);
+  await board.erase.click();
+  await expect(board.circles).toHaveCount(0);
+  await expect(board.erase).toBeHidden();
 });

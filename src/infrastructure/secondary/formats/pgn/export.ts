@@ -1,4 +1,4 @@
-import { Repertoire, formatLine, type ChessMapData, type Cursor, type MapNodeData, type NodeId } from '../../../../domain';
+import { Repertoire, formatLine, type BoardShape, type ChessMapData, type Cursor, type MapNodeData, type NodeId, type ShapeBrush } from '../../../../domain';
 
 export interface ExportOptions {
   /**
@@ -36,6 +36,15 @@ function headCommands(node: MapNodeData): string[] {
     if (node.place.country) cmds.push(`[%country "${escapeArg(node.place.country)}"]`);
   }
   return cmds;
+}
+
+export const BRUSH_LETTER: Record<ShapeBrush, string> = { green: 'G', red: 'R', blue: 'B', yellow: 'Y' };
+
+/** Lichess-style annotations: `[%csl Gd4,Re5]` for circles, `[%cal Ge2e4]` for arrows. */
+function shapeCommands(shapes: BoardShape[] | undefined): string[] {
+  const circles = (shapes ?? []).filter((s) => s.dest === undefined).map((s) => `${BRUSH_LETTER[s.brush]}${s.orig}`);
+  const arrows = (shapes ?? []).filter((s) => s.dest !== undefined).map((s) => `${BRUSH_LETTER[s.brush]}${s.orig}${s.dest}`);
+  return [...(circles.length ? [`[%csl ${circles.join(',')}]`] : []), ...(arrows.length ? [`[%cal ${arrows.join(',')}]`] : [])];
 }
 
 const comment = (parts: string[]): string => `{${parts.join(' ')}}`;
@@ -84,7 +93,7 @@ export function exportPgn(map: ChessMapData, opts: ExportOptions = {}): string {
       needNum = false;
       out.push(san);
       const last = i === node.moves.length - 1;
-      const parts = i === 0 ? headCommands(node) : [];
+      const parts = [...(i === 0 ? headCommands(node) : []), ...shapeCommands(node.shapes?.[i + 1])];
       if (last && node.note?.trim()) parts.push(sanitizeNote(node.note));
       if (parts.length) {
         out.push(comment(parts));
@@ -107,7 +116,7 @@ export function exportPgn(map: ChessMapData, opts: ExportOptions = {}): string {
   };
 
   const root = rep.node(rep.rootId);
-  const rootParts = headCommands(root);
+  const rootParts = [...headCommands(root), ...shapeCommands(root.shapes?.[0])];
   if (root.note?.trim()) rootParts.push(sanitizeNote(root.note));
   out.push(comment(rootParts));
   const rootKids = childrenOf(root);

@@ -1,6 +1,6 @@
 import {
-  LIBRARY_VERSION, Library, Repertoire, START_FEN, newId, tryMove,
-  type ChessMapData, type LngLat, type MapNodeData, type NodeId,
+  LIBRARY_VERSION, Library, SHAPE_BRUSHES, Repertoire, START_FEN, newId, tryMove,
+  type BoardShape, type ChessMapData, type LngLat, type MapNodeData, type NodeId,
 } from '../../../domain';
 import { ImportError } from '../../../application';
 
@@ -80,6 +80,32 @@ const lngLat = (v: unknown, path: string): LngLat => {
   return [v[0] as number, v[1] as number];
 };
 
+const SQUARE = /^[a-h][1-8]$/;
+
+function validateShapes(v: unknown, path: string, moves: number): Record<number, BoardShape[]> {
+  if (!isObj(v)) throw new ValidationError(path, 'expected an object');
+  const out: Record<number, BoardShape[]> = {};
+  for (const [key, list] of Object.entries(v)) {
+    const played = Number(key);
+    const p = `${path}.${key}`;
+    if (!Number.isInteger(played) || played < 0 || played > moves) throw new ValidationError(p, 'expected a move count of the segment');
+    if (!Array.isArray(list)) throw new ValidationError(p, 'expected an array');
+    out[played] = list.map((s, i): BoardShape => {
+      const sp = `${p}[${i}]`;
+      if (!isObj(s)) throw new ValidationError(sp, 'expected an object');
+      const orig = str(s.orig, `${sp}.orig`);
+      const brush = SHAPE_BRUSHES.find((b) => b === s.brush);
+      if (!SQUARE.test(orig)) throw new ValidationError(`${sp}.orig`, 'expected a square');
+      if (!brush) throw new ValidationError(`${sp}.brush`, `expected ${SHAPE_BRUSHES.join('|')}`);
+      if (s.dest === undefined) return { orig, brush };
+      const dest = str(s.dest, `${sp}.dest`);
+      if (!SQUARE.test(dest)) throw new ValidationError(`${sp}.dest`, 'expected a square');
+      return { orig, dest, brush };
+    });
+  }
+  return out;
+}
+
 function validateMap(raw: unknown, path: string): ChessMapData {
   if (!isObj(raw)) throw new ValidationError(path, 'expected an object');
   const id = str(raw.id, `${path}.id`);
@@ -106,6 +132,10 @@ function validateMap(raw: unknown, path: string): ChessMapData {
     if (rn.noteShown !== undefined) {
       if (typeof rn.noteShown !== 'boolean') throw new ValidationError(`${p}.noteShown`, 'expected boolean');
       if (rn.noteShown) node.noteShown = true;
+    }
+    if (rn.shapes !== undefined) {
+      const shapes = validateShapes(rn.shapes, `${p}.shapes`, node.moves.length);
+      if (Object.values(shapes).some((l) => l.length)) node.shapes = Object.fromEntries(Object.entries(shapes).filter(([, l]) => l.length));
     }
     if (rn.sizeDelta !== undefined) node.sizeDelta = num(rn.sizeDelta, `${p}.sizeDelta`);
     if (rn.lastChild !== undefined) {

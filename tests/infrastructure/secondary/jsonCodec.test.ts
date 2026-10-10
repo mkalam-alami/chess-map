@@ -44,6 +44,16 @@ describe('library codec', () => {
     expect(lib.active.node('a').note).toBe('Queen pawn');
   });
 
+  it('keeps the board annotations of a position', () => {
+    const { json, map, nonRoot } = raw();
+    nonRoot.shapes = { 1: [{ orig: 'e4', brush: 'green' }, { orig: 'g1', dest: 'f3', brush: 'blue' }] };
+    const node = deserializeLibrary(json).active.node(nonRoot.id);
+    expect(node.shapes).toEqual(nonRoot.shapes);
+    expect(Object.keys(map.nodes)).toContain(nonRoot.id);
+    nonRoot.shapes = { 1: [] };
+    expect('shapes' in deserializeLibrary(json).active.node(nonRoot.id)).toBe(false); // an empty list is no annotation
+  });
+
   it('round-trips from JSON text and parsed JSON', () => {
     const lib = sample();
     expect(deserializeLibrary(JSON.parse(serializeLibrary(lib))).data).toEqual(lib.data);
@@ -78,6 +88,11 @@ describe('library codec', () => {
     ['an invalid orientation', (r) => void (r.map.orientation = 'green'), /orientation/],
     ['a node whose key differs from its id', (r) => void (r.nonRoot.id = 'else'), /must equal its key/],
     ['a lastChild that is not a child', (r) => void (r.map.nodes[r.map.rootId].lastChild = 'nowhere'), /lastChild/],
+    ['annotations that are not an object', (r) => void (r.nonRoot.shapes = []), /shapes/],
+    ['annotations on a position the segment does not have', (r) => void (r.nonRoot.shapes = { 9: [{ orig: 'e4', brush: 'red' }] }), /shapes\.9/],
+    ['an annotation on a bad square', (r) => void (r.nonRoot.shapes = { 1: [{ orig: 'k9', brush: 'red' }] }), /orig/],
+    ['an annotation arrow to a bad square', (r) => void (r.nonRoot.shapes = { 1: [{ orig: 'e2', dest: 'e9', brush: 'red' }] }), /dest/],
+    ['an annotation in an unknown colour', (r) => void (r.nonRoot.shapes = { 1: [{ orig: 'e2', brush: 'pink' }] }), /brush/],
     ['a segment without moves', (r) => void (r.nonRoot.moves = []), /at least one move/],
   ])('rejects %s', (_, corrupt, message) => {
     const r = raw();

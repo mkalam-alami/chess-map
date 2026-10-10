@@ -1019,6 +1019,57 @@ describe('maps', () => {
   });
 });
 
+describe('board annotations', () => {
+  const circle = { orig: 'e4', brush: 'green' } as const;
+  const arrow = { orig: 'g1', dest: 'f3', brush: 'red' } as const;
+
+  it('are stored per position of the segment, in Edit only', () => {
+    const { session, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    const at = { nodeId: id, played: 2 };
+    const drawn = session.drawShapes(at, [circle, arrow]);
+    expect(drawn.repertoire.shapesAt(at)).toEqual([circle, arrow]);
+    expect(drawn.repertoire.shapesAt(session.cursor)).toEqual([]);
+    expect(drawn.events).toEqual([]);
+    const exploring = drawn.toggleMode();
+    expect(exploring.drawShapes(at, [])).toBe(exploring); // Explore refuses
+    expect(drawn.startRelocating(null).drawShapes(at, [])).toEqual(expect.objectContaining({ busy: true })); // and so does a transient flow
+    expect(drawn.startRelocating(null).repertoire.shapesAt(at)).toEqual([circle, arrow]);
+  });
+
+  it('drops what is not a circle or arrow on real squares in a known colour; no change returns the same session', () => {
+    const { session, id } = pinnedOf(['e4']);
+    const at = { nodeId: id, played: 1 };
+    const drawn = session.drawShapes(at, [circle, { orig: 'z9', brush: 'red' }, { orig: 'a1', dest: 'b9', brush: 'red' }, { orig: 'a1', brush: 'pink' as never }]);
+    expect(drawn.repertoire.shapesAt(at)).toEqual([circle]);
+    expect(drawn.drawShapes(at, [{ ...circle }])).toBe(drawn);
+    expect(session.drawShapes(at, [])).toBe(session);
+  });
+
+  it('clearing removes the field from the node', () => {
+    const { session, id } = pinnedOf(['e4']);
+    const at = { nodeId: id, played: 1 };
+    expect('shapes' in session.drawShapes(at, [circle]).drawShapes(at, []).repertoire.node(id)).toBe(false);
+  });
+
+  it('follow a split segment: the head keeps its positions, the tail renumbers its own', () => {
+    const { session, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    const drawn = session.drawShapes({ nodeId: id, played: 1 }, [circle]).drawShapes({ nodeId: id, played: 3 }, [arrow]);
+    const split = drawn.goTo({ nodeId: id, played: 1 }).play('c5', [[2, 2], [3, 3]]).confirmPlacing();
+    const tail = split.repertoire.node(id).children[0] as string;
+    expect(split.repertoire.node(tail).moves).toEqual(['e5', 'Nf3']);
+    expect(split.repertoire.shapesAt({ nodeId: id, played: 1 })).toEqual([circle]);
+    expect(split.repertoire.shapesAt({ nodeId: tail, played: 2 })).toEqual([arrow]);
+    expect(split.repertoire.shapesAt({ nodeId: tail, played: 1 })).toEqual([]);
+  });
+
+  it('go with the position a take-back removes', () => {
+    const { session, id } = pinnedOf(['e4', 'e5']);
+    const drawn = session.drawShapes({ nodeId: id, played: 1 }, [circle]).drawShapes({ nodeId: id, played: 2 }, [arrow]);
+    const back = drawn.takeBack();
+    expect(back.repertoire.node(id).shapes).toEqual({ 1: [circle] });
+  });
+});
+
 describe('events belong to the action that produced them', () => {
   it('a following action replaces the previous events', () => {
     const { session, ids } = e4e5();

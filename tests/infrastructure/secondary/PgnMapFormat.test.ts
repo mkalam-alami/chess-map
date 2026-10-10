@@ -17,7 +17,7 @@ const importOne = (pgn: string, opts?: Parameters<typeof importPgn>[1]): ChessMa
 function shape(map: ChessMap, id = map.rootId): unknown {
   const n: MapNode = getNode(map, id);
   return {
-    moves: n.moves, pinned: n.pinned, note: n.note, noteShown: n.noteShown, place: n.place, sizeDelta: n.sizeDelta,
+    moves: n.moves, pinned: n.pinned, note: n.note, noteShown: n.noteShown, place: n.place, sizeDelta: n.sizeDelta, shapes: n.shapes,
     lngLat: n.lngLat.map((x) => Math.round(x * 1e5) / 1e5),
     children: n.children.map((c) => shape(map, c)),
   };
@@ -176,6 +176,26 @@ describe('round trip', () => {
     const unpinned = patchNode(Repertoire.fromData(map), id, { pinned: false });
     const m = editSession(unpinned).relocate(map.rootId, [3, 4]).repertoire.data;
     expect(shape(importOne(exportPgn(m)))).toEqual(shape(m));
+  });
+
+  it('keeps the board annotations of every position, as lichess [%csl] / [%cal] commands', () => {
+    const { session, id } = pinnedOf(['e4', 'e5', 'Nf3']);
+    const circle = { orig: 'e4', brush: 'green' } as const;
+    const arrow = { orig: 'g1', dest: 'f3', brush: 'red' } as const;
+    const m = session
+      .drawShapes({ nodeId: session.repertoire.rootId, played: 0 }, [{ orig: 'd2', brush: 'yellow' }])
+      .drawShapes({ nodeId: id, played: 1 }, [circle, arrow])
+      .drawShapes({ nodeId: id, played: 3 }, [{ orig: 'b8', dest: 'c6', brush: 'blue' }]).repertoire.data;
+    const pgn = exportPgn(m);
+    expect(pgn).toContain('[%csl Ge4] [%cal Rg1f3]');
+    expect(pgn).toContain('[%cal Bb8c6]');
+    expect(shape(importOne(pgn))).toEqual(shape(m));
+    expect(nodeAt(importOne(pgn), 0).shapes).toEqual({ 1: [circle, arrow], 3: [{ orig: 'b8', dest: 'c6', brush: 'blue' }] });
+  });
+
+  it('reads annotations written by other tools and skips malformed ones', () => {
+    const map = importOne('1. e4 {[%csl Ge4,Zz9,Rd4] [%cal Ge2e4,Yd1] } e5 *');
+    expect(nodeAt(map, 0).shapes).toEqual({ 1: [{ orig: 'e4', brush: 'green' }, { orig: 'd4', brush: 'red' }, { orig: 'e2', dest: 'e4', brush: 'green' }] });
   });
 
   it('handles black variations after white variations', () => {

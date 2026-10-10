@@ -1,7 +1,7 @@
 import { parseGames, type ParseTree } from '@mliebelt/pgn-parser';
-import { DEFAULT_CENTER, START_FEN, newId, tryMove, turnColor, wrapLng, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../../../domain';
+import { DEFAULT_CENTER, SHAPE_BRUSHES, START_FEN, newId, tryMove, turnColor, wrapLng, type BoardShape, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../../../domain';
 import { ImportError } from '../../../../application';
-import { unescapeArg } from './export';
+import { BRUSH_LETTER, unescapeArg } from './export';
 
 /** Auto-placement step in degrees of latitude (~400 km). */
 export const FAN_STEP = 3.5;
@@ -23,6 +23,7 @@ interface Meta {
   place?: string;
   country?: string;
   note?: string;
+  shapes: BoardShape[];
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
@@ -39,9 +40,32 @@ function parseGeo(v: unknown): LngLat | undefined {
 
 const unquote = (s: string): string => unescapeArg(s.replace(/^"([\s\S]*)"$/, '$1'));
 
+/**
+ * `colorFields` (`Gd4`) and `colorArrows` (`Ge2e4`) as the parser delivers `[%csl]` / `[%cal]`. When one entry is
+ * malformed it leaves the whole command as a raw `csl` / `cal` string instead, which is read leniently: bad entries are skipped.
+ */
+function parseShapes(d: Record<string, unknown>): BoardShape[] {
+  const out: BoardShape[] = [];
+  const entries = (parsed: unknown, raw: unknown): string[] =>
+    Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : typeof raw === 'string' ? raw.split(',') : [];
+  for (const [key, rawKey, squares] of [['colorFields', 'csl', 1], ['colorArrows', 'cal', 2]] as const) {
+    for (const e of entries(d[key], d[rawKey])) {
+      const m = /^([GRBY])([a-h][1-8])([a-h][1-8])?$/.exec(e.trim());
+      const brush = SHAPE_BRUSHES.find((b) => BRUSH_LETTER[b] === m?.[1]);
+      if (!m || !brush || (squares === 1) !== (m[3] === undefined)) continue;
+      out.push(m[3] === undefined ? { orig: m[2] as string, brush } : { orig: m[2] as string, dest: m[3], brush });
+    }
+  }
+  return out;
+}
+
+const withShapes = (node: MapNodeData, played: number, shapes: BoardShape[]): void => {
+  if (shapes.length) node.shapes = { ...node.shapes, [played]: shapes };
+};
+
 function metaOf(diag: Record<string, unknown> | null | undefined): Meta {
   const d = diag ?? {};
-  const meta: Meta = { merge: false };
+  const meta: Meta = { merge: false, shapes: parseShapes(d) };
   const geo = parseGeo(d.geo);
   if (geo) meta.geo = geo;
   const pinned = str(d.pinned);
@@ -95,6 +119,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
   if (rootPlace) root.place = rootPlace;
   if (rootMeta.note) root.note = rootMeta.note;
   if (rootMeta.size) root.sizeDelta = rootMeta.size;
+  withShapes(root, 0, rootMeta.shapes);
   if (rootMeta.noteShown && root.note) root.noteShown = true;
   const drafts = new Map<NodeId, Draft>([[root.id, { node: root, hasGeo: true }]]);
 
@@ -122,6 +147,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
       const p = placeOf(meta);
       if (p) node.place = p;
       if (meta.size) node.sizeDelta = meta.size;
+      withShapes(node, 1, meta.shapes);
       const notes: string[] = meta.note ? [meta.note] : [];
       drafts.set(node.id, { node, hasGeo: meta.geo !== undefined });
       const parent = (drafts.get(parentId) as Draft).node;
@@ -137,6 +163,7 @@ function importGame(tree: ParseTree, index: number, opts: { name?: string; origi
         if (nm.geo || nm.merge) break;
         r = play(next, r.fen);
         node.moves.push(r.san);
+        withShapes(node, node.moves.length, nm.shapes);
         if (nm.note) notes.push(nm.note);
         j++;
       }

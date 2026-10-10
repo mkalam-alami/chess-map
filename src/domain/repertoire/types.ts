@@ -12,6 +12,13 @@ export const LIBRARY_VERSION = 2;
 
 export interface SavedView { center: LngLat; zoom: number }
 
+/** Colours of the right-click annotations (chessground's four brushes). */
+export const SHAPE_BRUSHES = ['green', 'red', 'blue', 'yellow'] as const;
+export type ShapeBrush = (typeof SHAPE_BRUSHES)[number];
+
+/** A circle (no `dest`) or an arrow drawn on the board; squares are `a1`..`h8`. */
+export interface BoardShape { orig: string; dest?: string; brush: ShapeBrush }
+
 /** Persisted shape of one position (JSON-compatible, unchanged across the refactor). */
 export interface MapNodeData {
   id: NodeId;
@@ -29,6 +36,8 @@ export interface MapNodeData {
   children: NodeId[];
   /** What "forward" follows when there are several children. */
   lastChild?: NodeId;
+  /** Annotations drawn on the board, keyed by `played` (the position after that many moves of the segment). Absent = none. */
+  shapes?: Record<number, BoardShape[]>;
   /** log2 board size relative to the parent's board (default 0 = same size; positive = bigger). */
   sizeDelta?: number;
 }

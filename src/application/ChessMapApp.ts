@@ -1,6 +1,6 @@
 import {
   Library, Session, openingAt as findOpening,
-  type Cursor, type DomainEvent, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place,
+  type BoardShape, type Cursor, type DomainEvent, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place,
   type SavedView,
 } from '../domain';
 import type {
@@ -153,6 +153,11 @@ export class ChessMapApp {
 
   annotate(nodeId: NodeId, note: string): void {
     this.apply(this.current.annotate(nodeId, note));
+  }
+
+  /** Saves the annotations of the board at `cursor` (see `Session.drawShapes`). */
+  drawShapes(cursor: Cursor, shapes: BoardShape[]): void {
+    this.apply(this.current.drawShapes(cursor, shapes));
   }
 
   showNote(nodeId: NodeId, shown: boolean): void {

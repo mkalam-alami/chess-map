@@ -6,7 +6,7 @@ import { effectiveBoardZoom, rootBoardZoom, sizeSum } from './scale';
 import {
   canUndoLastMove, createMapData, getNode, minPlayed, nodeDistances, pathTo, sanPath, subtreeIds,
 } from './tree';
-import type { ChessMapData, Cursor, MapId, MapNodeData, NodeId, Orientation, SavedView } from './types';
+import type { BoardShape, ChessMapData, Cursor, MapId, MapNodeData, NodeId, Orientation, SavedView } from './types';
 
 /**
  * One chess map: a tree of positions. Immutable and read-only: it only answers queries. Changes are made through
@@ -67,6 +67,8 @@ export class Repertoire {
 
   /** One move back; null at the start position. */
   back(cursor: Cursor): Cursor | null { return cursorBack(this.d, cursor); }
+  /** The annotations drawn on the board at `cursor` (empty when none). */
+  shapesAt(cursor: Cursor): BoardShape[] { return this.node(cursor.nodeId).shapes?.[cursor.played] ?? []; }
   /** Where playing `san` leads inside the existing tree; null if it is a new move. */
   next(cursor: Cursor, san: string): Cursor | null { return nextCursor(this.d, cursor, san); }
 

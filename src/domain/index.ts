@@ -4,8 +4,8 @@ export { newId } from './id';
 export { START_FEN, epd, formatLine, inCheck, legalDests, moveLabel, moveSquares, promotionColor, tryMove, turnColor, type MoveInput } from './chess/rules';
 export { openingAt, openingText, type OpeningInfo, type OpeningLookup } from './chess/openings';
 export {
-  LIBRARY_VERSION,
-  type ChessMapData, type Cursor, type LibraryData, type MapId, type MapNodeData, type Mode, type NodeId, type Orientation, type SavedView,
+  LIBRARY_VERSION, SHAPE_BRUSHES,
+  type BoardShape, type ChessMapData, type Cursor, type LibraryData, type MapId, type MapNodeData, type Mode, type NodeId, type Orientation, type SavedView, type ShapeBrush,
 } from './repertoire/types';
 export { sameCursor } from './repertoire/cursor';
 export { DEFAULT_BOARD_ZOOM, NOMINAL_PX } from './repertoire/scale';

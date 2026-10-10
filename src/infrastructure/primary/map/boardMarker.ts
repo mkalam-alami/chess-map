@@ -1,8 +1,9 @@
 import maplibregl from 'maplibre-gl';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
+import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
-import { NOMINAL_PX, inCheck, legalDests, moveSquares, openingText, promotionColor, tryMove, turnColor, wrapNear, type Cursor, type LngLat, type Mode } from '../../../domain';
+import { NOMINAL_PX, SHAPE_BRUSHES, inCheck, legalDests, moveSquares, openingText, promotionColor, tryMove, turnColor, wrapNear, type BoardShape, type Cursor, type LngLat, type Mode } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
 import { openInAnalysis } from '../ui/actions';
@@ -17,13 +18,22 @@ import type { DragPreview } from './dragPreview';
 import { createNoteEditor } from './noteEditor';
 import { spawnAngles } from './spawn';
 
+/** Keeps what the domain stores of a chessground shape (circle or arrow in one of the four brushes). */
+function toShape(s: DrawShape): BoardShape[] {
+  const brush = SHAPE_BRUSHES.find((b) => b === s.brush);
+  return brush ? [s.dest && s.dest !== s.orig ? { orig: s.orig, dest: s.dest, brush } : { orig: s.orig, brush }] : [];
+}
+
 const placeText = (label: string, country?: string): string => (country && !label.includes(country) ? `${label}, ${country}` : label);
 
 export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: ViewState, preview: DragPreview): { update: () => void } {
   const cursorId = (): string => app.session.cursor.nodeId;
+  const shapesNow = (): BoardShape[] => app.session.repertoire.shapesAt(app.session.cursor);
   const note = createNoteEditor(app);
   const trash = iconButton('trash', 'board-delete', 'Delete this position (Del)', 'size-btn');
   trash.addEventListener('click', () => void confirmDeleteNode(app, cursorId()));
+  const eraser = iconButton('eraser', 'board-erase', 'Clear the arrows and circles', 'size-btn');
+  eraser.addEventListener('click', () => app.drawShapes(app.session.cursor, []));
   const locate = iconButton('mapPin', 'board-locate', 'Set location by city (L)', 'size-btn locate-btn');
   locate.addEventListener('click', () => app.startRelocating(cursorId()));
   const closeBtn = iconButton('close', 'board-close', 'Close the board', 'size-btn board-close');
@@ -37,6 +47,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
   more.addEventListener('click', () => openBoardMenu(more, () => [
     { label: 'Edit the note', testid: 'board-more-note', run: () => note.toggle.click() },
     { label: 'Set location by city', testid: 'board-more-locate', run: () => locate.click() },
+    { label: 'Clear arrows and circles', testid: 'board-more-erase', run: () => eraser.click(), hidden: !shapesNow().length },
     { label: 'Open in Lichess', testid: 'board-more-lichess', run: () => lichess.click() },
     { label: 'Delete this position', testid: 'board-more-delete', run: () => trash.click(), hidden: app.session.repertoire.node(cursorId()).parentId === null },
   ]));
@@ -45,7 +56,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
   const left = el('div', 'handle-side');
   const right = el('div', 'handle-side right');
   left.append(note.toggle, locate, lichess, more);
-  right.append(trash, closeBtn);
+  right.append(eraser, trash, closeBtn);
   const handle = el('div', 'board-handle');
   handle.append(left, el('span', 'grip', '⠇⠇⠇'), right);
   const wrap = el('div', 'board-wrap', '', { 'data-testid': 'board' });
@@ -83,6 +94,8 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     premovable: { enabled: false },
     movable: { free: false, showDests: true, events: { after: (orig, dest) => onUserMove(orig, dest) } },
     draggable: { showGhost: true },
+    // Right-click arrows and circles belong to the position: saved as they are drawn, and only the eraser button removes them.
+    drawable: { eraseOnClick: false, onChange: (shapes) => app.drawShapes(app.session.cursor, shapes.flatMap(toShape)) },
   });
   // The board moves with the map: chessground caches its bounds, so refresh them before it reads a pointer position.
   // Chessground reports user moves asynchronously (setTimeout 1ms) and has already flipped the turn / dropped the dests by then.
@@ -203,6 +216,8 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     place.title = s.mode === 'edit' ? 'Set location by city (L)' : placeSpan.textContent;
     prev.hidden = !m.back(s.cursor);
     next.hidden = s.future.length === 0;
+    const shapes = shapesNow();
+    eraser.hidden = shapes.length === 0;
     trash.style.visibility = node.parentId === null ? 'hidden' : '';
     root.style.display = vs.boardOpen ? '' : 'none';
     card.classList.toggle('placing', !!s.placing);
@@ -216,7 +231,10 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
       check: inCheck(fen),
       lastMove: lastMoveOf(s.cursor),
       movable: { color: turn, dests: legalDests(fen) as Map<Key, Key[]> },
+      drawable: { enabled: s.mode === 'edit' },
     });
+    // The stored annotations of this position replace whatever chessground holds (it keeps them across moves, or loses them on its own).
+    if (JSON.stringify(cg.state.drawable.shapes.flatMap(toShape)) !== JSON.stringify(shapes)) cg.setShapes(shapes as DrawShape[]);
     // Chessground binds its pointer listeners only when it (re)draws while interactive. A redraw during placing (the camera
     // zooms, the board is resized) leaves a dead board, so redraw once more when placing ends.
     if (viewOnly && !s.placing) cg.redrawAll();

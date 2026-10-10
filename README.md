@@ -17,9 +17,10 @@ An opening "mind map": chess positions are pins on a world map (MapLibre). Play 
 - **Edit** (`E`, remembered between visits) builds it: play a move, then click the map to drop its pin. **Pin** (`P`) records a whole line into a single board instead; `Ctrl+Z` undoes the last recorded move.
 - Boards can be moved, resized (corner grip), closed (click or drag the bare map, or the × button) and deleted (`Delete`). On a small board the header collapses to a `…` menu.
 - Each position can have a **note**, optionally pinned so it stays visible under its marker on the map, and a **location** (`L`, search by city).
+- In Edit, **right-click** squares to draw circles and arrows (Shift / Alt for other colours). They are saved with the position, shown again whenever it is reached, and only removed with the eraser button next to the trash (it appears when there is something to clear); a left click on the board never erases them.
 - **Overview** shows every position faded, shrinking with distance from the current one (all at the smallest size while no board is open); the top bar shows the current line (with the moves `→` would replay in a muted colour; they only exist after stepping back with `←` or by clicking an earlier marker or move, and playing a move forgets them) and points to transpositions.
 - **Keys:** `←` / `→` step through the line (also the buttons beside the board), `E`, `P`, `L`, `Ctrl+Z`, `Delete`, `Esc`.
-- **Menu (⋮):** JSON and PGN import/export (one map per game, positions and notes travel in PGN comments), open the current line in Lichess, and a map switcher for several maps.
+- **Menu (⋮):** JSON and PGN import/export (one map per game, positions, notes and arrows/circles travel in PGN comments), open the current line in Lichess, and a map switcher for several maps.
 
 ## Deploy
 

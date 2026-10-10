@@ -298,6 +298,7 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 .handle-side.right { justify-content: flex-end; }
 .board-handle .size-btn { min-width: 24px; height: 18px; padding: 0 4px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, 0.35); color: var(--walnut); line-height: 1; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
 .board-handle .size-btn:hover, .board-handle .size-btn.active { background: rgba(255, 255, 255, 0.7); }
+.board-handle .size-btn[hidden] { display: none; }
 .board-handle .board-more { display: none; font-weight: 700; }
 /* Small board: only the close button on the right and a menu with the other actions on the left. */
 @container board (max-width: 210px) {

@@ -14,6 +14,8 @@ export class Board {
   readonly card: Locator;
   readonly close: Locator;
   readonly delete: Locator;
+  readonly erase: Locator;
+  readonly circles: Locator;
   readonly note: Locator;
   readonly noteInput: Locator;
   readonly noteText: Locator;
@@ -28,6 +30,8 @@ export class Board {
     this.card = id('board-card');
     this.close = id('board-close');
     this.delete = id('board-delete');
+    this.erase = id('board-erase');
+    this.circles = page.locator('[data-testid="board"] svg.cg-shapes circle');
     this.note = id('board-note');
     this.noteInput = id('note-input');
     this.noteText = id('note-text');
@@ -61,6 +65,16 @@ export class Board {
       await expect(selected).toHaveCount(1, { timeout: 500 });
     }).toPass({ timeout: 5000 });
     await this.page.mouse.click(squareAt(box, to).x, squareAt(box, to).y);
+  }
+
+  /** Draws a circle on a square with a right click. */
+  async circle(sq: string): Promise<void> {
+    const box = await this.settled();
+    const { x, y } = squareAt(box, sq);
+    await this.page.mouse.move(x, y);
+    await this.page.mouse.down({ button: 'right' });
+    await this.page.mouse.move(x + 1, y + 1); // chessground only commits a shape once the pointer has moved
+    await this.page.mouse.up({ button: 'right' });
   }
 
   /** Same move by touch (two taps). */

@@ -105,6 +105,21 @@ describe('start', () => {
   });
 });
 
+describe('board annotations', () => {
+  it('are saved when drawn in Edit and cleared, but not when nothing changes', () => {
+    const t = started('edit');
+    const cursor = t.app.session.cursor;
+    t.app.drawShapes(cursor, [{ orig: 'e4', brush: 'green' }]);
+    expect(t.library.saved).toHaveLength(1);
+    expect(t.app.session.repertoire.shapesAt(cursor)).toEqual([{ orig: 'e4', brush: 'green' }]);
+    t.app.drawShapes(cursor, [{ orig: 'e4', brush: 'green' }]);
+    expect(t.library.saved).toHaveLength(1);
+    t.app.drawShapes(cursor, []);
+    expect(t.library.saved).toHaveLength(2);
+    expect(t.app.session.repertoire.shapesAt(cursor)).toEqual([]);
+  });
+});
+
 describe('persistence', () => {
   it('saves the library when an action changed it, once, with the new library', () => {
     const t = started('edit');

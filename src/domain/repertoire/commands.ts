@@ -1,8 +1,8 @@
 import type { LngLat, Place } from '../geo';
 import { newId } from '../id';
 import { Repertoire } from './Repertoire';
-import { appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setSizeDelta, undoLastMove } from './tree';
-import type { ChessMapData, Cursor, NodeId, SavedView } from './types';
+import { appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setShapes, setSizeDelta, undoLastMove } from './tree';
+import type { BoardShape, ChessMapData, Cursor, NodeId, SavedView } from './types';
 
 // Package-private building blocks of `Session` (not in the domain barrel): they only enforce tree integrity, while
 // `Session` owns the rules about WHEN they apply (modes, busy flows, spawn positions). Each returns a new Repertoire.
@@ -60,6 +60,9 @@ export const annotate = (r: Repertoire, nodeId: NodeId, note: string): Repertoir
 
 /** Keeps the note visible under the marker; ignored without a note. */
 export const showNote = (r: Repertoire, nodeId: NodeId, shown: boolean): Repertoire => make(setNoteShown(r.data, nodeId, shown));
+
+/** Replaces the annotations of the position at `cursor` (empty clears them). */
+export const draw = (r: Repertoire, cursor: Cursor, shapes: BoardShape[]): Repertoire => make(setShapes(r.data, cursor.nodeId, cursor.played, shapes));
 
 /** Absolute log2 board size relative to the parent, snapped to 0.25; 0 inherits. */
 export const resize = (r: Repertoire, nodeId: NodeId, delta: number): Repertoire => make(setSizeDelta(r.data, nodeId, delta));

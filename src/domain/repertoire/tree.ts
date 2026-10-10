@@ -2,7 +2,7 @@
 // nothing here is part of the domain's public API.
 import { newId } from '../id';
 import type { LngLat } from '../geo';
-import type { ChessMapData, Cursor, MapNodeData, NodeId, Orientation } from './types';
+import type { BoardShape, ChessMapData, Cursor, MapNodeData, NodeId, Orientation } from './types';
 
 export function getNode(map: ChessMapData, id: NodeId): MapNodeData {
   const node = map.nodes[id];
@@ -23,7 +23,7 @@ const update = (map: ChessMapData, id: NodeId, patch: Partial<MapNodeData>): Che
   put(map, { ...getNode(map, id), ...patch });
 
 /** Sets an optional field, or removes it when `value` is undefined (absent means default). */
-function withOptional<K extends 'note' | 'noteShown' | 'place' | 'sizeDelta'>(map: ChessMapData, id: NodeId, key: K, value: MapNodeData[K] | undefined): ChessMapData {
+function withOptional<K extends 'note' | 'noteShown' | 'place' | 'shapes' | 'sizeDelta'>(map: ChessMapData, id: NodeId, key: K, value: MapNodeData[K] | undefined): ChessMapData {
   const { [key]: _old, ...rest } = getNode(map, id);
   return put(map, (value === undefined ? rest : { ...rest, [key]: value }) as MapNodeData);
 }
@@ -59,7 +59,28 @@ export function canUndoLastMove(map: ChessMapData, nodeId: NodeId): boolean {
 /** Drops the last move if allowed (see canUndoLastMove), otherwise returns the map unchanged. */
 export function undoLastMove(map: ChessMapData, nodeId: NodeId): ChessMapData {
   if (!canUndoLastMove(map, nodeId)) return map;
-  return update(map, nodeId, { moves: getNode(map, nodeId).moves.slice(0, -1) });
+  const node = getNode(map, nodeId);
+  const dropped = setShapes(map, nodeId, node.moves.length, []); // the annotations of the position that disappears go with it
+  return update(dropped, nodeId, { moves: node.moves.slice(0, -1) });
+}
+
+/** Replaces the annotations of one position of a node (an empty list removes them, and the field when none remain). */
+export function setShapes(map: ChessMapData, nodeId: NodeId, played: number, shapes: BoardShape[]): ChessMapData {
+  const { [played]: _old, ...others } = getNode(map, nodeId).shapes ?? {};
+  const next = shapes.length ? { ...others, [played]: shapes } : others;
+  return withOptional(map, nodeId, 'shapes', Object.keys(next).length ? next : undefined);
+}
+
+/** Splits the annotations at `keep` moves: the tail's positions are renumbered from its own first move. */
+function splitShapes(shapes: MapNodeData['shapes'], keep: number): { head?: Record<number, BoardShape[]>; tail?: Record<number, BoardShape[]> } {
+  const head: Record<number, BoardShape[]> = {};
+  const tail: Record<number, BoardShape[]> = {};
+  for (const [key, list] of Object.entries(shapes ?? {})) {
+    const played = Number(key);
+    if (played <= keep) head[played] = list;
+    else tail[played - keep] = list;
+  }
+  return { ...(Object.keys(head).length ? { head } : {}), ...(Object.keys(tail).length ? { tail } : {}) };
 }
 
 /**
@@ -69,13 +90,16 @@ export function undoLastMove(map: ChessMapData, nodeId: NodeId): ChessMapData {
 export function splitSegment(map: ChessMapData, nodeId: NodeId, keep: number): { map: ChessMapData; tailId: NodeId } {
   const node = getNode(map, nodeId);
   if (keep < 1 || keep >= node.moves.length) throw new Error(`splitSegment: bad split point ${keep}`);
+  const split = splitShapes(node.shapes, keep);
   const tail: MapNodeData = {
     id: newId(), parentId: nodeId, moves: node.moves.slice(keep), pinned: true, lngLat: node.lngLat,
     children: node.children,
+    ...(split.tail ? { shapes: split.tail } : {}),
     ...(node.lastChild ? { lastChild: node.lastChild } : {}),
     ...(node.place ? { place: node.place } : {}),
   };
-  const head: MapNodeData = { ...node, moves: node.moves.slice(0, keep), children: [tail.id], lastChild: tail.id };
+  const { shapes: _all, ...rest } = node;
+  const head: MapNodeData = { ...rest, moves: node.moves.slice(0, keep), children: [tail.id], lastChild: tail.id, ...(split.head ? { shapes: split.head } : {}) };
   const moved = node.children.map((id) => ({ ...getNode(map, id), parentId: tail.id }));
   return { map: put(map, head, tail, ...moved), tailId: tail.id };
 }
