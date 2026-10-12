@@ -139,10 +139,16 @@ export class Session {
     return c ? this.goTo(c, { keepSize: true }) : this;
   }
 
-  /** Walks the `future` left by a step back. Emits `deadEnd` (and keeps the cursor) when it is empty. */
+  /**
+   * Walks the `future` left by a step back. With no future, the rest of a pinned segment is still unambiguous
+   * (no branching inside a segment), so it advances there even if the line was never visited.
+   * Emits `deadEnd` (and keeps the cursor) otherwise.
+   */
   forward(): Session {
     if (this.busy) return this;
-    const c = this.future[0];
+    const { nodeId, played } = this.cursor;
+    const inSegment = played < this.repertoire.node(nodeId).moves.length ? { nodeId, played: played + 1 } : undefined;
+    const c = this.future[0] ?? inSegment;
     return c ? this.goTo(c, { keepSize: true }) : this.next({}, [{ type: 'deadEnd' }]);
   }
 
