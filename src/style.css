@@ -96,6 +96,12 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
 .topbar .tool:disabled { opacity: 0.4; cursor: default; }
 .topbar .tool.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .menu-button { padding: 3px 8px !important; }
+.sync-indicator { display: inline-flex; align-items: center; padding: 0 2px; color: var(--muted); }
+.sync-indicator.synced { color: var(--accent); }
+.sync-indicator.syncing { color: var(--accent); animation: sync-pulse 1s ease-in-out infinite; }
+.sync-indicator.error, .sync-indicator.reconnect, .sync-indicator.conflict { color: #b3402a; }
+@keyframes sync-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .sync-indicator.syncing { animation: none; } }
 
 .tb-context { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .tb-linecol { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }

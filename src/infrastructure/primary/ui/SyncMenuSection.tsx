@@ -32,16 +32,11 @@ async function enable(app: ChessMapApp): Promise<void> {
     return toast('Could not sign in');
   }
   await settleConflict(app);
-  toast(app.cloudSync?.status === 'synced' ? 'Synced' : 'Sync is on');
 }
 
 async function syncNow(app: ChessMapApp): Promise<void> {
   await app.cloudSync?.now();
   await settleConflict(app);
-  const status = app.cloudSync?.status;
-  if (status === 'synced') toast('Synced');
-  else if (status === 'error') toast('Sync failed, will retry on the next change');
-  else if (status === 'reconnect') toast('Sign in again to sync');
 }
 
 function Item({ label, testid, close, run }: { label: string; testid: string; close: () => void; run: () => void | Promise<void> }) {

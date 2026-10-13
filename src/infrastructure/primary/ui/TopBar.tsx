@@ -3,6 +3,7 @@ import { formatLine, type Cursor, type LngLat, type Repertoire } from '../../../
 import type { ChessMapApp } from '../../../application';
 import { importFile, openInAnalysis } from './actions';
 import { Icon } from './Icon';
+import { SyncIndicator } from './SyncIndicator';
 import { SyncMenuSection } from './SyncMenuSection';
 import { useApp, useViewState } from './hooks';
 import { confirmDialog, formDialog, openPopover } from './overlay';
@@ -147,6 +148,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
             <Icon name="layers" size={18} />
             <span class="label">Overview</span>
           </button>
+          <SyncIndicator />
           <button
             type="button" ref={menuBtn} data-testid="menu-button" class="tool menu-button" aria-label="Menu" title="Map, import / export, Lichess"
             onClick={() => openPopover(menuBtn.current as HTMLElement, (close) => <Menu app={app} close={close} getCenter={getCenter} pickJson={() => jsonInput.current?.click()} pickPgn={() => pgnInput.current?.click()} />)}

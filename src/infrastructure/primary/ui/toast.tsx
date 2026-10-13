@@ -9,6 +9,12 @@ export function toast(message: string, ms = 2200): void {
   timer = setTimeout(() => state.set({ ...state.get(), shown: false }), ms);
 }
 
+/** Hides the toast now (e.g. a "Syncing…" that no longer applies). */
+export function dismissToast(): void {
+  clearTimeout(timer);
+  state.set({ ...state.get(), shown: false });
+}
+
 export function ToastHost() {
   const { text, shown } = useAtom(state);
   return <div class={shown ? 'toast show' : 'toast'} data-testid="toast" role="status">{text}</div>;
