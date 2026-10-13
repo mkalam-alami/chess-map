@@ -13,9 +13,9 @@ export class LocalStorageSyncState implements SyncStateStore {
       if (!raw) return null;
       const v: unknown = JSON.parse(raw);
       if (typeof v !== 'object' || v === null) return null;
-      const { version, dirty } = v as Record<string, unknown>;
+      const { version, dirty, dirtySince } = v as Record<string, unknown>;
       if ((version !== null && typeof version !== 'string') || typeof dirty !== 'boolean') return null;
-      return { version, dirty };
+      return typeof dirtySince === 'number' && Number.isFinite(dirtySince) ? { version, dirty, dirtySince } : { version, dirty };
     } catch {
       return null;
     }

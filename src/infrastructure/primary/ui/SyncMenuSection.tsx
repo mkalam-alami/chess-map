@@ -6,13 +6,21 @@ const LABELS: Record<SyncStatus, string> = {
   off: '', reconnect: 'Sign-in needed', synced: 'Up to date', pending: 'Changes waiting…', syncing: 'Syncing…', error: 'Last sync failed', conflict: 'Conflict',
 };
 
+/** "changed 13 Oct, 09:12", or "change time unknown". */
+const changed = (at: number | null): string =>
+  at === null ? 'change time unknown' : `changed ${new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+
 /** When both copies changed, asks which one to keep. Cancelling leaves the conflict open (the menu offers it again). */
 async function settleConflict(app: ChessMapApp): Promise<void> {
   const sync = app.cloudSync;
-  if (sync?.status !== 'conflict') return;
+  const conflict = sync?.conflict;
+  if (!sync || !conflict) return;
   const r = await formDialog('Sync conflict', [{
     name: 'keep', label: 'This browser and the cloud both have changes. Keep:', value: 'local',
-    options: [['local', 'This browser (replaces the cloud copy)'], ['remote', 'The cloud copy (replaces this browser)']],
+    options: [
+      ['local', `This browser (${changed(conflict.local)}) — replaces the cloud copy`],
+      ['remote', `The cloud copy (${changed(conflict.remote)}) — replaces this browser`],
+    ],
   }], 'Keep');
   if (r) await sync.resolve(r.keep === 'remote' ? 'remote' : 'local');
 }

@@ -17,6 +17,12 @@ describe('LocalStorageSyncState', () => {
     expect(s.data.has(SYNC_KEY)).toBe(false);
   });
 
+  it('keeps the time of the first local change', () => {
+    const p = new LocalStorageSyncState(kv());
+    p.save({ version: null, dirty: true, dirtySince: 1234 });
+    expect(p.load()).toEqual({ version: null, dirty: true, dirtySince: 1234 });
+  });
+
   it.each(['not json', '{"version":3,"dirty":true}', '{"version":"x"}', 'null'])('treats %s as not enabled', (raw) => {
     expect(new LocalStorageSyncState(kv({ [SYNC_KEY]: raw })).load()).toBeNull();
   });

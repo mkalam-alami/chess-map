@@ -58,7 +58,7 @@ export class FakeLibraryCloud implements LibraryCloud {
   /** Puts a library in the cloud, as another browser would. */
   setRemote(library: Library): string {
     const version = `v${++this.versions}`;
-    this.remote = { library, version };
+    this.remote = { library, version, modifiedAt: this.versions * 1000 };
     return version;
   }
   connect = async (): Promise<void> => {

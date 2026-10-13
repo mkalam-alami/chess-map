@@ -77,7 +77,7 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
     const file = await this.find();
     if (!file) return null;
     const res = await this.call(`/drive/v3/files/${file.id}?alt=media`);
-    return { library: deserializeLibrary(await res.text()), version: file.modifiedTime };
+    return { library: deserializeLibrary(await res.text()), version: file.modifiedTime, modifiedAt: Date.parse(file.modifiedTime) };
   }
 
   async push(library: Library): Promise<string> {

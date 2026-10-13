@@ -89,6 +89,24 @@ describe('resolving a conflict', () => {
     return { t, remote };
   }
 
+  it('tells when each side last changed', async () => {
+    vi.setSystemTime(5_000_000);
+    const t = started();
+    await t.sync().enable();
+    edit(t); // the local change is dated now
+    t.cloud.setRemote(otherMoves()); // modified at 2000 ms (second version)
+    await t.sync().now();
+    expect(t.sync().status).toBe('conflict');
+    expect(t.sync().conflict).toEqual({ local: 5_000_000, remote: 2000 });
+    await t.sync().resolve('local');
+    expect(t.sync().conflict).toBeNull();
+  });
+
+  it('local time is unknown for content that predates the first sync', async () => {
+    const { t } = await conflicted();
+    expect(t.sync().conflict).toEqual({ local: null, remote: 1000 });
+  });
+
   it('keep local: uploads this browser\'s copy', async () => {
     const { t } = await conflicted();
     const local = t.app.session.library;

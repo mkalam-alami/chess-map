@@ -84,6 +84,7 @@ describe('pull', () => {
       .mockResolvedValueOnce(new Response(serializeLibrary(lib)));
     const remote = await t.cloud.pull();
     expect(remote?.version).toBe('2026-01-01T00:00:00Z');
+    expect(remote?.modifiedAt).toBe(Date.UTC(2026, 0, 1));
     expect(remote?.library.data).toEqual(lib.data);
     expect(urlOf(t.fetchFn.mock.calls[1] as unknown[])).toContain('/files/f1?alt=media');
   });

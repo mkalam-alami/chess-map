@@ -32,6 +32,9 @@ export const SYNC_REFRESH_MS = 60_000;
 const isBlank = (library: Library): boolean =>
   library.repertoires().every((r) => r.node(r.rootId).children.length === 0);
 
+/** The two sides of a `conflict`, for the user to choose from; times are ms since epoch, `local` null when unknown. */
+export interface SyncConflict { local: number | null; remote: number }
+
 /**
  * Opt-in sync of the library with one cloud copy. Off until `enable`; once enabled it is remembered (`SyncStateStore`) so
  * the next visit signs in silently and carries on. Each round pulls first: unchanged remote -> upload if we changed;
@@ -44,10 +47,14 @@ export class CloudSync {
   private run: Promise<void> | null = null;
   private again = false;
   private lastAt = 0;
+  private open: SyncConflict | null = null;
 
   constructor(private readonly ports: CloudSyncPorts, private readonly host: SyncHost) {}
 
   get status(): SyncStatus { return this.current; }
+
+  /** What the user is choosing between while `status` is `conflict`. */
+  get conflict(): SyncConflict | null { return this.current === 'conflict' ? this.open : null; }
 
   /** Picks sync up where the last visit left it. */
   start(): void {
@@ -60,7 +67,7 @@ export class CloudSync {
   /** The app's library changed: the cloud is behind, upload shortly. */
   localChanged(): void {
     if (!this.state) return;
-    if (!this.state.dirty) this.setState({ ...this.state, dirty: true });
+    if (!this.state.dirty) this.setState({ ...this.state, dirty: true, dirtySince: Date.now() });
     if (this.current === 'conflict' || this.current === 'reconnect') return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.reconcile(), SYNC_DELAY_MS);
@@ -145,7 +152,10 @@ export class CloudSync {
       const remoteChanged = remote !== null && remote.version !== version;
       if (!remote || choice === 'local' || (!remoteChanged && dirty)) await this.upload();
       else if (choice === 'remote' || (remoteChanged && !dirty)) this.adopt(remote);
-      else if (remoteChanged) return this.setStatus('conflict');
+      else if (remoteChanged) {
+        this.open = { local: this.state.dirtySince ?? null, remote: remote.modifiedAt };
+        return this.setStatus('conflict');
+      }
       this.lastAt = Date.now();
       if (this.current === 'syncing') this.setStatus('synced');
     } catch (e) {

@@ -66,6 +66,8 @@ export interface SyncState {
   version: string | null;
   /** The local library changed since then. */
   dirty: boolean;
+  /** When it first changed (ms since epoch); absent when unknown (e.g. content that predates the first sync). */
+  dirtySince?: number;
 }
 
 export interface SyncStateStore {
@@ -78,6 +80,8 @@ export interface SyncStateStore {
 export interface RemoteLibrary {
   library: Library;
   version: string;
+  /** When the cloud copy was last written (ms since epoch). */
+  modifiedAt: number;
 }
 
 /** One private copy of the library in the user's own cloud storage, for keeping browsers in sync. */
