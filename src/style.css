@@ -258,6 +258,8 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
 .pin.pin-d2 > *, .pin.pin-d5 > *, .pin.pin-d2::after, .pin.pin-d5::after { display: none; }
 .pin.pin-d2 { width: 16px; height: 16px; }
 .pin.pin-d5 { width: 8px; height: 8px; }
+/* Invisible enlarged hit area so the small dots are easy to tap on touch screens. */
+.pin.pin-d2::before, .pin.pin-d5::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); border-radius: 50%; }
 .pin.pulse { animation: pulse 0.45s ease-in-out 2; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(217, 144, 42, 0.6); background: var(--edit-soft); } }
 .maplibregl-marker { will-change: transform; }
