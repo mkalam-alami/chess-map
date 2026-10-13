@@ -25,7 +25,7 @@ describe('public API of the domain', () => {
   it('Repertoire exposes read-only queries and factories, no commands', () => {
     expect(Object.getOwnPropertyNames(domain.Repertoire).filter((k) => !['length', 'name', 'prototype'].includes(k)).sort()).toEqual(['create', 'fromData']);
     expect(Object.getOwnPropertyNames(domain.Repertoire.prototype).sort()).toEqual([
-      'back', 'boardZoom', 'branchIds', 'branchSize', 'canTakeBack', 'constructor', 'data', 'distancesFrom', 'effectiveBoardZoom', 'endOf',
+      'back', 'boardZoom', 'branchIds', 'branchSize', 'constructor', 'data', 'distancesFrom', 'effectiveBoardZoom', 'endOf',
       'fenAt', 'fenPath', 'firstMoveIndex', 'hasNode', 'id', 'lineCursors', 'name', 'next', 'node', 'nodes', 'orientation',
       'pathTo', 'pinLabel', 'rootCursor', 'rootId', 'sanPath', 'shapesAt', 'sizeSum', 'transpositions', 'view',
     ]);
@@ -35,7 +35,7 @@ describe('public API of the domain', () => {
     expect(typeof domain.Session.start).toBe('function'); // (private statics are only hidden by the compiler)
     expect(typeof domain.Session.empty).toBe('function');
     for (const action of [
-      'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'extractMove', 'movePlacing', 'confirmPlacing', 'cancelPlacing', 'takeBack',
+      'goTo', 'back', 'forward', 'switchMode', 'toggleMode', 'toggleRecording', 'play', 'extractMove', 'movePlacing', 'confirmPlacing', 'cancelPlacing',
       'relocate', 'nameLocation', 'annotate', 'drawShapes', 'showNote', 'resizeBoard', 'deletePosition', 'startRelocating', 'previewRelocation', 'endRelocating',
       'createMap', 'switchMap', 'addMaps', 'renameMap', 'flipOrientation', 'duplicateMap', 'deleteMap', 'rememberView',
     ]) {

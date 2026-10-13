@@ -1,7 +1,7 @@
 import type { LngLat, Place } from '../geo';
 import { newId } from '../id';
 import { Repertoire } from './Repertoire';
-import { absorbChildMove, appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setShapes, setSizeDelta, undoLastMove } from './tree';
+import { absorbChildMove, appendMove, branchAt, deleteSubtree, getNode, moveNode, setNote, setNoteShown, setPinned, setPlace, setShapes, setSizeDelta } from './tree';
 import type { BoardShape, ChessMapData, Cursor, NodeId, SavedView } from './types';
 
 // Package-private building blocks of `Session` (not in the domain barrel): they only enforce tree integrity, while
@@ -58,10 +58,6 @@ export function branch(r: Repertoire, cursor: Cursor, san: string, at: LngLat, t
   if (pinned) d = setPinned(d, res.cursor.nodeId, true);
   return { repertoire: make(d), cursor: res.cursor, nodeId: res.cursor.nodeId };
 }
-
-/** Drops the last move when `canTakeBack`; otherwise returns `r`. */
-export const takeBack = (r: Repertoire, cursor: Cursor): Repertoire =>
-  r.canTakeBack(cursor) ? make(undoLastMove(r.data, cursor.nodeId)) : r;
 
 /** Moves a position (and its whole branch with `withBranch`). */
 export const moveTo = (r: Repertoire, nodeId: NodeId, at: LngLat, withBranch: boolean): Repertoire =>

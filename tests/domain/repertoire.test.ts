@@ -299,29 +299,6 @@ describe('branch', () => {
   });
 });
 
-describe('takeBack', () => {
-  it('drops the last move of a pinned leaf but never below 1', () => {
-    const { map, id } = pinnedOf(['e4', 'e5']);
-    const r = rep(map);
-    expect(r.canTakeBack(r.endOf(id))).toBe(true);
-    const m1 = cmd.takeBack(r, r.endOf(id));
-    expect(m1.node(id).moves).toEqual(['e4']);
-    expect(m1.canTakeBack(m1.endOf(id))).toBe(false);
-    expect(cmd.takeBack(m1, m1.endOf(id))).toBe(m1);
-  });
-
-  it('refuses nodes with children, mid-segment cursors and the root', () => {
-    const { map, id } = pinnedOf(['e4', 'e5']);
-    const r = rep(map);
-    const withChild = cmd.branch(r, r.endOf(id), 'Nf3', O, O, false).repertoire;
-    expect(withChild.canTakeBack(withChild.endOf(id))).toBe(false);
-    expect(cmd.takeBack(withChild, withChild.endOf(id))).toBe(withChild);
-    expect(r.canTakeBack({ nodeId: id, played: 1 })).toBe(false);
-    expect(r.canTakeBack(r.rootCursor())).toBe(false);
-    expect(cmd.takeBack(r, r.rootCursor())).toBe(r);
-  });
-});
-
 describe('moveTo', () => {
   const { map, ids } = lineOf(['e4', 'e5', 'Nf3']);
   const [, e4, e5, nf3] = ids as [string, string, string, string];

@@ -738,6 +738,17 @@ describe('undo / redo', () => {
     expect(t.app.session.cursor.nodeId).toBe(root(t));
   });
 
+  it('steps the cursor back when an undone move shortens its node', () => {
+    const t = started('edit');
+    const e4 = kids(t)[0] as NodeId;
+    t.app.goTo(t.app.session.repertoire.endOf(e4));
+    t.app.toggleRecording();
+    t.app.extractMove({ nodeId: e4, played: 1 }, 'e5');
+    t.app.undo();
+    expect(t.app.session.repertoire.node(e4).moves).toEqual(['e4']);
+    expect(t.app.session.cursor).toEqual({ nodeId: e4, played: 1 });
+  });
+
   it('forgets the redo steps after a new change', () => {
     const t = started('edit');
     spawn(t, 'c4');

@@ -12,7 +12,6 @@ export class TopBar {
   readonly lineMove: Locator;
   readonly pinToggle: Locator;
   readonly overviewToggle: Locator;
-  readonly undoMove: Locator;
 
   constructor(private readonly page: Page) {
     const id = (t: string) => page.getByTestId(t);
@@ -26,7 +25,6 @@ export class TopBar {
     this.lineMove = id('line-move');
     this.pinToggle = id('pin-toggle');
     this.overviewToggle = id('overview-toggle');
-    this.undoMove = id('undo-move');
   }
 
   edit = () => this.editMode.click();

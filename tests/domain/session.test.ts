@@ -513,54 +513,6 @@ describe('editing: recording', () => {
   });
 });
 
-describe('taking a move back', () => {
-  it('drops the last move of the segment the cursor is at the end of', () => {
-    const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    expect(p.session.canTakeBack).toBe(true);
-    const s = p.session.takeBack();
-    expect(s.repertoire.node(p.id).moves).toEqual(['e4', 'e5']);
-    expect(s.cursor).toEqual({ nodeId: p.id, played: 2 });
-    expect(s.events).toEqual([]);
-  });
-
-  it('a marker keeps at least one move: use deletePosition to remove it', () => {
-    const p = pinnedOf(['e4', 'e5']);
-    const one = p.session.takeBack();
-    expect(one.canTakeBack).toBe(false);
-    expect(one.takeBack()).toBe(one);
-  });
-
-  it('is refused mid-segment, on nodes with children and at the start position', () => {
-    const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    const mid = p.session.goTo({ nodeId: p.id, played: 2 });
-    expect(mid.canTakeBack).toBe(false);
-    expect(mid.takeBack()).toBe(mid);
-    const withChild = place(p.session, 'Nc6');
-    const atParent = withChild.goTo(withChild.repertoire.endOf(p.id));
-    expect(atParent.canTakeBack).toBe(false);
-    expect(atParent.takeBack()).toBe(atParent);
-    const start = editSession();
-    expect(start.canTakeBack).toBe(false);
-    expect(start.takeBack()).toBe(start);
-  });
-
-  it('is refused while a location is being set or a move is being placed', () => {
-    const p = pinnedOf(['e4', 'e5']);
-    const relocating = p.session.startRelocating(null);
-    expect(relocating.canTakeBack).toBe(false);
-    expect(relocating.takeBack()).toBe(relocating);
-    const placing = p.session.play('Nf3', [O]);
-    expect(placing.canTakeBack).toBe(false);
-    expect(placing.takeBack()).toBe(placing);
-  });
-
-  it('after taking back, the recording continues from the shorter line', () => {
-    const p = pinnedOf(['e4', 'e5', 'Nf3']);
-    const s = p.session.takeBack().toggleRecording().play('Nc6');
-    expect(s.repertoire.node(p.id).moves).toEqual(['e4', 'e5', 'Nc6']);
-  });
-});
-
 describe('set-location flow', () => {
   it('starts on a node (Edit only) with no preview, and ends again', () => {
     const { session, ids } = e4e5();
@@ -1126,13 +1078,6 @@ describe('board annotations', () => {
     expect(split.repertoire.shapesAt({ nodeId: tail, played: 2 })).toEqual([arrow]);
     expect(split.repertoire.shapesAt({ nodeId: tail, played: 1 })).toEqual([]);
   });
-
-  it('go with the position a take-back removes', () => {
-    const { session, id } = pinnedOf(['e4', 'e5']);
-    const drawn = session.drawShapes({ nodeId: id, played: 1 }, [circle]).drawShapes({ nodeId: id, played: 2 }, [arrow]);
-    const back = drawn.takeBack();
-    expect(back.repertoire.node(id).shapes).toEqual({ 1: [circle] });
-  });
 });
 
 describe('events belong to the action that produced them', () => {
@@ -1152,7 +1097,7 @@ describe('events belong to the action that produced them', () => {
 
   it('refused actions never carry events of their own', () => {
     const s = editSession();
-    for (const refused of [s.back(), s.takeBack(), s.cancelPlacing(), s.confirmPlacing(), s.endRelocating(), s.switchMap('ghost'), s.deleteMap(), s.addMaps([])]) {
+    for (const refused of [s.back(), s.cancelPlacing(), s.confirmPlacing(), s.endRelocating(), s.switchMap('ghost'), s.deleteMap(), s.addMaps([])]) {
       expect(refused).toBe(s);
       expect(refused.events).toEqual([]);
     }
@@ -1211,8 +1156,6 @@ describe('full scenarios', () => {
     expect(s.repertoire.sanPath(s.cursor)).toEqual(['e4', 'e5', 'f4']);
     s = s.play('exf4');
     expect(s.repertoire.node(branchId).moves).toEqual(['f4', 'exf4']);
-    expect(s.canTakeBack).toBe(true);
-    expect(s.takeBack().repertoire.node(branchId).moves).toEqual(['f4']);
     // the split-off tail still holds the main line
     const tail = s.repertoire.node(id).children[0] as string;
     expect(s.repertoire.sanPath(s.repertoire.endOf(tail))).toEqual(['e4', 'e5', 'Nf3', 'Nc6']);

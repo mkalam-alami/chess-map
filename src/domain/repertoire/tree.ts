@@ -50,20 +50,6 @@ export function appendMove(map: ChessMapData, nodeId: NodeId, san: string): Ches
   return update(map, nodeId, { moves: [...node.moves, san] });
 }
 
-/** Undo rules: leaf nodes only, and a non-root node keeps at least 1 move (use deleteSubtree to remove it). */
-export function canUndoLastMove(map: ChessMapData, nodeId: NodeId): boolean {
-  const node = getNode(map, nodeId);
-  return node.children.length === 0 && node.moves.length > minPlayed(node);
-}
-
-/** Drops the last move if allowed (see canUndoLastMove), otherwise returns the map unchanged. */
-export function undoLastMove(map: ChessMapData, nodeId: NodeId): ChessMapData {
-  if (!canUndoLastMove(map, nodeId)) return map;
-  const node = getNode(map, nodeId);
-  const dropped = setShapes(map, nodeId, node.moves.length, []); // the annotations of the position that disappears go with it
-  return update(dropped, nodeId, { moves: node.moves.slice(0, -1) });
-}
-
 /** Replaces the annotations of one position of a node (an empty list removes them, and the field when none remain). */
 export function setShapes(map: ChessMapData, nodeId: NodeId, played: number, shapes: BoardShape[]): ChessMapData {
   const { [played]: _old, ...others } = getNode(map, nodeId).shapes ?? {};

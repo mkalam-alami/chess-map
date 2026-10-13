@@ -164,10 +164,6 @@ export class ChessMapApp {
     this.apply(this.current.cancelPlacing());
   }
 
-  takeBack(): void {
-    this.apply(this.current.takeBack());
-  }
-
   // ---- history ----
 
   get canUndo(): boolean { return !this.current.busy && this.undoStack.length > 0; }

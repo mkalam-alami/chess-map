@@ -29,7 +29,7 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await expect.poll(() => app.nodeCount()).toBe(2);
   await expect(map.pins).toHaveCount(1);
 
-  // Pin mode records a whole segment; Backspace takes the last move back.
+  // Pin mode records a whole segment; Backspace undoes it.
   await page.keyboard.press('p');
   await expect(topBar.pinToggle).toHaveAttribute('aria-pressed', 'true');
   for (const [from, to] of [['e2', 'e4'], ['e7', 'e5'], ['g1', 'f3']] as const) await board.playMove(from, to);

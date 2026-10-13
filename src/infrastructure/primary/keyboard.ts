@@ -18,9 +18,8 @@ export function installKeyboard(app: ChessMapApp, vs: ViewState): void {
     else if (!plain && key === 'z') (e.shiftKey ? app.redo() : app.undo());
     else if (!plain && key === 'y') app.redo();
     else if (edit && e.key === 'Delete') void confirmDeleteNode(app, app.session.cursor.nodeId);
-    else if (edit && (e.key === 'Backspace')) {
-      if (app.session.canTakeBack) app.takeBack();
-    } else return;
+    else if (e.key === 'Backspace') app.undo();
+    else return;
     e.preventDefault();
   });
 }

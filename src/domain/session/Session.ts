@@ -106,9 +106,6 @@ export class Session {
   /** A transient flow (placing a move, setting a location) owns the input: navigation and mode changes wait. */
   get busy(): boolean { return this.placing !== null || this.relocating !== null; }
 
-  /** Take-back is offered at the end of a leaf segment, outside the transient flows. */
-  get canTakeBack(): boolean { return !this.busy && this.repertoire.canTakeBack(this.cursor); }
-
   /** True if playing `san` here would navigate to an existing position instead of creating one. */
   moveExists(san: string): boolean { return this.repertoire.next(this.cursor, san) !== null; }
 
@@ -241,13 +238,6 @@ export class Session {
     return this.placing ? this.next({ placing: null }) : this;
   }
 
-  /** Drops the last move of the current leaf segment (see `canTakeBack`). */
-  takeBack(): Session {
-    if (!this.canTakeBack) return this;
-    const c = this.cursor;
-    return this.commit(edit.takeBack(this.repertoire, c), { cursor: { nodeId: c.nodeId, played: c.played - 1 } });
-  }
-
   // ---- positions ----
 
   /**
@@ -333,16 +323,15 @@ export class Session {
   // ---- history ----
 
   /**
-   * Swaps in an earlier (or later) `library` for undo / redo. Keeps the cursor when its position still exists, else goes
-   * back to the root; a different active map is entered from its start. Refused while a transient flow is running.
+   * Swaps in an earlier (or later) `library` for undo / redo. Keeps the cursor when its position still exists, steps back
+   * to the end of its node when that node got shorter (an undone move), else goes to the root; a different active map is entered from its start. Refused while a transient flow is running.
    */
   restoreLibrary(library: Library): Session {
     if (this.busy) return this;
     if (library.activeId !== this.library.activeId) return this.entering(library);
     const rep = library.active;
     const { nodeId, played } = this.cursor;
-    const keep = rep.hasNode(nodeId) && played <= rep.node(nodeId).moves.length;
-    const cursor = keep ? this.cursor : rep.rootCursor();
+    const cursor = rep.hasNode(nodeId) ? { nodeId, played: Math.min(played, rep.node(nodeId).moves.length) } : rep.rootCursor();
     return this.next({ library, cursor, future: [] }, [{ type: 'focused', cursor, keepSize: true }]);
   }
 

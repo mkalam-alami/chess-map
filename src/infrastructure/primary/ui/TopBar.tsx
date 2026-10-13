@@ -131,11 +131,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
               <Icon name="pin" size={16} />
               <span>Pin board</span>
             </button>
-            <button type="button" data-testid="undo-move" class="tool" disabled={!s.canTakeBack} title="Remove the last recorded move (Backspace)" onClick={() => app.takeBack()}>
-              <Icon name="undo" size={16} />
-              <span>Undo move</span>
-            </button>
-            <button type="button" data-testid="undo" class="tool" disabled={!app.canUndo} title="Undo the last change (Ctrl+Z)" onClick={() => app.undo()}>
+            <button type="button" data-testid="undo" class="tool" disabled={!app.canUndo} title="Undo the last change (Ctrl+Z, Backspace)" onClick={() => app.undo()}>
               <Icon name="undo" size={16} />
               <span>Undo</span>
             </button>

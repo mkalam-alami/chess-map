@@ -4,7 +4,7 @@ import { cursorBack, cursorEnd, lineCursors, nextCursor, rootCursor } from './cu
 import { fenAt, fenPath } from './positions';
 import { effectiveBoardZoom, rootBoardZoom, sizeSum } from './scale';
 import {
-  canUndoLastMove, createMapData, getNode, minPlayed, nodeDistances, pathTo, sanPath, subtreeIds,
+  createMapData, getNode, minPlayed, nodeDistances, pathTo, sanPath, subtreeIds,
 } from './tree';
 import type { BoardShape, ChessMapData, Cursor, MapId, MapNodeData, NodeId, Orientation, SavedView } from './types';
 
@@ -107,10 +107,5 @@ export class Repertoire {
     if (node.parentId === null) return '♟';
     const first = moveLabel(this.firstMoveIndex(nodeId), node.moves[0] as string);
     return node.moves.length > 1 ? `${first} … (+${node.moves.length - 1})` : first;
-  }
-
-  /** Take-back rules: only at the end of a leaf segment that keeps at least 1 move (the root keeps 0). */
-  canTakeBack(cursor: Cursor): boolean {
-    return cursor.played === this.node(cursor.nodeId).moves.length && canUndoLastMove(this.d, cursor.nodeId);
   }
 }
