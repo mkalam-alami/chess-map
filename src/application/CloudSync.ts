@@ -48,6 +48,8 @@ export class CloudSync {
   private again = false;
   private lastAt = 0;
   private open: SyncConflict | null = null;
+  /** Counts `localChanged` calls, to spot changes made while an upload is in flight. */
+  private changes = 0;
 
   constructor(private readonly ports: CloudSyncPorts, private readonly host: SyncHost) {}
 
@@ -64,9 +66,10 @@ export class CloudSync {
     void this.resume();
   }
 
-  /** The app's library changed: the cloud is behind, upload shortly. */
+  /** The app's library changed (not just the remembered viewport): the cloud is behind, upload shortly. */
   localChanged(): void {
     if (!this.state) return;
+    this.changes++;
     if (!this.state.dirty) this.setState({ ...this.state, dirty: true, dirtySince: Date.now() });
     if (this.current === 'conflict' || this.current === 'reconnect') return;
     clearTimeout(this.timer);
@@ -166,9 +169,9 @@ export class CloudSync {
 
   /** Uploads the current library; changes made during the upload keep it dirty and schedule another round. */
   private async upload(): Promise<void> {
-    const sent = this.host.library();
-    const version = await this.ports.cloud.push(sent);
-    const changedMeanwhile = this.host.library() !== sent;
+    const at = this.changes;
+    const version = await this.ports.cloud.push(this.host.library());
+    const changedMeanwhile = this.changes !== at;
     this.setState({ version, dirty: changedMeanwhile });
     if (changedMeanwhile) this.again = true;
   }

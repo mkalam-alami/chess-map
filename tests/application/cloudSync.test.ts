@@ -292,3 +292,15 @@ describe('disabling sync', () => {
     expect(t.app.session.library).toBe(local);
   });
 });
+
+describe('navigation', () => {
+  it('a remembered viewport is saved locally but never marks the cloud copy as behind', async () => {
+    const t = started();
+    await t.sync().enable();
+    t.app.rememberView({ center: [1, 2], zoom: 4 });
+    expect(t.sync().status).toBe('synced');
+    expect(t.syncState.state).toEqual({ version: 'v1', dirty: false });
+    await vi.advanceTimersByTimeAsync(SYNC_DELAY_MS * 2);
+    expect(t.cloud.pushes).toHaveLength(1);
+  });
+});

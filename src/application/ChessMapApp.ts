@@ -257,9 +257,9 @@ export class ChessMapApp {
     return this.current !== before;
   }
 
-  /** Remembers the viewport: saved, but nobody is notified (the view already shows it). */
+  /** Remembers the viewport: saved locally, but nobody is notified (the view already shows it) and the cloud copy is not touched (navigation is not a library change). */
   rememberView(view: SavedView): void {
-    this.apply(this.current.rememberView(view), { notify: false, history: false });
+    this.apply(this.current.rememberView(view), { notify: false, history: false, sync: false });
   }
 
   // ---- integrations ----
@@ -304,9 +304,9 @@ export class ChessMapApp {
    * that is forced into Edit because it is empty does not overwrite the preference. Then it dispatches the events
    * and notifies subscribers (unless `notify` is false). A refused action (same session) does nothing.
    * A changed library is pushed on the undo stack (and forgets the redo stack) unless `history` is false: background
-   * updates (geocoded names, the remembered viewport) and undo / redo themselves are not undoable steps.
+   * updates (geocoded names, the remembered viewport; the latter is not synced either) and undo / redo themselves are not undoable steps.
    */
-  private apply(next: Session, opts: { notify?: boolean; remember?: boolean; history?: boolean } = {}): Session {
+  private apply(next: Session, opts: { notify?: boolean; remember?: boolean; history?: boolean; sync?: boolean } = {}): Session {
     const prev = this.current;
     if (next === prev) return next;
     this.current = next;
@@ -317,7 +317,7 @@ export class ChessMapApp {
     }
     if (next.library !== prev.library) {
       this.ports.library.save(next.library);
-      this.cloudSync?.localChanged();
+      if (opts.sync !== false) this.cloudSync?.localChanged();
     }
     if (opts.remember && next.mode !== prev.mode) this.ports.preferences.saveMode(next.mode);
     for (const e of next.events) this.dispatch(e);
