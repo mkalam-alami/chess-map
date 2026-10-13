@@ -23,6 +23,9 @@ export interface ChessMapPorts {
 export type ViewEvent = Exclude<DomainEvent, { type: 'positionPlaced' }>;
 export type ViewEventType = ViewEvent['type'];
 
+/** Undo steps kept in memory. */
+const MAX_HISTORY = 100;
+
 type Listener = () => void;
 
 /** Placeholder label for a position the geocoder knows nothing about. */
@@ -37,6 +40,9 @@ export class ChessMapApp {
   private readonly subscribers = new Set<Listener>();
   private readonly placingSubscribers = new Set<Listener>();
   private readonly listeners = new Map<ViewEventType, Set<(e: never) => void>>();
+  /** Libraries before / after the current one, for undo / redo. Kept for this page session only (never persisted). */
+  private undoStack: Library[] = [];
+  private redoStack: Library[] = [];
   /** Latest reverse-geocoding lookup per node. */
   private readonly lookups = new Map<NodeId, AbortController>();
 
@@ -149,6 +155,28 @@ export class ChessMapApp {
     this.apply(this.current.takeBack());
   }
 
+  // ---- history ----
+
+  get canUndo(): boolean { return !this.current.busy && this.undoStack.length > 0; }
+  get canRedo(): boolean { return !this.current.busy && this.redoStack.length > 0; }
+
+  /** Reverts the last change to the library (a move, a relocation, a deleted position…). */
+  undo(): void {
+    const previous = this.undoStack.at(-1);
+    if (!previous || this.current.busy) return;
+    this.undoStack.pop();
+    this.redoStack.push(this.current.library);
+    this.apply(this.current.restoreLibrary(previous), { history: false });
+  }
+
+  redo(): void {
+    const next = this.redoStack.at(-1);
+    if (!next || this.current.busy) return;
+    this.redoStack.pop();
+    this.undoStack.push(this.current.library);
+    this.apply(this.current.restoreLibrary(next), { history: false });
+  }
+
   // ---- positions ----
 
   /** With a `place` (e.g. a search result) the label is set directly and no reverse geocoding happens. */
@@ -222,7 +250,7 @@ export class ChessMapApp {
 
   /** Remembers the viewport: saved, but nobody is notified (the view already shows it). */
   rememberView(view: SavedView): void {
-    this.apply(this.current.rememberView(view), { notify: false });
+    this.apply(this.current.rememberView(view), { notify: false, history: false });
   }
 
   // ---- integrations ----
@@ -266,11 +294,18 @@ export class ChessMapApp {
    * Replaces the session. Saves a changed library; saves the mode only for explicit mode actions (`remember`), so a map
    * that is forced into Edit because it is empty does not overwrite the preference. Then it dispatches the events
    * and notifies subscribers (unless `notify` is false). A refused action (same session) does nothing.
+   * A changed library is pushed on the undo stack (and forgets the redo stack) unless `history` is false: background
+   * updates (geocoded names, the remembered viewport) and undo / redo themselves are not undoable steps.
    */
-  private apply(next: Session, opts: { notify?: boolean; remember?: boolean } = {}): Session {
+  private apply(next: Session, opts: { notify?: boolean; remember?: boolean; history?: boolean } = {}): Session {
     const prev = this.current;
     if (next === prev) return next;
     this.current = next;
+    if (opts.history !== false && next.library !== prev.library) {
+      this.undoStack.push(prev.library);
+      if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
+      this.redoStack = [];
+    }
     if (next.library !== prev.library) this.ports.library.save(next.library);
     if (opts.remember && next.mode !== prev.mode) this.ports.preferences.saveMode(next.mode);
     for (const e of next.events) this.dispatch(e);
@@ -300,6 +335,6 @@ export class ChessMapApp {
       if (this.lookups.get(nodeId) === ctl) this.lookups.delete(nodeId);
     }
     // The domain drops the result if the node was removed or moved while the lookup was in flight.
-    if (!ctl.signal.aborted) this.apply(this.current.nameLocation(nodeId, place ?? OPEN_SEA, at));
+    if (!ctl.signal.aborted) this.apply(this.current.nameLocation(nodeId, place ?? OPEN_SEA, at), { history: false });
   }
 }

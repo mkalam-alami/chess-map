@@ -128,9 +128,17 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
               <Icon name="pin" size={16} />
               <span>Pin board</span>
             </button>
-            <button type="button" data-testid="undo-move" class="tool" disabled={!s.canTakeBack} title="Remove the last recorded move (Ctrl+Z)" onClick={() => app.takeBack()}>
+            <button type="button" data-testid="undo-move" class="tool" disabled={!s.canTakeBack} title="Remove the last recorded move (Backspace)" onClick={() => app.takeBack()}>
               <Icon name="undo" size={16} />
               <span>Undo move</span>
+            </button>
+            <button type="button" data-testid="undo" class="tool" disabled={!app.canUndo} title="Undo the last change (Ctrl+Z)" onClick={() => app.undo()}>
+              <Icon name="undo" size={16} />
+              <span>Undo</span>
+            </button>
+            <button type="button" data-testid="redo" class="tool" disabled={!app.canRedo} title="Redo (Ctrl+Shift+Z)" onClick={() => app.redo()}>
+              <Icon name="redo" size={16} />
+              <span>Redo</span>
             </button>
           </div>
           <button type="button" data-testid="overview-toggle" class={view.overview ? 'tool view-tool active' : 'tool view-tool'} aria-pressed={view.overview} title="Show the whole tree, faded" onClick={() => view.toggleOverview()}>

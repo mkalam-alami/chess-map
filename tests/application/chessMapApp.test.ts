@@ -714,3 +714,43 @@ describe('place search', () => {
     expect(t.placeSearch.queries).toEqual([{ query: 'Lis', signal: ac.signal }]);
   });
 });
+
+describe('undo / redo', () => {
+  it('reverts and replays changes to the library', () => {
+    const t = started('edit');
+    const before = t.app.session.library;
+    const id = spawn(t, 'c4');
+    const after = t.app.session.library;
+    expect(t.app.canUndo).toBe(true);
+    t.app.undo();
+    expect(t.app.session.library).toBe(before);
+    expect(t.app.canRedo).toBe(true);
+    t.app.redo();
+    expect(t.app.session.library).toBe(after);
+    expect(t.app.session.repertoire.hasNode(id)).toBe(true);
+  });
+
+  it('moves the cursor to the root when its position disappears', () => {
+    const t = started('edit');
+    const id = spawn(t, 'c4');
+    t.app.goTo({ nodeId: id, played: 1 });
+    t.app.undo();
+    expect(t.app.session.cursor.nodeId).toBe(root(t));
+  });
+
+  it('forgets the redo steps after a new change', () => {
+    const t = started('edit');
+    spawn(t, 'c4');
+    t.app.undo();
+    spawn(t, 'Nf3');
+    expect(t.app.canRedo).toBe(false);
+  });
+
+  it('does not record geocoded names as steps', async () => {
+    const t = started('edit');
+    spawn(t, 'c4');
+    await settle();
+    t.app.undo();
+    expect(t.app.canUndo).toBe(false);
+  });
+});

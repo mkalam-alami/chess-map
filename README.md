@@ -16,7 +16,7 @@ An opening "mind map": chess positions are pins on a world map (MapLibre). Play 
 - **Explore** is for training: enter pins and play moves from your repertoire. **Edit** (`E`) builds it: play a move and drop its pin on the map, or record a whole line into one board with **Pin** (`P`).
 - Each position can have a note, a location (`L`) and right-click arrows and circles.
 - **Overview** shows the whole tree faded; the top bar shows the current line and transpositions.
-- **Keys:** `←` / `→` step through the line, `E`, `P`, `L`, `Ctrl+Z`, `Delete`, `Esc`.
+- **Keys:** `←` / `→` step through the line, `E`, `P`, `L`, `Ctrl+Z` / `Ctrl+Shift+Z` (undo / redo), `Delete`, `Esc`.
 - **Menu (⋮):** JSON and PGN import/export, open the current line in Lichess, several maps.
 
 ## Deploy

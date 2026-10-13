@@ -330,6 +330,22 @@ export class Session {
     return this.relocating ? this.next({ relocating: null }) : this;
   }
 
+  // ---- history ----
+
+  /**
+   * Swaps in an earlier (or later) `library` for undo / redo. Keeps the cursor when its position still exists, else goes
+   * back to the root; a different active map is entered from its start. Refused while a transient flow is running.
+   */
+  restoreLibrary(library: Library): Session {
+    if (this.busy) return this;
+    if (library.activeId !== this.library.activeId) return this.entering(library);
+    const rep = library.active;
+    const { nodeId, played } = this.cursor;
+    const keep = rep.hasNode(nodeId) && played <= rep.node(nodeId).moves.length;
+    const cursor = keep ? this.cursor : rep.rootCursor();
+    return this.next({ library, cursor, future: [] }, [{ type: 'focused', cursor, keepSize: true }]);
+  }
+
   // ---- maps ----
 
   private entering(library: Library): Session {
