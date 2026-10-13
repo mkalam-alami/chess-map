@@ -125,6 +125,14 @@ describe('navigating', () => {
     expect(s.forward().forwardTarget()).toBeUndefined();
   });
 
+  it('forward enters a lone child board, but not one of several', () => {
+    const one = treeOf({ e4: { e5: {} } });
+    const s = exploreSession(one.session.repertoire).forward();
+    expect(s.cursor.played).toBe(1);
+    expect(s.forwardTarget()).toBeDefined();
+    expect(s.forward().forward().events).toEqual([{ type: 'deadEnd' }]);
+  });
+
   it('stepping back keeps the line just left, and forward walks it again', () => {
     const t = treeOf({ e4: { e5: {} }, d4: {} });
     const e4 = { nodeId: t.id('e4'), played: 1 };
@@ -154,7 +162,8 @@ describe('navigating', () => {
     const played = back.play('e4');
     expect(played.cursor).toEqual({ nodeId: t.id('e4'), played: 1 });
     expect(played.future).toEqual([]);
-    expect(played.forward().events).toEqual([{ type: 'deadEnd' }]);
+    expect(played.forwardTarget()).toEqual({ nodeId: t.id('e4 e5'), played: 1 }); // the lone child, not the forgotten future
+    expect(played.forward().forward().events).toEqual([{ type: 'deadEnd' }]);
   });
 
   it('every navigation action is refused while a move is being placed or a location set', () => {

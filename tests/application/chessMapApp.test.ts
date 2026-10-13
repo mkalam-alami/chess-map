@@ -308,7 +308,7 @@ describe('subscriptions and events', () => {
     t.app.goTo(t.app.session.repertoire.endOf(kids(t)[0] as NodeId));
     t.app.back();
     expect(t.app.forward()).toBe(true); // a step back leaves the way forward
-    expect(t.app.forward()).toBe(false);
+    while (t.app.forward()); // a lone child board is entered too, until the line ends
     expect(dead).toHaveBeenCalledTimes(2);
   });
 

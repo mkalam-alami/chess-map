@@ -137,15 +137,16 @@ export class Session {
   }
 
   /**
-   * Walks the `future` left by a step back. With no future, the rest of a pinned segment is still unambiguous
-   * (no branching inside a segment), so it advances there even if the line was never visited.
+   * Walks the `future` left by a step back. With no future, the rest of a pinned segment and a lone child board
+   * are still unambiguous (no branching inside a segment, a single child), so it advances there even if never visited.
    * Emits `deadEnd` (and keeps the cursor) otherwise.
    */
   /** Where `forward` would go, if anywhere: the single source of truth for the key and the board's forward button. */
   forwardTarget(): Cursor | undefined {
     const { nodeId, played } = this.cursor;
-    const inSegment = played < this.repertoire.node(nodeId).moves.length ? { nodeId, played: played + 1 } : undefined;
-    return this.future[0] ?? inSegment;
+    const node = this.repertoire.node(nodeId);
+    const onlyChild = node.children.length === 1 ? { nodeId: node.children[0] as string, played: 1 } : undefined;
+    return this.future[0] ?? (played < node.moves.length ? { nodeId, played: played + 1 } : onlyChild);
   }
 
   forward(): Session {
