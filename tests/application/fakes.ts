@@ -1,8 +1,8 @@
 import type { Cursor, Library, LngLat, Mode, Place, Repertoire } from '../../src/domain';
 import {
-  ChessMapApp,
-  type AnalysisBoard, type ChessMapPorts, type FileSaver, type LibraryRepository, type MapFormat, type MapFormatId, type OpeningBook,
-  type PlaceHit, type PlaceSearch, type PreferenceStore, type ReverseGeocoder,
+  ChessMapApp, type CloudSync,
+  type AnalysisBoard, type ChessMapPorts, type FileSaver, type LibraryCloud, type LibraryRepository, type MapFormat, type MapFormatId, type OpeningBook,
+  type PlaceHit, type PlaceSearch, type PreferenceStore, type RemoteLibrary, type ReverseGeocoder, type SyncState, type SyncStateStore,
 } from '../../src/application';
 
 /** A promise the test settles by hand. */
@@ -32,6 +32,51 @@ export class FakePreferenceStore implements PreferenceStore {
   saved: Mode[] = [];
   loadMode = (): Mode | null => this.mode;
   saveMode = (mode: Mode): void => void this.saved.push(mode);
+}
+
+/** What sync remembers; null = sync off. */
+export class FakeSyncStateStore implements SyncStateStore {
+  state: SyncState | null = null;
+  load = (): SyncState | null => this.state;
+  save = (state: SyncState | null): void => void (this.state = state);
+}
+
+/** A cloud with one slot. `pull` / `push` answer at once unless `failWith` is set; versions count up from 1. */
+export class FakeLibraryCloud implements LibraryCloud {
+  remote: RemoteLibrary | null = null;
+  signedIn = false;
+  /** What `resume` answers. */
+  canResume = true;
+  /** `connect` rejects with it. */
+  declines: Error | null = null;
+  /** `pull` and `push` reject with it. */
+  failWith: Error | null = null;
+  pulls = 0;
+  pushes: Library[] = [];
+  disconnects = 0;
+  private versions = 0;
+  /** Puts a library in the cloud, as another browser would. */
+  setRemote(library: Library): string {
+    const version = `v${++this.versions}`;
+    this.remote = { library, version };
+    return version;
+  }
+  connect = async (): Promise<void> => {
+    if (this.declines) throw this.declines;
+    this.signedIn = true;
+  };
+  resume = async (): Promise<boolean> => (this.signedIn = this.canResume);
+  disconnect = async (): Promise<void> => void (this.disconnects++, (this.signedIn = false));
+  pull = async (): Promise<RemoteLibrary | null> => {
+    this.pulls++;
+    if (this.failWith) throw this.failWith;
+    return this.remote;
+  };
+  push = async (library: Library): Promise<string> => {
+    if (this.failWith) throw this.failWith;
+    this.pushes.push(library);
+    return this.setRemote(library);
+  };
 }
 
 export interface GeocodeCall { at: LngLat; signal: AbortSignal; resolve: (p: Place | null) => void; reject: (e: unknown) => void }
@@ -118,10 +163,12 @@ export interface Fakes {
   pgn: FakeMapFormat;
   files: FakeFileSaver;
   analysis: FakeAnalysisBoard;
+  cloud: FakeLibraryCloud;
+  syncState: FakeSyncStateStore;
 }
 
 /** An app wired to in-memory fakes of every port (not started). */
-export function makeApp(): Fakes & { app: ChessMapApp } {
+export function makeApp(): Fakes & { app: ChessMapApp; sync: () => CloudSync } {
   const fakes: Fakes = {
     library: new FakeLibraryRepository(),
     preferences: new FakePreferenceStore(),
@@ -132,10 +179,16 @@ export function makeApp(): Fakes & { app: ChessMapApp } {
     pgn: new FakeMapFormat('pgn', 'pgn', 'application/x-chess-pgn'),
     files: new FakeFileSaver(),
     analysis: new FakeAnalysisBoard(),
+    cloud: new FakeLibraryCloud(),
+    syncState: new FakeSyncStateStore(),
   };
   const ports: ChessMapPorts = {
     library: fakes.library, preferences: fakes.preferences, geocoder: fakes.geocoder, placeSearch: fakes.placeSearch,
     openings: fakes.openings, formats: { json: fakes.json, pgn: fakes.pgn }, files: fakes.files, analysis: fakes.analysis,
+    cloud: { cloud: fakes.cloud, state: fakes.syncState },
   };
-  return { ...fakes, app: new ChessMapApp(ports) };
+  const app = new ChessMapApp(ports);
+  /** The sync of the app (always configured in tests). */
+  const sync = (): CloudSync => app.cloudSync as CloudSync;
+  return { ...fakes, app, sync };
 }

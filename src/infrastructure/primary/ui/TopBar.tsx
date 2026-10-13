@@ -3,6 +3,7 @@ import { formatLine, type Cursor, type LngLat, type Repertoire } from '../../../
 import type { ChessMapApp } from '../../../application';
 import { importFile, openInAnalysis } from './actions';
 import { Icon } from './Icon';
+import { SyncMenuSection } from './SyncMenuSection';
 import { useApp, useViewState } from './hooks';
 import { confirmDialog, formDialog, openPopover } from './overlay';
 import { toast } from './toast';
@@ -26,6 +27,7 @@ function Menu({ app, close, getCenter, pickJson, pickPgn }: { app: ChessMapApp; 
       {item('Import PGN…', 'menu-import-pgn', pickPgn)}
       <div class="menu-label">Share</div>
       {item('Open in Lichess', 'menu-open-lichess', () => openInAnalysis(app))}
+      <SyncMenuSection app={app} close={close} />
       <div class="menu-label">Map</div>
       {item('New map…', 'menu-new-map', async () => {
         const r = await formDialog('New map', [

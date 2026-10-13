@@ -6,6 +6,8 @@ import { JsonMapFormat } from './infrastructure/secondary/formats/JsonMapFormat'
 import { PgnMapFormat } from './infrastructure/secondary/formats/PgnMapFormat';
 import { NominatimReverseGeocoder } from './infrastructure/secondary/geocoding/NominatimReverseGeocoder';
 import { PhotonPlaceSearch } from './infrastructure/secondary/geocoding/PhotonPlaceSearch';
+import { GoogleDriveLibraryCloud, loadGoogleIdentity } from './infrastructure/secondary/googledrive/GoogleDriveLibraryCloud';
+import { LocalStorageSyncState } from './infrastructure/secondary/googledrive/LocalStorageSyncState';
 import { LichessAnalysisBoard } from './infrastructure/secondary/lichess/LichessAnalysisBoard';
 import { LichessOpeningBook } from './infrastructure/secondary/openings/LichessOpeningBook';
 import { LocalStorageLibraryRepository } from './infrastructure/secondary/storage/LocalStorageLibraryRepository';
@@ -17,6 +19,9 @@ const storage = browserStorage();
 const pgn = new PgnMapFormat();
 // Dev server only: Firefox blocks the cross-origin geocoding requests from localhost, so go through the Vite proxy (vite.config.ts).
 const geoBase = (service: string): { baseUrl?: string } => (import.meta.env.DEV ? { baseUrl: `${import.meta.env.BASE_URL}proxy/${service}` } : {});
+
+// Opt-in Google Drive sync exists only in builds that have a client ID (VITE_GOOGLE_CLIENT_ID, public by design).
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 const app = new ChessMapApp({
   library: new LocalStorageLibraryRepository(storage),
@@ -31,11 +36,17 @@ const app = new ChessMapApp({
     writeClipboard: (text) => navigator.clipboard.writeText(text),
     writePgn: (map) => pgn.write(map),
   }),
+  ...(googleClientId && {
+    cloud: { cloud: new GoogleDriveLibraryCloud({ clientId: googleClientId, loadIdentity: loadGoogleIdentity() }), state: new LocalStorageSyncState(storage) },
+  }),
 });
 
 // Autosave is debounced: make sure the last change survives closing / reloading the tab.
 window.addEventListener('pagehide', () => app.flush());
-document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && app.flush());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') app.flush();
+  else app.cloudSync?.refresh();
+});
 
 // Load the stored library before any view reads the session; opening names and the root's place arrive later and notify.
 void app.start();

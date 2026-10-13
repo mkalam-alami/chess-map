@@ -3,6 +3,7 @@ import {
   type BoardShape, type Cursor, type DomainEvent, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place,
   type SavedView,
 } from '../domain';
+import { CloudSync, type CloudSyncPorts } from './CloudSync';
 import type {
   AnalysisBoard, FileSaver, LibraryRepository, MapFormat, MapFormatId, OpeningBook, PlaceHit, PlaceSearch, PreferenceStore, ReverseGeocoder,
 } from './ports';
@@ -17,6 +18,8 @@ export interface ChessMapPorts {
   formats: Record<MapFormatId, MapFormat>;
   files: FileSaver;
   analysis: AnalysisBoard;
+  /** Absent when no cloud is configured: sync is then unavailable. */
+  cloud?: CloudSyncPorts;
 }
 
 /** The domain events views react to (`positionPlaced` is handled here: it triggers reverse geocoding). */
@@ -46,7 +49,16 @@ export class ChessMapApp {
   /** Latest reverse-geocoding lookup per node. */
   private readonly lookups = new Map<NodeId, AbortController>();
 
-  constructor(private readonly ports: ChessMapPorts) {}
+  /** Opt-in cloud sync (see `CloudSync`); undefined when no cloud is configured. */
+  readonly cloudSync: CloudSync | undefined;
+
+  constructor(private readonly ports: ChessMapPorts) {
+    this.cloudSync = ports.cloud && new CloudSync(ports.cloud, {
+      library: () => this.current.library,
+      replaceLibrary: (library) => this.replaceLibrary(library),
+      changed: () => this.notify(),
+    });
+  }
 
   // ---- state ----
 
@@ -83,6 +95,7 @@ export class ChessMapApp {
     const library = this.ports.library.load() ?? Library.initial();
     this.current = Session.start(library, this.ports.preferences.loadMode());
     this.notify();
+    this.cloudSync?.start();
     const root = this.current.repertoire.node(this.current.repertoire.rootId);
     if (!root.place) void this.geocode(root.id, root.lngLat);
     return this.ports.openings.load().then(
@@ -306,11 +319,25 @@ export class ChessMapApp {
       if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
       this.redoStack = [];
     }
-    if (next.library !== prev.library) this.ports.library.save(next.library);
+    if (next.library !== prev.library) {
+      this.ports.library.save(next.library);
+      this.cloudSync?.localChanged();
+    }
     if (opts.remember && next.mode !== prev.mode) this.ports.preferences.saveMode(next.mode);
     for (const e of next.events) this.dispatch(e);
     if (opts.notify !== false) this.notify();
     return next;
+  }
+
+  /** The cloud's library replaces ours (not a user action: it is not sent back to the cloud). Back to the first board of the active map. */
+  private replaceLibrary(library: Library): void {
+    this.current = Session.start(library, this.current.mode);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.ports.library.save(library);
+    this.ports.library.flush();
+    for (const e of this.current.events) this.dispatch(e);
+    this.notify();
   }
 
   private dispatch(e: DomainEvent): void {

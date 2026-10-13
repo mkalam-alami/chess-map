@@ -5,3 +5,11 @@ export class ImportError extends Error {
     this.name = 'ImportError';
   }
 }
+
+/** The cloud refuses the stored sign-in (expired, revoked, never granted): the user has to connect again. */
+export class CloudAuthError extends Error {
+  constructor(message = 'Not signed in') {
+    super(message);
+    this.name = 'CloudAuthError';
+  }
+}

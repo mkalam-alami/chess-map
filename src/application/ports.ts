@@ -59,3 +59,37 @@ export interface AnalysisBoard {
   /** 'opened': the position was opened directly; 'copied': the PGN went to the clipboard. Rejects when the clipboard fails. */
   open(map: Repertoire, cursor: Cursor): Promise<'opened' | 'copied'>;
 }
+
+/** What cloud sync remembers between visits; it exists exactly while sync is enabled. */
+export interface SyncState {
+  /** The cloud copy's version the local library was last in sync with; null before the first sync. */
+  version: string | null;
+  /** The local library changed since then. */
+  dirty: boolean;
+}
+
+export interface SyncStateStore {
+  load(): SyncState | null;
+  /** Null when sync is turned off. */
+  save(state: SyncState | null): void;
+}
+
+/** The library as stored in the cloud; `version` changes whenever someone writes it (opaque, only compared for equality). */
+export interface RemoteLibrary {
+  library: Library;
+  version: string;
+}
+
+/** One private copy of the library in the user's own cloud storage, for keeping browsers in sync. */
+export interface LibraryCloud {
+  /** Signs in; opens a consent window, so call it from a user gesture. Rejects when declined. */
+  connect(): Promise<void>;
+  /** Signs in again without any window. False when that needs the user (then call `connect`). */
+  resume(): Promise<boolean>;
+  /** Signs out and revokes the access. Never rejects. */
+  disconnect(): Promise<void>;
+  /** The cloud copy; null when there is none yet. Rejects with `CloudAuthError` when signed out, or on any other failure. */
+  pull(): Promise<RemoteLibrary | null>;
+  /** Replaces the cloud copy and returns its new version. Rejects like `pull`. */
+  push(library: Library): Promise<string>;
+}
