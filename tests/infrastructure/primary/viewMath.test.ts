@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOMINAL_PX } from '../../../src/domain';
-import { boardPx, comfortPx, focusZoom, gripResize, maxZoomToFit } from '../../../src/infrastructure/primary/map/viewMath';
+import { boardPx, focusZoom, gripResize, mobileFocusPx } from '../../../src/infrastructure/primary/map/viewMath';
 
 describe('boardPx', () => {
   const view = { width: 1280, height: 630 };
@@ -17,23 +17,16 @@ describe('boardPx', () => {
 });
 
 describe('focus zoom', () => {
-  it('comfort size follows the desktop and mobile formulas', () => {
-    expect(comfortPx({ width: 1280, height: 720 }, false)).toBeCloseTo(302.4);
-    expect(comfortPx({ width: 3000, height: 3000 }, false)).toBe(480);
-    expect(comfortPx({ width: 375, height: 667 }, true)).toBeCloseTo(306.82);
+  it('mobile board leaves room for the navigation buttons, and stays in the upper part of tall screens', () => {
+    expect(mobileFocusPx({ width: 375, height: 667 })).toBeCloseTo(279);
+    expect(mobileFocusPx({ width: 600, height: 700 })).toBeCloseTo(322);
   });
-  it('focusZoom puts the board at comfort size unless children force zooming out', () => {
-    const o = { boardZoom: 1.5, comfort: 640, fit: Infinity, minZoom: 0, maxZoom: 22 };
+  it('focusZoom puts the board at the requested width within the camera limits', () => {
+    const o = { boardZoom: 1.5, px: 640, minZoom: 0, maxZoom: 22 };
     expect(focusZoom(o)).toBeCloseTo(2.5);
     expect(focusZoom({ ...o, boardZoom: 4.5 })).toBeCloseTo(5.5); // smaller sub-board: zoom in
-    expect(focusZoom({ ...o, fit: 1.2 })).toBe(1.2);
-    expect(focusZoom({ ...o, fit: -3 })).toBe(0);
+    expect(focusZoom({ ...o, boardZoom: -9 })).toBe(0);
     expect(focusZoom({ ...o, boardZoom: 30 })).toBe(22);
-  });
-  it('maxZoomToFit limits by the farthest child', () => {
-    expect(maxZoomToFit([], 100, 100)).toBe(Infinity);
-    const z = maxZoomToFit([{ dx: 0.1, dy: 0 }, { dx: 0, dy: 0.05 }], 400, 200);
-    expect(z).toBeCloseTo(Math.min(Math.log2(400 / 51.2), Math.log2(200 / 25.6)));
   });
 });
 

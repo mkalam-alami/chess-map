@@ -7,6 +7,8 @@ test('drag a board alone or with its branch, then move it to a city', async ({ p
   await app.buildTwoLevels();
   await map.enter(); // at 1.e4, which has a child
   await board.settled();
+  await map.zoomIn(); // entering a board only centers it
+  await board.settled();
 
   const s0 = await app.snapshot();
   await board.drag(-140, 60);

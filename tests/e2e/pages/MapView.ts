@@ -24,6 +24,18 @@ export class MapView {
   /** Clicks the label of a pin, which enters it. */
   enter = (index = 0) => this.pinLabel(index).click();
 
+  /** Zooms the camera in and centers the board (selecting a board no longer zooms by itself, and a small board hides its buttons). */
+  async zoomIn(levels = 1): Promise<void> {
+    await this.page.evaluate((n) => {
+      type Debug = { map: { getZoom(): number; unproject(p: [number, number]): unknown; easeTo(o: object): void } };
+      const d = (window as unknown as { __chessMap: Debug }).__chessMap;
+      const box = document.querySelector('[data-testid="board-card"]')?.getBoundingClientRect();
+      if (!box) return;
+      const center = d.map.unproject([box.x + box.width / 2, box.y + box.height / 2]);
+      d.map.easeTo({ zoom: d.map.getZoom() + n, center, duration: 0 });
+    }, levels);
+  }
+
   /** Drags on empty map from (60, 300), which pans it. */
   async pan(): Promise<void> {
     await this.page.mouse.move(60, 300);

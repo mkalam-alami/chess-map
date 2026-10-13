@@ -201,7 +201,7 @@ primary/
                     useApp, useViewState, atom), actions.ts (file import, "open in Lichess" with their toasts), dom helpers
   map/              MapLibre view, board marker (chessground), pins, curves, drag + dragPreview, placing ghost,
                     relocation ghost, board sizer, presentation math (viewMath: boardPx, focusZoom, gripResize,
-                    comfortPx, maxZoomToFit; curves: curveCoords; spawn: spawnAngles)
+                    mobileFocusPx; curves: curveCoords; spawn: spawnAngles)
 ```
 
 Components get the app and the `ViewState` from a Preact context (`AppContext`, provided by `mountUi`):

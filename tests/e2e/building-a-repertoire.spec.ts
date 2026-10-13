@@ -21,6 +21,8 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
 
   // Deleting asks first.
   await map.enter(0);
+  await board.settled();
+  await map.zoomIn(); // entering a board only centers it, and a small board hides its buttons
   await board.delete.click();
   await dialog.cancel.click();
   expect(await app.nodeCount()).toBe(3);

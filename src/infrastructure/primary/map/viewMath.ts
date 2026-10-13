@@ -11,28 +11,18 @@ export function boardPx(mapZoom: number, boardZoom: number, view: Viewport, minP
   return Math.min(hi, Math.max(minPx, raw));
 }
 
-/** The comfortable board size after focusing (desktop / mobile formulas). */
-export function comfortPx(view: Viewport, mobile: boolean): number {
-  return mobile ? Math.min(0.86 * view.width, 0.46 * view.height) : Math.max(240, Math.min(480, 0.26 * view.width, 0.42 * view.height));
+/** Room the back / forward buttons take beside the board: two buttons of 36px, their 6px margins and some slack. */
+const NAV_BUTTONS_PX = 96;
+
+/** Mobile board width after focusing: as large as fits next to the back / forward buttons (and the lower half of the screen). */
+export function mobileFocusPx(view: Viewport): number {
+  return Math.min(view.width - NAV_BUTTONS_PX, 0.46 * view.height);
 }
 
-/**
- * Highest zoom at which child offsets (Mercator units, 1 = whole world) stay within
- * `halfW` / `halfH` pixels of the board centre. Infinity when there are none.
- */
-export function maxZoomToFit(offsets: { dx: number; dy: number }[], halfW: number, halfH: number): number {
-  let z = Infinity;
-  for (const { dx, dy } of offsets) {
-    if (dx > 0) z = Math.min(z, Math.log2(halfW / (512 * dx)));
-    if (dy > 0) z = Math.min(z, Math.log2(halfH / (512 * dy)));
-  }
-  return z;
-}
-
-/** Zoom to use on focus: the board at its comfortable size, zoomed out if the children would not fit. */
-export function focusZoom(o: { boardZoom: number; comfort: number; fit: number; minZoom: number; maxZoom: number }): number {
-  const target = o.boardZoom + Math.log2(o.comfort / NOMINAL_PX);
-  return Math.min(o.maxZoom, Math.max(o.minZoom, Math.min(target, o.fit)));
+/** Zoom that renders a board of zoom `boardZoom` at `px` wide, within the camera limits. */
+export function focusZoom(o: { boardZoom: number; px: number; minZoom: number; maxZoom: number }): number {
+  const target = o.boardZoom + Math.log2(o.px / NOMINAL_PX);
+  return Math.min(o.maxZoom, Math.max(o.minZoom, target));
 }
 
 /**
