@@ -85,7 +85,7 @@ E2E is the slowest layer, so it is kept to **one journey test per major feature*
 
 ## Deploy
 
-Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflows/deploy.yml` (Node 20). Anything merged to `main` goes live, so keep `npm run build` green.
+Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflows/deploy.yml` (Node 24). Anything merged to `main` goes live, so keep `npm run build` green.
 
 ## Docs
 
