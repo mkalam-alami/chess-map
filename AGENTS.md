@@ -13,7 +13,7 @@ npm run build       # typecheck + vite build to dist/
 npm run e2e         # Playwright (tests/e2e); builds and serves on :4173 first
 ```
 
-Before finishing a change, run `npm run typecheck` and `npm test` (this includes `tests/architecture.test.ts`, which enforces the layer rules). Run `npm run e2e` when touching UI, map interaction or the application wiring (see *E2E tests* below: they are slow and kept few). Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright.
+Before finishing a change, run `npm run typecheck` and `npm test` (this includes `tests/architecture.test.ts`, which enforces the layer rules). Run `npm run e2e` when touching UI, map interaction or the application wiring (see *E2E tests* below: they are slow and kept few). Set `CHROMIUM_PATH` to use a custom Chromium binary for Playwright (without it, `playwright.config.ts` falls back to a Chromium found in `PLAYWRIGHT_BROWSERS_PATH` when the expected build is missing).
 
 ## Architecture
 
