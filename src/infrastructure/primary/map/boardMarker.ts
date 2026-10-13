@@ -217,7 +217,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     place.disabled = s.mode !== 'edit';
     place.title = s.mode === 'edit' ? 'Set location by city (L)' : placeSpan.textContent;
     prev.hidden = !m.back(s.cursor);
-    next.hidden = s.future.length === 0;
+    next.hidden = !s.forwardTarget();
     const shapes = shapesNow();
     eraser.hidden = shapes.length === 0;
     trash.style.visibility = node.parentId === null ? 'hidden' : '';

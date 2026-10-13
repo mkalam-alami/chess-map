@@ -141,11 +141,16 @@ export class Session {
    * (no branching inside a segment), so it advances there even if the line was never visited.
    * Emits `deadEnd` (and keeps the cursor) otherwise.
    */
-  forward(): Session {
-    if (this.busy) return this;
+  /** Where `forward` would go, if anywhere: the single source of truth for the key and the board's forward button. */
+  forwardTarget(): Cursor | undefined {
     const { nodeId, played } = this.cursor;
     const inSegment = played < this.repertoire.node(nodeId).moves.length ? { nodeId, played: played + 1 } : undefined;
-    const c = this.future[0] ?? inSegment;
+    return this.future[0] ?? inSegment;
+  }
+
+  forward(): Session {
+    if (this.busy) return this;
+    const c = this.forwardTarget();
     return c ? this.goTo(c, { keepSize: true }) : this.next({}, [{ type: 'deadEnd' }]);
   }
 

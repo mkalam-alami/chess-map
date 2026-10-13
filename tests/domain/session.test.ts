@@ -117,6 +117,14 @@ describe('navigating', () => {
     expect(types(f.forward().forward())).toEqual(['deadEnd']);
   });
 
+  it('forwardTarget is defined exactly when forward would move', () => {
+    const p = pinnedOf(['e4', 'e5']);
+    const id = p.session.repertoire.node(p.session.repertoire.rootId).children[0] as string;
+    const s = exploreSession(p.session.repertoire).goTo({ nodeId: id, played: 1 });
+    expect(s.forwardTarget()).toEqual({ nodeId: id, played: 2 });
+    expect(s.forward().forwardTarget()).toBeUndefined();
+  });
+
   it('stepping back keeps the line just left, and forward walks it again', () => {
     const t = treeOf({ e4: { e5: {} }, d4: {} });
     const e4 = { nodeId: t.id('e4'), played: 1 };
