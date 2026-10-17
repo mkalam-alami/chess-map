@@ -20,7 +20,7 @@ describe('focus zoom', () => {
   it('comfort size follows the desktop and mobile formulas', () => {
     expect(comfortPx({ width: 1280, height: 720 }, false)).toBeCloseTo(302.4);
     expect(comfortPx({ width: 3000, height: 3000 }, false)).toBe(480);
-    expect(comfortPx({ width: 375, height: 667 }, true)).toBeCloseTo(306.82);
+    expect(comfortPx({ width: 375, height: 667 }, true)).toBe(283);
   });
   it('focusZoom puts the board at comfort size unless children force zooming out', () => {
     const o = { boardZoom: 1.5, comfort: 640, fit: Infinity, minZoom: 0, maxZoom: 22 };

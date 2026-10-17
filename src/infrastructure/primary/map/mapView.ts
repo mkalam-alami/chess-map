@@ -46,9 +46,6 @@ function hideCountryLabelsWhenFar(map: maplibregl.Map): void {
   }
 }
 
-/** A two-finger gesture pans too, but it is a pinch/zoom, not the user leaving the board. */
-const isPinch = (e: Event | undefined): boolean => !!e && 'touches' in e && (e as TouchEvent).touches.length > 1;
-
 export function createMapView(container: HTMLElement, app: ChessMapApp, vs: ViewState): maplibregl.Map {
   const view = viewOfActive(app);
   // Lazy: the bundled plugin is only fetched once a tile contains right-to-left text (Arabic, Hebrew...).
@@ -92,10 +89,7 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
   });
 
   // Centered mode: zooming keeps the board in the middle; panning the map leaves it.
-  map.on('dragstart', (e) => {
-    vs.setCentered(false);
-    if (!isPinch(e.originalEvent)) vs.closeBoard();
-  });
+  map.on('dragstart', () => vs.setCentered(false));
   map.on('boxzoomend', () => vs.setCentered(false));
   // Clicking the bare map drops the board's focus. Markers and controls own their clicks (a pin click focuses, so it must not close).
   // Registered before the placing click handler so a click that drops a pin is still seen as busy and ignored.

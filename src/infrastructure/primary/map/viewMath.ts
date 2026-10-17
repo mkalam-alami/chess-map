@@ -11,9 +11,12 @@ export function boardPx(mapZoom: number, boardZoom: number, view: Viewport, minP
   return Math.min(hi, Math.max(minPx, raw));
 }
 
-/** The comfortable board size after focusing (desktop / mobile formulas). */
+/** Width taken on each side of the board by a back / forward button (36px + 6px margin) plus a small screen margin. */
+const NAV_SIDE_PX = 46;
+
+/** The comfortable board size after focusing (desktop / mobile formulas). On mobile the board just fits the width with its back / forward buttons visible. */
 export function comfortPx(view: Viewport, mobile: boolean): number {
-  return mobile ? Math.min(0.86 * view.width, 0.46 * view.height) : Math.max(240, Math.min(480, 0.26 * view.width, 0.42 * view.height));
+  return mobile ? Math.min(view.width - 2 * NAV_SIDE_PX, 0.46 * view.height) : Math.max(240, Math.min(480, 0.26 * view.width, 0.42 * view.height));
 }
 
 /**
