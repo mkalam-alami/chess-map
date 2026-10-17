@@ -19,23 +19,10 @@ export function comfortPx(view: Viewport, mobile: boolean): number {
   return mobile ? Math.min(view.width - 2 * NAV_SIDE_PX, 0.46 * view.height) : Math.max(240, Math.min(480, 0.26 * view.width, 0.42 * view.height));
 }
 
-/**
- * Highest zoom at which child offsets (Mercator units, 1 = whole world) stay within
- * `halfW` / `halfH` pixels of the board centre. Infinity when there are none.
- */
-export function maxZoomToFit(offsets: { dx: number; dy: number }[], halfW: number, halfH: number): number {
-  let z = Infinity;
-  for (const { dx, dy } of offsets) {
-    if (dx > 0) z = Math.min(z, Math.log2(halfW / (512 * dx)));
-    if (dy > 0) z = Math.min(z, Math.log2(halfH / (512 * dy)));
-  }
-  return z;
-}
-
-/** Zoom to use on focus: the board at its comfortable size, zoomed out if the children would not fit. */
-export function focusZoom(o: { boardZoom: number; comfort: number; fit: number; minZoom: number; maxZoom: number }): number {
+/** Zoom to use on focus: the board at its comfortable size. */
+export function focusZoom(o: { boardZoom: number; comfort: number; minZoom: number; maxZoom: number }): number {
   const target = o.boardZoom + Math.log2(o.comfort / NOMINAL_PX);
-  return Math.min(o.maxZoom, Math.max(o.minZoom, Math.min(target, o.fit)));
+  return Math.min(o.maxZoom, Math.max(o.minZoom, target));
 }
 
 /**

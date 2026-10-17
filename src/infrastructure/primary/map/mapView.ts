@@ -8,7 +8,7 @@ import 'chessground/assets/chessground.cburnett.css';
 import { wrapNear, type LngLat, type SavedView } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
-import { comfortPx, focusZoom, maxZoomToFit, type Viewport } from './viewMath';
+import { comfortPx, focusZoom, type Viewport } from './viewMath';
 
 export const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 export const INITIAL_ZOOM = 1.2;
@@ -145,34 +145,12 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
   return map;
 }
 
-const mercY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360)) / (2 * Math.PI);
-
-/** Highest zoom at which all child pins of the cursor node stay in the visible area around the node. */
-function fitZoom(map: maplibregl.Map, app: ChessMapApp): number {
-  const m = app.session.repertoire;
-  const { cursor } = app.session;
-  const node = m.node(cursor.nodeId);
-  if (cursor.played !== node.moves.length) return Infinity;
-  const view = visibleSize(map);
-  const halfW = Math.max(40, view.width / 2 - 80);
-  const halfH = Math.max(40, view.height / 2 - 30);
-  const offsets = node.children.map((id) => {
-    const ll = m.node(id).lngLat;
-    return {
-      dx: Math.abs(wrapNear(ll[0], node.lngLat[0]) - node.lngLat[0]) / 360,
-      dy: Math.abs(mercY(ll[1]) - mercY(node.lngLat[1])),
-    };
-  });
-  return maxZoomToFit(offsets, halfW, halfH);
-}
-
-/** Zoom that shows the cursor's board at its comfortable size (zooming in or out), unless its children would not fit. */
+/** Zoom that shows the cursor's board at its comfortable size (zooming in or out). */
 function targetZoom(map: maplibregl.Map, app: ChessMapApp): number {
   const { cursor, repertoire } = app.session;
   return focusZoom({
     boardZoom: repertoire.effectiveBoardZoom(cursor.nodeId),
     comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, isMobile()),
-    fit: fitZoom(map, app),
     minZoom: map.getMinZoom(),
     maxZoom: map.getMaxZoom(),
   });
