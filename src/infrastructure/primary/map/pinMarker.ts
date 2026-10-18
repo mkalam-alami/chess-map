@@ -32,11 +32,9 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     if (vs.overview && !vs.boardOpen) return out.set(m.rootId, 'root'); // no board: the last cursor highlights nothing, every pin keeps its default look
     const path = m.pathTo(node.id);
     for (const id of vs.overview ? path : path.slice(-3)) out.set(id, id === m.rootId ? 'root' : 'ancestor'); // outside the overview, only 2 markers back (+ the cursor's own)
-    if (s.cursor.played === node.moves.length) {
-      for (const c of node.children) {
-        out.set(c, 'child');
-        if (!vs.overview) for (const g of m.node(c).children) out.set(g, 'child'); // 2 away: shown as a small circle, nothing further
-      }
+    for (const c of node.children) { // the next markers show wherever the cursor is inside a multi-move marker
+      out.set(c, 'child');
+      if (!vs.overview) for (const g of m.node(c).children) out.set(g, 'child'); // 2 away: shown as a small circle, nothing further
     }
     // Notes pinned by the user are landmarks: shown (faded like the overview) whatever the overview toggle says.
     for (const n of m.nodes()) if (n.noteShown && n.note && !out.has(n.id)) out.set(n.id, 'overview');

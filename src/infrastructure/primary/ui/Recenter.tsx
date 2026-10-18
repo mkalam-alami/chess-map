@@ -38,7 +38,7 @@ export function MapShortcuts({ map }: { map: maplibregl.Map }) {
         <Icon name="crosshair" />
         <span class="label">Back to board</span>
       </button>
-      <button type="button" class="recenter" data-testid="show-next-moves" disabled={busy} hidden={!view.boardOpen || !node.children.length || cursor.played < node.moves.length} title="Show all the next moves" onClick={toChildren}>
+      <button type="button" class="recenter" data-testid="show-next-moves" disabled={busy} hidden={!view.boardOpen || !node.children.length} title="Show all the next moves" onClick={toChildren}>
         <Icon name="expand" />
         <span class="label">Next moves</span>
       </button>

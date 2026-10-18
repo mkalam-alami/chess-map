@@ -7,14 +7,13 @@ import { mercY, type FitPoint } from './viewMath';
 const PIN_ROOM = { mx: 0, my: 0 };
 
 /**
- * The markers to frame around the board at `nodeId` / `played`: its direct children (only when the cursor is at the end of its
- * moves, since the children hang off the end), and with `pinnedNotes` also every marker, anywhere in the map, whose note is pinned
+ * The markers to frame around the board at `nodeId`: its direct children, and with `pinnedNotes` also every marker, anywhere in the map, whose note is pinned
  * (the starting position wants those landmarks; framing the next moves of a board does not).
  * Offsets are signed, in world units, from the board, along the shortest way round the globe.
  */
-export function framingPoints(rep: Repertoire, nodeId: NodeId, played: number, opts: { pinnedNotes: boolean }): FitPoint[] {
+export function framingPoints(rep: Repertoire, nodeId: NodeId, opts: { pinnedNotes: boolean }): FitPoint[] {
   const node = rep.node(nodeId);
-  const ids = new Set<NodeId>(played === node.moves.length ? node.children : []);
+  const ids = new Set<NodeId>(node.children);
   if (opts.pinnedNotes) for (const n of rep.nodes()) if (n.noteShown && n.note) ids.add(n.id);
   ids.delete(nodeId);
   return [...ids].map((id) => {

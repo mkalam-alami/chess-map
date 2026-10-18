@@ -225,7 +225,7 @@ export function focusOnBoardWithMarkers(map: maplibregl.Map, app: ChessMapApp, o
   const bz = m.effectiveBoardZoom(node.id);
   const comfort = comfortPx({ width: window.innerWidth, height: window.innerHeight }, true);
   const fit = fitAround({
-    points: framingPoints(m, node.id, cursor.played, opts),
+    points: framingPoints(m, node.id, opts),
     boardHalf: (zoom) => {
       const half = boardPx(zoom, bz, view, minBoardPx()) / 2;
       return { x: half, y: half };

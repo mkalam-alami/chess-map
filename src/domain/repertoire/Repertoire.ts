@@ -8,6 +8,9 @@ import {
 } from './tree';
 import type { BoardShape, ChessMapData, Cursor, MapId, MapNodeData, NodeId, Orientation, SavedView } from './types';
 
+/** A marker spells out its whole segment up to this many moves; longer ones show the first and last move around an ellipsis. */
+const PIN_LABEL_MOVES = 3;
+
 /**
  * One chess map: a tree of positions. Immutable and read-only: it only answers queries. Changes are made through
  * `Session` actions, which apply the package-private `commands` (they only enforce tree integrity; `Session` owns the
@@ -105,7 +108,11 @@ export class Repertoire {
   pinLabel(nodeId: NodeId): string {
     const node = this.node(nodeId);
     if (node.parentId === null) return '♟';
-    const first = moveLabel(this.firstMoveIndex(nodeId), node.moves[0] as string);
-    return node.moves.length > 1 ? `${first} … (+${node.moves.length - 1})` : first;
+    const start = this.firstMoveIndex(nodeId);
+    const numbered = (i: number): string => moveLabel(start + i, node.moves[i] as string);
+    // Consecutive moves read as PGN: only the first and White's moves carry a number.
+    const run = (i: number): string => (i > 0 && (start + i) % 2 === 1 ? (node.moves[i] as string) : numbered(i));
+    if (node.moves.length > PIN_LABEL_MOVES) return `${numbered(0)} … ${numbered(node.moves.length - 1)}`;
+    return node.moves.map((_, i) => run(i)).join(' ');
   }
 }

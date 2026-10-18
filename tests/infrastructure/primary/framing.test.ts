@@ -8,26 +8,22 @@ const rep = session.repertoire;
 
 describe('framingPoints', () => {
   it('takes the direct children only, not deeper boards', () => {
-    expect(framingPoints(rep, rep.rootId, 0, { pinnedNotes: false })).toHaveLength(2);
-    expect(framingPoints(rep, id('e4'), 1, { pinnedNotes: false })).toHaveLength(1);
-  });
-
-  it('has no children to frame in the middle of a segment', () => {
-    expect(framingPoints(rep, id('e4'), 0, { pinnedNotes: false })).toEqual([]);
+    expect(framingPoints(rep, rep.rootId, { pinnedNotes: false })).toHaveLength(2);
+    expect(framingPoints(rep, id('e4'), { pinnedNotes: false })).toHaveLength(1);
   });
 
   it('adds the markers with a pinned note anywhere in the map only when asked', () => {
     const far = session.annotate(id('e4 e5'), 'far away').showNote(id('e4 e5'), true).repertoire;
-    expect(framingPoints(far, rep.rootId, 0, { pinnedNotes: false })).toHaveLength(2);
-    const withNotes = framingPoints(far, rep.rootId, 0, { pinnedNotes: true });
+    expect(framingPoints(far, rep.rootId, { pinnedNotes: false })).toHaveLength(2);
+    const withNotes = framingPoints(far, rep.rootId, { pinnedNotes: true });
     expect(withNotes).toHaveLength(3);
     expect(withNotes.every((p) => p.mx === 0 && p.my === 0)).toBe(true); // only the anchors are framed, notes and pin size included
   });
 
   it('measures offsets from the board, the short way round the globe', () => {
-    const [p] = framingPoints(rep, rep.rootId, 0, { pinnedNotes: false });
+    const [p] = framingPoints(rep, rep.rootId, { pinnedNotes: false });
     expect(p?.dx).toBeCloseTo(1 / 360, 9);
     const wrapped = session.relocate(id('e4'), [179, 0]).relocate(rep.rootId, [-179, 0]).repertoire;
-    expect(framingPoints(wrapped, wrapped.rootId, 0, { pinnedNotes: false }).find((q) => Math.abs(q.dx) > 0.001)?.dx).toBeCloseTo(-2 / 360, 9);
+    expect(framingPoints(wrapped, wrapped.rootId, { pinnedNotes: false }).find((q) => Math.abs(q.dx) > 0.001)?.dx).toBeCloseTo(-2 / 360, 9);
   });
 });

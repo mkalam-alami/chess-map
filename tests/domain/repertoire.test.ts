@@ -126,7 +126,9 @@ describe('positions', () => {
     const p = pinnedOf(['e4', 'e5', 'Nf3']);
     const pr = p.session.repertoire;
     expect(pr.pinLabel(pr.rootId)).toBe('♟');
-    expect(pr.pinLabel(p.id)).toBe('1.e4 … (+2)');
+    expect(pr.pinLabel(p.id)).toBe('1.e4 e5 2.Nf3');
+    const long = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']).session.repertoire;
+    expect(long.pinLabel(long.node(long.rootId).children[0] as string)).toBe('1.e4 … 2…Nc6'); // more than 3 moves: first … last
     expect(pr.firstMoveIndex(pr.rootId)).toBe(0);
     expect(r.pinLabel(e5.nodeId)).toBe('1…e5');
     expect(r.firstMoveIndex(e5.nodeId)).toBe(1);
