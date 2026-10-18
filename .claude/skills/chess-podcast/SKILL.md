@@ -18,9 +18,16 @@ Produire un script en français, destiné à être lu par le TTS de l'appli Clau
 - Pas d'introduction, de « bienvenue », de transition décorative ni d'outro : uniquement du contenu pédagogique. Pas d'interpellation de l'auditeur (« prenez le temps de visualiser », « à vous de trouver »…).
 - Conclure le thème par une règle courte et mémorisable, pas par un résumé des coups.
 
+## Découpage en parties
+
+- **Un message = une partie = un seul grand exemple exploré** (une position, de la position de départ jusqu'à son bilan). Annoncer le nombre total de parties dès le premier message et s'y tenir.
+- Chaque partie s'écoute **indépendamment** : nommer l'ouverture et le thème au début, ne jamais renvoyer à une autre partie (« dernier exemple », « comme on l'a vu », « dans la partie suivante »…), et lier son bilan au thème.
+- Ne produire qu'une partie par réponse ; la suivante vient quand l'utilisateur la demande (« suite », « continue »…).
+- Une partie qui n'est pas la dernière se termine par une ligne seule `(partie 1 sur 3)` (numéro et total réels). La dernière partie se termine par la règle du thème puis uniquement par une ligne `(fin)`.
+
 ## Présentation de chaque position
 
-- Repartir **à chaque fois de la position initiale** : « La Scandinave. Position de départ. » puis toute la séquence depuis le premier coup.
+- Repartir **à chaque fois de la position initiale** : « La Scandinave. Thème : la dame sortie trop tôt. Position de départ. » puis toute la séquence depuis le premier coup.
 - Annoncer chaque coup par son numéro en toutes lettres : « Premier coup. », « Deuxième coup. »…
 - **À partir du deuxième coup, chaque demi-coup est suivi d'un court commentaire** sur son effet concret : défense, menace, pièce capturée, clouage, gain de temps, case libérée, roque empêché…
 - Quand un camp **ignore une menace**, le dire et expliquer pourquoi (contre-attaque, menace plus forte, échange forcé). Ex. : un fou qui prend un cavalier en attaquant à son tour la dame adverse, alors que sa propre dame est attaquée.
@@ -40,7 +47,7 @@ Produire un script en français, destiné à être lu par le TTS de l'appli Clau
 ## Exemple de référence
 
 ```text
-Dernier exemple. La Scandinave. Position de départ.
+La Scandinave. Thème : la dame sortie trop tôt. Position de départ.
 
 …
 
@@ -161,4 +168,6 @@ Dixième coup. Roi E_2. Le roi libère la première rangée. La dame D_1 protèg
 …
 
 Bilan. Les blancs ont toutes leurs pièces sorties et un centre solide. La dame noire est seule en territoire adverse, sans soutien. Une dame seule fait du bruit, mais elle ne mate pas.
+
+(partie 2 sur 3)
 ```
