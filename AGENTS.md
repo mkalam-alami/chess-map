@@ -93,10 +93,12 @@ Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflow
 
 ## Pushing to main
 
-When told to push to `main`, treat it as the end of the work:
+Use `scripts/ship.sh` (`npm run ship -- -m "fix: one-line message"`) whenever you are told to push to `main`, instead of writing ad-hoc git / `gh` commands. It commits pending changes (single-line message, no trailers), fetches and rebases on `origin/main`, runs typecheck + tests + build on the rebased code, pushes `HEAD` to `main` (retried), finds the pipeline run of the pushed commit and waits until it resolves, then deletes the working branch. It exits non-zero, with the failed log, if anything fails; it is safe to re-run (with nothing new to push it just follows the pipeline of `main`). Options: `--skip-checks`, `--e2e`, `--keep-branch`, `--timeout SECS`, see `--help`. Extend the script rather than bypassing it when it lacks something.
 
-- Push straight to `main` (fast-forward after fetching it), then delete every working branch involved, local and remote, and stop pushing to or keeping them up to date. Work on `main` from then on.
-- The deploy pipeline (`.github/workflows/deploy.yml`) must be followed until it succeeds before reporting back as done: look up the run for the pushed commit, wait for it to finish, and report its outcome with the run link. If it fails, fix it and push again; never report "pushed" as "done".
+The rules behind it, if you must act by hand:
+
+- Push straight to `main` (fast-forward after fetching it), then delete every working branch involved, local and remote, and stop pushing to or keeping them up to date. Work on `main` from then on. The git proxy may refuse remote branch deletion: say so in the report so the user can delete it.
+- The deploy pipeline (`.github/workflows/deploy.yml`) must be followed until it succeeds before reporting back as done: wait for the run of the pushed commit and report its outcome with the run link. If it fails, fix it and push again; never report "pushed" as "done".
 
 ## Commits
 

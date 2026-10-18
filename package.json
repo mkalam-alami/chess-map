@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run --no-isolate",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
