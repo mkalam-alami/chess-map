@@ -32,7 +32,12 @@ const app = new ChessMapApp({
   formats: { json: new JsonMapFormat(), pgn },
   files: new DownloadFileSaver(),
   analysis: new LichessAnalysisBoard({
-    open: (url) => void window.open(url, '_blank', 'noopener'),
+    // Fixed tab name: every Lichess link reuses the same tab. `noopener` would force a fresh tab (the name is ignored), so keep the handle to focus it.
+    open: (url) => {
+      const tab = window.open(url, 'chess-map-lichess');
+      if (tab) tab.opener = null;
+      tab?.focus();
+    },
     writeClipboard: (text) => navigator.clipboard.writeText(text),
     writePgn: (map) => pgn.write(map),
   }),

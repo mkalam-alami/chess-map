@@ -30,8 +30,14 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const out = new Map<NodeId, Kind>();
     if (vs.overview) for (const n of m.nodes()) out.set(n.id, 'overview');
     if (vs.overview && !vs.boardOpen) return out.set(m.rootId, 'root'); // no board: the last cursor highlights nothing, every pin keeps its default look
-    for (const id of m.pathTo(node.id)) out.set(id, id === m.rootId ? 'root' : 'ancestor');
-    if (s.cursor.played === node.moves.length) for (const c of node.children) out.set(c, 'child');
+    const path = m.pathTo(node.id);
+    for (const id of vs.overview ? path : path.slice(-3)) out.set(id, id === m.rootId ? 'root' : 'ancestor'); // outside the overview, only 2 markers back (+ the cursor's own)
+    if (s.cursor.played === node.moves.length) {
+      for (const c of node.children) {
+        out.set(c, 'child');
+        if (!vs.overview) for (const g of m.node(c).children) out.set(g, 'child'); // 2 away: shown as a small circle, nothing further
+      }
+    }
     // Notes pinned by the user are landmarks: shown (faded like the overview) whatever the overview toggle says.
     for (const n of m.nodes()) if (n.noteShown && n.note && !out.has(n.id)) out.set(n.id, 'overview');
     out.delete(node.id); // the board stands there
@@ -88,9 +94,9 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
     const pulse = vs.pulse !== lastPulse;
     lastPulse = vs.pulse;
     const editing = app.session.mode === 'edit';
-    // Overview: the further from the cursor (in markers), the smaller the pin.
-    const dist = vs.overview && vs.boardOpen ? m.distancesFrom(app.session.cursor.nodeId) : null;
-    const farthest = vs.overview && !vs.boardOpen; // nothing to measure from: all pins in the most distant state
+    // Direct neighbours of the cursor keep the full label, everything further is a small circle.
+    const dist = vs.boardOpen || !vs.overview ? m.distancesFrom(app.session.cursor.nodeId) : null;
+    const farthest = vs.overview && !vs.boardOpen; // nothing to measure from: all pins are circles
     const shown = (n: { noteShown?: boolean; note?: string }): boolean => !!n.noteShown && !!n.note;
     for (const [id, kind] of want) {
       const node = m.node(id);
@@ -110,10 +116,9 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
       e.noteBox.textContent = shown(node) ? (node.note as string) : '';
       e.root.classList.remove('pin-child', 'pin-ancestor', 'pin-root', 'pin-overview');
       e.root.classList.add('pin', `pin-${kind}`);
-      const d = farthest ? (kind === 'root' ? 0 : 5) : dist?.get(id) ?? 0; // the start marker keeps its icon
+      const d = farthest ? (kind === 'root' ? 0 : 2) : dist?.get(id) ?? 0; // the start marker keeps its icon
       e.root.classList.toggle('pin-black', m.firstMoveIndex(id) % 2 === 1); // played by Black
-      e.root.classList.toggle('pin-d2', d === 3 || d === 4);
-      e.root.classList.toggle('pin-d5', d >= 5);
+      e.root.classList.toggle('pin-far', d >= 2);
       e.root.classList.toggle('editable', editing);
       e.root.classList.toggle('relocating', app.session.relocating?.nodeId === id);
       e.root.dataset.testid = TESTID[kind];
@@ -121,7 +126,7 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
       e.root.dataset.label = text;
       const op = app.openingAt(m.endOf(id));
       e.root.title = [op && `${op.eco} ${openingText(op)}`, node.place?.label].filter(Boolean).join(' · ');
-      if (pulse && kind === 'child') {
+      if (pulse && kind === 'child' && d < 2) {
         e.root.classList.add('pulse');
         setTimeout(() => e.root.classList.remove('pulse'), 900);
       }
