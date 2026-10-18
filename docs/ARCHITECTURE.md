@@ -231,7 +231,7 @@ secondary/
 ### Cloud sync
 
 Opt-in and self-contained (`application/CloudSync.ts`, built by `ChessMapApp` only when a `cloud` port is given; the UI is `ui/SyncMenuSection.tsx`), off until the user turns it on from the menu, then persistent: `SyncStateStore`
-keeps `{ version, dirty }` so the next visit signs in silently (`LibraryCloud.resume`: the Google adapter reuses its access token kept in `sessionStorage` for the tab's lifetime, else asks Google without a window) and reconciles. `version` is the cloud copy
+keeps `{ version, dirty }` so the next visit signs in silently (`LibraryCloud.resume`: the Google adapter reuses its access token kept in `localStorage` until it expires (shared by all tabs), else asks Google without a window) and reconciles. `version` is the cloud copy
 last seen; `dirty` means local changes since. Pull, then: remote unchanged -> push if dirty; remote changed and not dirty -> adopt it;
 both changed -> `conflict`, the user keeps one side (`CloudSync.resolve`). Failures never touch local data.
 

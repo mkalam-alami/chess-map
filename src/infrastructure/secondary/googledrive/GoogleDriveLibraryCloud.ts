@@ -25,7 +25,7 @@ export interface GoogleDriveDeps {
   clientId: string;
   /** Loads the Google Identity Services script (once) and returns its `google.accounts.oauth2`. */
   loadIdentity: () => Promise<GoogleIdentity>;
-  /** Where the access token survives a reload (`sessionStorage`: it goes away with the tab). Without it the token stays in memory. */
+  /** Where the access token survives a reload and is shared with the other tabs (`localStorage`; it is short-lived and the stored expiry is honoured). Without it the token stays in memory. */
   storage?: KV;
   fetch?: typeof fetch;
   now?: () => number;
@@ -38,8 +38,8 @@ const EXPIRY_MARGIN_MS = 60_000;
 
 /**
  * Keeps the library as one JSON file in the user's Google Drive app-data folder, using Google Identity Services' token
- * flow (no backend, no secret, no refresh token): the access token is kept for the browser session (`deps.storage`, so a
- * reload does not open Google's window again) and renewed silently while the user's Google session and consent last.
+ * flow (no backend, no secret, no refresh token): the access token is kept in `deps.storage` (so a reload or another tab
+ * does not open Google's window again) and renewed silently while the user's Google session and consent last.
  * The cloud version is the file's `modifiedTime`.
  */
 export class GoogleDriveLibraryCloud implements LibraryCloud {
