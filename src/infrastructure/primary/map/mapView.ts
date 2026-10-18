@@ -166,16 +166,35 @@ function fitZoom(map: maplibregl.Map, app: ChessMapApp): number {
   return maxZoomToFit(offsets, halfW, halfH);
 }
 
+export interface ZoomOptions {
+  /** Use the mobile comfort size (board fills the width, nav buttons visible) whatever the screen. Default: the current screen. */
+  mobile?: boolean;
+  /**
+   * Zoom out until all child markers are in view. Default: yes, except on the root board: fitting the root's children is
+   * the job of the "Start position" button, and doing it when merely opening the root marker shrinks its board (badly on mobile).
+   */
+  fitChildren?: boolean;
+}
+
 /** Zoom that shows the cursor's board at its comfortable size (zooming in or out), unless its children would not fit. */
-function targetZoom(map: maplibregl.Map, app: ChessMapApp): number {
+function targetZoom(map: maplibregl.Map, app: ChessMapApp, { mobile = isMobile(), fitChildren }: ZoomOptions = {}): number {
   const { cursor, repertoire } = app.session;
+  const fit = fitChildren ?? cursor.nodeId !== repertoire.rootId;
   return focusZoom({
     boardZoom: repertoire.effectiveBoardZoom(cursor.nodeId),
-    comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, isMobile()),
-    fit: fitZoom(map, app),
+    comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, mobile),
+    fit: fit ? fitZoom(map, app) : Infinity,
     minZoom: map.getMinZoom(),
     maxZoom: map.getMaxZoom(),
   });
+}
+
+/**
+ * Centers the cursor's board and gives it the standard zoom: the one a board gets when opened on mobile, on every screen.
+ * Reusable by any control that brings the user (back) to a board; `fitChildren` is for the starting position only.
+ */
+export function focusOnBoard(map: maplibregl.Map, app: ChessMapApp, { fitChildren = false }: Pick<ZoomOptions, 'fitChildren'> = {}): void {
+  focusView(map, app, targetZoom(map, app, { mobile: true, fitChildren }));
 }
 
 /** Centers the cursor node below the top bar at `zoom`, by default the one given by targetZoom. `instant` skips the animation. */

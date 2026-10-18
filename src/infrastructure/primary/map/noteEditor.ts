@@ -66,7 +66,11 @@ export function createNoteEditor(app: ChessMapApp): NoteEditor {
   input.addEventListener('blur', () => {
     if (editing) setEditing(false);
   });
-  input.addEventListener('input', () => app.annotate(app.session.cursor.nodeId, input.value));
+  // Written to the board this editor is showing, never to the live cursor: a late input event (e.g. a composition committed on
+  // blur after the cursor jumped, as when a board is deleted or merged) must not put this text on another board such as the root.
+  input.addEventListener('input', () => {
+    if (editing && nodeId) app.annotate(nodeId, input.value);
+  });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey && !e.isComposing)) {
       e.preventDefault(); // Enter closes the editor, Shift+Enter adds a line

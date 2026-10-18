@@ -197,7 +197,7 @@ primary/
   viewState.ts      ViewState: presentation-only observable (boardOpen, centered, overview, recenter, keepSize, pulse)
                     updated from app events (`focused`, `deadEnd`, `mapEntered`); shared by the UI and the map views
   keyboard.ts       installKeyboard(app, viewState): shortcuts -> app actions
-  ui/               Preact components (TopBar, Locate, Recenter, overlay, toast, promotion), hooks.ts (AppContext,
+  ui/               Preact components (TopBar, Locate, MapShortcuts (Recenter.tsx), overlay, toast, promotion), hooks.ts (AppContext,
                     useApp, useViewState, atom), actions.ts (file import, "open in Lichess" with their toasts), dom helpers
   map/              MapLibre view, board marker (chessground), pins, curves, drag + dragPreview, placing ghost,
                     relocation ghost, board sizer, presentation math (viewMath: boardPx, focusZoom, gripResize,

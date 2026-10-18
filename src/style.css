@@ -145,10 +145,12 @@ html[data-mode='edit'] .place:hover { background: var(--edit); color: var(--waln
 }
 
 /* ---- nav buttons ---- */
-.recenter { position: absolute; z-index: 25; left: 12px; bottom: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 2px solid var(--walnut-2); border-radius: 999px; background: var(--cream); color: var(--walnut); font-weight: 600; box-shadow: var(--shadow); cursor: pointer; }
+.map-shortcuts { position: absolute; z-index: 25; left: 12px; bottom: 14px; display: flex; gap: 8px; }
+.recenter { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 2px solid var(--walnut-2); border-radius: 999px; background: var(--cream); color: var(--walnut); font-weight: 600; box-shadow: var(--shadow); cursor: pointer; }
 .recenter:hover { background: #fff; }
-.recenter[hidden], html[data-locating] .recenter { display: none; }
-@media (max-width: 767px) { .recenter .label { display: none; } .recenter { left: 8px; padding: 8px; } }
+.recenter[hidden], html[data-locating] .map-shortcuts { display: none; }
+.recenter:disabled { opacity: 0.5; cursor: default; }
+@media (max-width: 767px) { .recenter .label { display: none; } .map-shortcuts { left: 8px; } .recenter { padding: 8px; } }
 html[data-locating] .maplibregl-ctrl-bottom-right { bottom: 0; }
 @media (max-width: 767px) { .maplibregl-ctrl-bottom-right { display: none; } }
 

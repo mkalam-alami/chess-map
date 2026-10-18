@@ -3,7 +3,7 @@ import { render } from 'preact';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
 import { LocatePanel } from './Locate';
-import { RecenterButton } from './Recenter';
+import { MapShortcuts } from './Recenter';
 import { TopBar } from './TopBar';
 import { AppContext } from './hooks';
 import { OverlayHost } from './overlay';
@@ -14,7 +14,7 @@ export function mountUi(root: HTMLElement, map: maplibregl.Map, app: ChessMapApp
   render(
     <AppContext.Provider value={{ app, view }}>
       <TopBar getCenter={() => { const c = map.getCenter(); return [c.lng, c.lat]; }} />
-      <RecenterButton />
+      <MapShortcuts map={map} />
       <LocatePanel map={map} />
       <OverlayHost />
       <ToastHost />
