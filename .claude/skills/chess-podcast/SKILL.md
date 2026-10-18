@@ -1,9 +1,9 @@
 ---
 name: chess-podcast
-description: Rédige un script de podcast audio (lu par un TTS) pour réviser un répertoire d'ouvertures à partir d'un fichier .chessmap.json exporté par Chess Map. Utiliser quand l'utilisateur demande un podcast, un épisode audio ou un script de révision de ses ouvertures.
+description: Skill de rédaction de podcast. Rédige un script de podcast audio (lu par un TTS) pour réviser un répertoire d'ouvertures à partir d'un fichier .chessmap.json exporté par Chess Map. Utiliser quand l'utilisateur demande un podcast, un épisode audio ou un script de révision de ses ouvertures.
 ---
 
-# Podcast de révision d'ouvertures
+# Skill de rédaction de podcast
 
 Produire un script en français, destiné à être lu par le TTS de l'appli Claude à un auditeur débutant qui n'a pas d'échiquier sous les yeux.
 
