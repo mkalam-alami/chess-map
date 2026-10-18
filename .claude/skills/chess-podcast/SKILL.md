@@ -34,6 +34,12 @@ node $S piece f6 e4 e6 d4 d5 Nc3 dxe4 Nxe4 Nf6 Nxf6+ Qxf6 Nf3 Bd6 Bd3 O-O Bg5   
 - Pas d'introduction, de « bienvenue », de transition décorative ni d'outro : uniquement du contenu pédagogique. Pas d'interpellation de l'auditeur (« prenez le temps de visualiser », « à vous de trouver »…).
 - Conclure le thème par une règle courte et mémorisable, pas par un résumé des coups.
 
+## Choix des lignes
+
+- Choisir les coups adverses que l'auditeur rencontrera vraiment à son niveau (souvent bas Elo en ligne), en priorité ceux que le répertoire ne couvre pas ou peu. Écarter les coups rares, même pittoresques : 2. Fou c4 contre la française (environ 4 % des parties Lichess) n'est pas un bon exemple.
+- Les fréquences à bas Elo diffèrent de celles des maîtres. Contre 1. d4 d5, 2. Ff4 (London), 2. Cf3 et 2. e3 y sont très joués, 2. c4 bien moins ; contre la française, 3. e5 et 3. exd5 sont fréquents, et 2. Cf3, 2. d3, 2. De2, 3. Cd2 ou 3. Fd3 sont des écarts courants ; 1. Cf3 et 1. c4 transposent souvent. La connaissance générale donne un ordre de grandeur, pas des chiffres : ne jamais citer un pourcentage non vérifié, et ne pas trancher entre deux coups proches sans données.
+- Pour vérifier, l'explorateur Lichess : `curl -s "https://explorer.lichess.ovh/lichess?play=e2e4,e7e6&ratings=1000,1200&speeds=blitz,rapid"` (coups en UCI, `moves[]` avec `white`, `draws`, `black`). Une requête par position étudiée, jamais de boucle sur l'arbre. Le domaine peut être bloqué par la politique réseau de l'environnement (ou demander un token) : le dire, et signaler que le choix repose sur la connaissance générale.
+
 ## Découpage en parties
 
 - **Un message = une partie = un seul grand exemple exploré** (une position, de la position de départ jusqu'à son bilan). Annoncer le nombre total de parties dès le premier message et s'y tenir.
