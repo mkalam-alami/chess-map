@@ -3,6 +3,7 @@ import { openingText, type NodeId } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
 import { el, shieldFromMap } from '../ui/dom';
+import { icon } from '../ui/icons';
 import { makeDraggable } from './drag';
 import type { DragPreview } from './dragPreview';
 
@@ -101,7 +102,9 @@ export function createPinMarkers(map: maplibregl.Map, app: ChessMapApp, vs: View
       e.kind = kind;
       e.marker.setLngLat(preview.overrides.get(id) ?? node.lngLat);
       const text = m.pinLabel(id);
-      e.label.textContent = text;
+      if (id === m.rootId) {
+        if (!e.label.firstElementChild) e.label.replaceChildren(icon('logo', 18)); // the start marker wears the site logo (data-label keeps the text)
+      } else e.label.textContent = text;
       e.note.hidden = !node.note || shown(node); // the shown note replaces the pencil hint
       e.noteBox.hidden = !shown(node);
       e.noteBox.textContent = shown(node) ? (node.note as string) : '';

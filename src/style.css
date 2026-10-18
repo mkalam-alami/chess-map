@@ -233,6 +233,7 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
 }
 .pin.editable { cursor: grab; }
 .pin-label { padding-right: 2px; }
+.pin-label .icon { display: inline-flex; vertical-align: middle; }
 .pin-note { font-size: 12px; color: var(--edit-strong); }
 /* A note pinned by the user, under the marker: fits its content (wraps only beyond the max width), light like the board note. */
 .pin-notebox {

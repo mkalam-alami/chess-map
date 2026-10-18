@@ -113,6 +113,10 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
     vs.setCentered(Math.abs(at.x - mid.x) < 2 && Math.abs(at.y - mid.y) < 2);
   };
   syncCentered();
+  // "Back to board" is also offered when the zoom differs from the one a board gets on open (zoomed by hand, or fitted on the children).
+  const syncZoom = (): void => vs.setAtDefaultZoom(isAtBoardZoom(map, app));
+  map.on('moveend', syncZoom);
+  map.once('load', syncZoom);
   let lastCentered = vs.centered;
   anchorZoom(lastCentered);
 
@@ -141,6 +145,7 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
       lastCentered = vs.centered;
       anchorZoom(lastCentered);
     }
+    if (!map.isMoving()) syncZoom(); // mid-ease the zoom is transient: moveend reports it
   });
   return map;
 }
@@ -187,6 +192,12 @@ function targetZoom(map: maplibregl.Map, app: ChessMapApp, { mobile = isMobile()
     minZoom: map.getMinZoom(),
     maxZoom: map.getMaxZoom(),
   });
+}
+
+/** True when the camera zoom is the one a board gets on open (this screen's) or the standard one (what "Back to board" applies). */
+export function isAtBoardZoom(map: maplibregl.Map, app: ChessMapApp): boolean {
+  const z = map.getZoom();
+  return [targetZoom(map, app), targetZoom(map, app, { mobile: true, fitChildren: false })].some((t) => Math.abs(t - z) < 0.05);
 }
 
 /**

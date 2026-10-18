@@ -10,6 +10,8 @@ export interface ViewData {
   readonly boardOpen: boolean;
   /** Centered mode: the map view follows the board (zoom stays on it). Panning the map leaves it; any board switch restores it. */
   readonly centered: boolean;
+  /** The camera is at the zoom a board gets when opened (or at the standard one). False after zooming or fitting the children: "Back to board" then offers to reset it. */
+  readonly atDefaultZoom: boolean;
   /** Set with `recenter` by back() / forward(): keep the board's on-screen size instead of fitting the children. */
   readonly keepSize: boolean;
   /** Bumped when forward had nowhere to go: the children pins should pulse. */
@@ -29,7 +31,7 @@ export class ViewState implements ViewData {
     // A loaded repertoire opens as pins only; the board shows up at once only in the empty (forced Edit) case.
     const rep = app.session.repertoire;
     const empty = rep.node(rep.rootId).children.length === 0;
-    this.data = { overview: true, recenter: 0, boardOpen: empty, centered: true, keepSize: false, pulse: 0 };
+    this.data = { overview: true, recenter: 0, boardOpen: empty, centered: true, atDefaultZoom: true, keepSize: false, pulse: 0 };
     app.on('focused', (e) => this.patch({ recenter: this.data.recenter + 1, keepSize: e.keepSize, boardOpen: true, centered: true }, false));
     app.on('deadEnd', () => this.patch({ pulse: this.data.pulse + 1 }, false));
     app.on('mapEntered', () => this.patch({ boardOpen: true, centered: true }, false));
@@ -42,6 +44,7 @@ export class ViewState implements ViewData {
   get recenter(): number { return this.data.recenter; }
   get boardOpen(): boolean { return this.data.boardOpen; }
   get centered(): boolean { return this.data.centered; }
+  get atDefaultZoom(): boolean { return this.data.atDefaultZoom; }
   get keepSize(): boolean { return this.data.keepSize; }
   get pulse(): number { return this.data.pulse; }
 
@@ -54,6 +57,11 @@ export class ViewState implements ViewData {
   /** Enters or leaves centered mode (leaving happens when the user pans the map). */
   setCentered(centered: boolean): void {
     if (this.data.centered !== centered) this.patch({ centered });
+  }
+
+  /** Reported by the map view whenever the camera settles or the board changes; no-op when unchanged. */
+  setAtDefaultZoom(atDefaultZoom: boolean): void {
+    if (this.data.atDefaultZoom !== atDefaultZoom) this.patch({ atDefaultZoom });
   }
 
   /** Hides the board (every board may be closed, the root included); refused while a transient flow owns the input. */
