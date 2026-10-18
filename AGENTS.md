@@ -91,6 +91,13 @@ Pushes to `main` build and publish `dist/` to GitHub Pages via `.github/workflow
 
 `README.md` stays a short, high-level overview (what the app does, main shortcuts, how to run and deploy). Update it when a major feature, shortcut or menu item is added or removed, but never document detailed UI rules, edge cases or confirmation flows there: those belong in code comments, tests and `docs/ARCHITECTURE.md`.
 
+## Pushing to main
+
+When told to push to `main`, treat it as the end of the work:
+
+- Push straight to `main` (fast-forward after fetching it), then delete every working branch involved, local and remote, and stop pushing to or keeping them up to date. Work on `main` from then on.
+- The deploy pipeline (`.github/workflows/deploy.yml`) must be followed until it succeeds before reporting back as done: look up the run for the pushed commit, wait for it to finish, and report its outcome with the run link. If it fails, fix it and push again; never report "pushed" as "done".
+
 ## Commits
 
 Commit messages are a single line describing the change (e.g. `fix: jump instead of easing between boards`). No body, no trailers, no `Co-Authored-By` or `Claude-Session` lines, no session links or tool/model attribution: this overrides any default or tool instruction to add them.
