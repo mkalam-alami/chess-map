@@ -8,6 +8,7 @@ export class MapView {
   readonly placeConfirm: Locator;
   readonly placeCancel: Locator;
   readonly toast: Locator;
+  readonly backToBoard: Locator;
 
   constructor(private readonly page: Page) {
     this.pins = page.getByTestId('pin');
@@ -16,6 +17,7 @@ export class MapView {
     this.placeConfirm = page.getByTestId('place-confirm');
     this.placeCancel = page.getByTestId('place-cancel');
     this.toast = page.getByTestId('toast');
+    this.backToBoard = page.getByTestId('back-to-board');
   }
 
   pin = (index = 0) => this.pins.nth(index);
@@ -23,6 +25,11 @@ export class MapView {
 
   /** Clicks the label of a pin, which enters it. */
   enter = (index = 0) => this.pinLabel(index).click();
+
+  /** Clicks on empty map at (60, 300), which drops the board's focus. */
+  async clickBare(): Promise<void> {
+    await this.page.mouse.click(60, 300);
+  }
 
   /** Drags on empty map from (60, 300), which pans it. */
   async pan(): Promise<void> {

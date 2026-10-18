@@ -30,6 +30,9 @@ test('step through a line, close and reopen boards, toggle the overview', async 
   await expect(board.root).toBeHidden();
   await page.keyboard.press('ArrowRight'); // navigating reopens it
   await expect(board.root).toBeVisible();
-  await map.pan(); // leaving the board closes it
+  await map.pan(); // panning leaves the board open, off-centre
+  await expect(board.root).toBeVisible();
+  await expect(map.backToBoard).toBeVisible();
+  await map.clickBare(); // a click on the bare map closes it
   await expect(board.root).toBeHidden();
 });

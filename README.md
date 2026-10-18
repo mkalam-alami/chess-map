@@ -21,7 +21,7 @@ An opening "mind map": chess positions are pins on a world map (MapLibre). Play 
 
 ## Deploy
 
-Pushes to `main` run `.github/workflows/deploy.yml`, which builds and publishes `dist` to GitHub Pages at https://mkalam-alami.github.io/chess-map/. In the repo settings, set Pages source to "GitHub Actions".
+Pushes to `main` run `.github/workflows/deploy.yml`, which runs typecheck, unit and e2e tests (a failure blocks the deploy), then builds and publishes `dist` to GitHub Pages at https://mkalam-alami.github.io/chess-map/. In the repo settings, set Pages source to "GitHub Actions".
 
 ## Opening names
 
