@@ -152,16 +152,18 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
 
 const mercY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360)) / (2 * Math.PI);
 
-/** Highest zoom at which all child pins of the cursor node stay in the visible area around the node. */
-function fitZoom(map: maplibregl.Map, app: ChessMapApp): number {
+/** Highest zoom at which the child pins of the cursor node (and, with `pinnedNotes`, every marker whose note is kept visible) stay in the visible area around the node. */
+function fitZoom(map: maplibregl.Map, app: ChessMapApp, pinnedNotes: boolean): number {
   const m = app.session.repertoire;
   const { cursor } = app.session;
   const node = m.node(cursor.nodeId);
-  if (cursor.played !== node.moves.length) return Infinity;
+  const ids = new Set<string>(cursor.played === node.moves.length ? node.children : []);
+  if (pinnedNotes) for (const n of m.nodes()) if (n.noteShown && n.note) ids.add(n.id);
+  ids.delete(node.id);
   const view = visibleSize(map);
   const halfW = Math.max(40, view.width / 2 - 80);
   const halfH = Math.max(40, view.height / 2 - 30);
-  const offsets = node.children.map((id) => {
+  const offsets = [...ids].map((id) => {
     const ll = m.node(id).lngLat;
     return {
       dx: Math.abs(wrapNear(ll[0], node.lngLat[0]) - node.lngLat[0]) / 360,
@@ -179,16 +181,18 @@ export interface ZoomOptions {
    * is the job of the "Start position" button); never on mobile, where every focus (pin click, recording) gets the standard zoom.
    */
   fitChildren?: boolean;
+  /** Also zoom out until every marker whose note is pinned to the map is in view. Only for the starting position. */
+  fitPinnedNotes?: boolean;
 }
 
 /** Zoom that shows the cursor's board at its comfortable size (zooming in or out), unless its children would not fit. */
-function targetZoom(map: maplibregl.Map, app: ChessMapApp, { mobile = isMobile(), fitChildren }: ZoomOptions = {}): number {
+function targetZoom(map: maplibregl.Map, app: ChessMapApp, { mobile = isMobile(), fitChildren, fitPinnedNotes = false }: ZoomOptions = {}): number {
   const { cursor, repertoire } = app.session;
   const fit = fitChildren ?? (!mobile && cursor.nodeId !== repertoire.rootId);
   return focusZoom({
     boardZoom: repertoire.effectiveBoardZoom(cursor.nodeId),
     comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, mobile),
-    fit: fit ? fitZoom(map, app) : Infinity,
+    fit: fit || fitPinnedNotes ? fitZoom(map, app, fitPinnedNotes) : Infinity,
     minZoom: map.getMinZoom(),
     maxZoom: map.getMaxZoom(),
   });
@@ -202,10 +206,10 @@ export function isAtBoardZoom(map: maplibregl.Map, app: ChessMapApp): boolean {
 
 /**
  * Centers the cursor's board and gives it the standard zoom: the one a board gets when opened on mobile, on every screen.
- * Reusable by any control that brings the user (back) to a board; `fitChildren` is for the starting position only.
+ * Reusable by any control that brings the user (back) to a board; fitting the children and the pinned notes is for the starting position only.
  */
-export function focusOnBoard(map: maplibregl.Map, app: ChessMapApp, { fitChildren = false }: Pick<ZoomOptions, 'fitChildren'> = {}): void {
-  focusView(map, app, targetZoom(map, app, { mobile: true, fitChildren }));
+export function focusOnBoard(map: maplibregl.Map, app: ChessMapApp, { fitChildren = false, fitPinnedNotes = false }: Pick<ZoomOptions, 'fitChildren' | 'fitPinnedNotes'> = {}): void {
+  focusView(map, app, targetZoom(map, app, { mobile: true, fitChildren, fitPinnedNotes }));
 }
 
 /** Centers the cursor node below the top bar at `zoom`, by default the one given by targetZoom. `instant` skips the animation. */
