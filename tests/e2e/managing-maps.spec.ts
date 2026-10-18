@@ -41,6 +41,12 @@ test('create, switch, rename, duplicate, flip and delete maps; the library is sa
   await map.rootPin.click();
   expect(await board.orientation()).toBe('black');
 
+  await menu.choose('stats');
+  await expect(dialog.root).toContainText('Statistics');
+  await expect(dialog.root.getByTestId('stat-maps')).toHaveText('3');
+  await expect(dialog.root.getByTestId('stat-markers')).toHaveText('2'); // one e4 marker in each of the two copies
+  await dialog.confirm();
+
   await menu.choose('delete-map');
   await dialog.cancel.click();
   await expect.poll(() => topBar.mapNames()).toHaveLength(3);

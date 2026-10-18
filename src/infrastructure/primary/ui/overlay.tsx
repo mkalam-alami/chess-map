@@ -142,3 +142,15 @@ function FormBody({ title, fields, okLabel, done }: { title: string; fields: Fie
 
 export const formDialog = (title: string, fields: Field[], okLabel = 'OK'): Promise<Record<string, string> | null> =>
   modal<Record<string, string>>((done) => <FormBody title={title} fields={fields} okLabel={okLabel} done={done} />);
+
+/** A read-only dialog with a title, scrollable content and a Close button. */
+export const infoDialog = (title: string, content: ComponentChildren, cls = ''): Promise<null> =>
+  modal<null>((done) => (
+    <div class={`dialog-body ${cls}`}>
+      <h3>{title}</h3>
+      <div class="dialog-scroll">{content}</div>
+      <div class="dialog-actions">
+        <button type="button" class="primary" data-testid="dialog-ok" data-autofocus onClick={() => done(null)}>Close</button>
+      </div>
+    </div>
+  ));

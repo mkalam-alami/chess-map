@@ -78,6 +78,7 @@ src/domain/
   repertoire/commands.ts  package-private commands on a Repertoire (extend, branch, moveTo, annotate, …), applied by Session
   repertoire/cursor.ts  cursor navigation rules (back / next / line)
   repertoire/Repertoire.ts  aggregate for one map (read-only queries)
+  stats/libraryStats.ts libraryStats(library, lookup) — pure library-wide numbers (markers, moves, leaves, depth, notes, top openings / places per side)
   library/Library.ts    aggregate for the set of maps and the active one (read-only)
   library/commands.ts   package-private commands on a Library (add, activate, replace, remove), applied by Session
   session/Session.ts    aggregate root of the user's working session (the entry point for all actions)

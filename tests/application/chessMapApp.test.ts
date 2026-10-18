@@ -676,6 +676,18 @@ describe('analysis', () => {
   });
 });
 
+describe('stats', () => {
+  it('cover the whole library and name openings once the book has loaded', async () => {
+    const t = started();
+    const rep = t.app.session.repertoire;
+    t.openings.names.set(epd(rep.fenAt(rep.endOf(kids(t)[0] as NodeId))), { eco: 'B00', name: "King's Pawn" });
+    expect(t.app.stats()).toMatchObject({ maps: 1, openings: { white: [] } });
+    t.openings.finishLoading();
+    await settle();
+    expect(t.app.stats().openings.white).toEqual([{ name: "King's Pawn", count: 2 }]) // the e4 marker and a deeper one with no named position of its own;
+  });
+});
+
 describe('opening names', () => {
   it('are null until the book is loaded, then named, and subscribers are told', async () => {
     const t = started();
