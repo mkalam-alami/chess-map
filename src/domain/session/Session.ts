@@ -329,16 +329,20 @@ export class Session {
   // ---- history ----
 
   /**
-   * Swaps in an earlier (or later) `library` for undo / redo. Keeps the cursor when its position still exists, steps back
-   * to the end of its node when that node got shorter (an undone move), else goes to the root; a different active map is entered from its start. Refused while a transient flow is running.
+   * Swaps in an earlier (or later) `library` for undo / redo. The selection and the viewport are left alone whenever the
+   * cursor's position still exists. If its node is gone (an undone board, a redone deletion) the cursor falls back to the end of
+   * the nearest surviving ancestor, and if its node got shorter (an undone move) to the end of that node; only then is the
+   * view asked to focus. A different active map is entered from its start. Refused while a transient flow is running.
    */
   restoreLibrary(library: Library): Session {
     if (this.busy) return this;
     if (library.activeId !== this.library.activeId) return this.entering(library);
     const rep = library.active;
     const { nodeId, played } = this.cursor;
-    const cursor = rep.hasNode(nodeId) ? { nodeId, played: Math.min(played, rep.node(nodeId).moves.length) } : rep.rootCursor();
-    return this.next({ library, cursor, future: [] }, [{ type: 'focused', cursor, keepSize: true }]);
+    const survivor = this.repertoire.pathTo(nodeId).reverse().find((id) => rep.hasNode(id)) ?? rep.rootId;
+    const cursor = survivor === nodeId ? { nodeId, played: Math.min(played, rep.node(nodeId).moves.length) } : rep.endOf(survivor);
+    const moved = !sameCursor(cursor, this.cursor);
+    return this.next({ library, cursor, future: [] }, moved ? [{ type: 'focused', cursor, keepSize: true }] : []);
   }
 
   // ---- maps ----

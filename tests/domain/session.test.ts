@@ -1184,3 +1184,21 @@ describe('full scenarios', () => {
     expect(r.session.repertoire.node(r.id).moves).toEqual(['e4']);
   });
 });
+
+describe('restoring a library (undo / redo)', () => {
+  it('falls back to the end of the nearest surviving ancestor when the cursor board is gone, and asks the view to focus it', () => {
+    const { session, ids } = lineOf(['e4', 'e5', 'Nf3']);
+    const deep = session.goTo(session.repertoire.endOf(ids[3] as NodeId));
+    const restored = deep.restoreLibrary(session.deletePosition(ids[2] as NodeId).library); // e.g. redoing a deletion
+    expect(restored.cursor).toEqual(restored.repertoire.endOf(ids[1] as NodeId));
+    expect(types(restored)).toEqual(['focused']);
+  });
+
+  it('leaves the selection and the viewport alone when the cursor position still exists', () => {
+    const { session, ids } = lineOf(['e4', 'e5']);
+    const there = session.goTo(session.repertoire.endOf(ids[1] as NodeId));
+    const restored = there.restoreLibrary(there.annotate(ids[2] as NodeId, 'x').library);
+    expect(restored.cursor).toEqual(there.cursor);
+    expect(restored.events).toEqual([]);
+  });
+});
