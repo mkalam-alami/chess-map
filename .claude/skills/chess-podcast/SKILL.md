@@ -10,7 +10,23 @@ Produire un script en français, destiné à être lu par le TTS de l'appli Clau
 ## Source
 
 - Lire le fichier `.chessmap.json` fourni (`map.nodes`, arbre depuis `rootId`). Chaque nœud a des coups SAN (`moves`), éventuellement une `note` (idées, évaluations, plans) et des `shapes` (flèches/cercles : menaces, plans, fautes).
-- Les notes et les flèches sont la matière pédagogique principale ; vérifier la légalité et l'effet réel de chaque coup avant de le commenter.
+- Les notes et les flèches sont la matière pédagogique principale ; vérifier la légalité et l'effet réel de chaque coup avant de le commenter (voir *Vérification*).
+
+## Vérification
+
+Ne jamais commenter une ligne sans l'avoir rejouée, en particulier celles qui ne sont pas dans l'arbre (prolongements, pièges, contre-exemples). Le script `scripts/chess.mjs` (chess.js du projet, `npm install` à la racine au besoin) évite de réécrire ces contrôles :
+
+```bash
+S=.claude/skills/chess-podcast/scripts/chess.mjs
+node $S tree carte.chessmap.json            # arbre lisible : [id court], coups numérotés, notes, flèches et cercles (« après <coup> »)
+node $S line --map carte.chessmap.json --node fc2c2fae   # ligne de la racine à un nœud (--played n pour s'arrêter dans son segment)
+node $S line "1. e4 e6 2. d4 d5 3. Nc3 dxe4"            # ou une ligne libre en SAN (numéros acceptés)
+node $S piece f6 e4 e6 d4 d5 Nc3 dxe4 Nxe4 Nf6 Nxf6+ Qxf6 Nf3 Bd6 Bd3 O-O Bg5   # fuites de la pièce en F_6
+```
+
+- `line` s'arrête avec `ILLÉGAL : demi-coup n …` au premier coup illégal. Pour chaque demi-coup il donne la notation TTS (« Cavalier prend F_6, échec », « E prend D_5 », « Cavalier G_8 en F_6 ») puis les faits : pièce prise, nouvelles attaques (y compris « à la découverte ») avec le nombre de défenseurs, clouages créés, et les pièces du camp qui vient de jouer restées en prise (menace ignorée ou persistante, gambit, gaffe).
+- `piece <case>` liste chaque coup légal de la pièce avec les attaquants et défenseurs de la case d'arrivée : sert à affirmer qu'une pièce est piégée ou qu'une fuite est sûre.
+- Limites : ce sont des comptes d'attaquants, pas des calculs d'échanges ni des évaluations (pas de moteur). Les jugements (« position égale », « gain de temps ») viennent des notes du répertoire ou de l'analyse, jamais du script.
 
 ## Contenu
 
