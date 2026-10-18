@@ -7,10 +7,9 @@ export const showStats = (app: ChessMapApp): Promise<void> => infoDialog('Statis
 
 const fmt = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-function Figures({ title, items }: { title: string; items: [label: string, value: number][] }) {
+function Figures({ items }: { items: [label: string, value: number][] }) {
   return (
     <section class="stats-section">
-      <h4>{title}</h4>
       <dl class="stats-figures">
         {items.map(([label, value]) => (
           <div>
@@ -46,9 +45,7 @@ const Ranking = ({ rows }: { rows: RankedCount[] }) => (
 function Stats({ stats: s }: { stats: LibraryStats }) {
   return (
     <>
-      <Figures title="Size" items={[['Maps', s.maps], ['Markers', s.markers], ['Moves', s.moves]]} />
-      <Figures title="Lines" items={[['Lines', s.leaves], ['Max depth', s.maxDepth], ['Average length', s.averageDepth]]} />
-      <Figures title="Notes" items={[['Notes', s.notes]]} />
+      <Figures items={[['Maps', s.maps], ['Markers', s.markers], ['Moves', s.moves], ['Lines', s.leaves], ['Max depth', s.maxDepth], ['Average length', s.averageDepth], ['Notes', s.notes]]} />
       <Top title="Top openings (markers)" testid="stats-openings" byColor={s.openings} />
       <Top title="Top places (markers)" testid="stats-places" byColor={s.places} />
     </>
