@@ -8,7 +8,8 @@ import 'chessground/assets/chessground.cburnett.css';
 import { wrapNear, type LngLat, type SavedView } from '../../../domain';
 import type { ChessMapApp } from '../../../application';
 import type { ViewState } from '../viewState';
-import { boardPx, comfortPx, fitAround, focusZoom, maxZoomToFit, type Viewport } from './viewMath';
+import { framingPoints } from './framing';
+import { boardPx, comfortPx, fitAround, focusZoom, maxZoomToFit, mercY, type Viewport } from './viewMath';
 
 export const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 export const INITIAL_ZOOM = 1.2;
@@ -150,7 +151,6 @@ export function createMapView(container: HTMLElement, app: ChessMapApp, vs: View
   return map;
 }
 
-const mercY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360)) / (2 * Math.PI);
 
 /** Highest zoom at which all child pins of the cursor node stay in the visible area around the node. */
 function fitZoom(map: maplibregl.Map, app: ChessMapApp): number {
@@ -208,45 +208,33 @@ export function focusOnBoard(map: maplibregl.Map, app: ChessMapApp): void {
   focusView(map, app, targetZoom(map, app, { mobile: true, fitChildren: false }));
 }
 
-/** Room (px) a marker needs around its anchor: the pin, and the note box when the note is pinned to the map. */
-const PIN_ROOM = { mx: 56, my: 56 };
-const NOTE_ROOM = { mx: 120, my: 56 };
-/** Room (px) the board's nav buttons (sides) and its opening / place / note labels (above, below) take around the card. */
-const BOARD_SIDE_PX = 46;
-const BOARD_LABELS_PX = 56;
+/** Room (px) the board's nav buttons (sides) and its opening / place labels (above, below) take around the card. */
+const BOARD_SIDE_PX = 42;
+const BOARD_LABELS_PX = 36;
+/** Margin (px) kept between the framed group and the edges of the visible area. */
+const EDGE_PX = 20;
 
 /**
  * Frames the cursor's board with its surroundings: the board at the standard zoom, zoomed out only as far as needed to also show
- * every immediate child marker and every marker with a note pinned to the map. The camera centres on that whole group, not on
- * the board. Used for the starting position and for "Show next moves", so both frame exactly the same way.
+ * every direct child marker (and, with `pinnedNotes`, every marker with a note pinned to the map), with about 20px to spare at the
+ * edges. The camera centres on that whole group, not on the board. "Start position" frames with the pinned notes, "Next moves" without.
  * Returns true when the group is centred on the board anyway (nothing else to show), i.e. the map is still "centered".
  */
-export function focusOnBoardWithMarkers(map: maplibregl.Map, app: ChessMapApp): boolean {
+export function focusOnBoardWithMarkers(map: maplibregl.Map, app: ChessMapApp, opts: { pinnedNotes: boolean }): boolean {
   const m = app.session.repertoire;
   const { cursor } = app.session;
   const node = m.node(cursor.nodeId);
-  const ids = new Set<string>(cursor.played === node.moves.length ? node.children : []);
-  for (const n of m.nodes()) if (n.noteShown && n.note) ids.add(n.id);
-  ids.delete(node.id);
-  const points = [...ids].map((id) => {
-    const n = m.node(id);
-    return {
-      dx: (wrapNear(n.lngLat[0], node.lngLat[0]) - node.lngLat[0]) / 360,
-      dy: mercY(n.lngLat[1]) - mercY(node.lngLat[1]),
-      ...(n.noteShown && n.note ? NOTE_ROOM : PIN_ROOM),
-    };
-  });
   const view = visibleSize(map);
   const bz = m.effectiveBoardZoom(node.id);
   const comfort = comfortPx({ width: window.innerWidth, height: window.innerHeight }, true);
   const fit = fitAround({
-    points,
+    points: framingPoints(m, node.id, cursor.played, opts),
     boardHalf: (zoom) => {
       const half = boardPx(zoom, bz, view, minBoardPx()) / 2;
       return { x: half + BOARD_SIDE_PX, y: half + BOARD_LABELS_PX };
     },
-    width: view.width,
-    height: view.height,
+    width: view.width - 2 * EDGE_PX,
+    height: view.height - 2 * EDGE_PX,
     minZoom: map.getMinZoom(),
     maxZoom: Math.min(map.getMaxZoom(), focusZoom({ boardZoom: bz, comfort, fit: Infinity, minZoom: map.getMinZoom(), maxZoom: map.getMaxZoom() })),
   });

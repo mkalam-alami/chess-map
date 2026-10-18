@@ -8,7 +8,7 @@ import { useApp, useViewState } from './hooks';
  *  - "Start position": always there; frames the root board with its child markers and the markers with a pinned note.
  *  - "Back to board": after the user panned away from the board or its zoom differs from the default (zoomed by hand, or framed
  *    on the markers); zooms on the current board alone.
- *  - "Show next moves": frames the current board with its immediate children exactly like "Start position" does.
+ *  - "Next moves": frames the current board with its direct children only (no pinned-note rule), the same way otherwise.
  * Framing does not force the board to the centre of the screen.
  */
 export function MapShortcuts({ map }: { map: maplibregl.Map }) {
@@ -19,14 +19,14 @@ export function MapShortcuts({ map }: { map: maplibregl.Map }) {
   const toStart = (): void => {
     if (busy) return;
     app.goTo(repertoire.rootCursor());
-    view.setCentered(focusOnBoardWithMarkers(map, app)); // replaces the ease the focus event just started
+    view.setCentered(focusOnBoardWithMarkers(map, app, { pinnedNotes: true })); // replaces the ease the focus event just started
   };
   const toBoard = (): void => {
     view.setCentered(true);
     focusOnBoard(map, app);
   };
   const toChildren = (): void => {
-    if (!busy) view.setCentered(focusOnBoardWithMarkers(map, app));
+    if (!busy) view.setCentered(focusOnBoardWithMarkers(map, app, { pinnedNotes: false }));
   };
   return (
     <div class="map-shortcuts">

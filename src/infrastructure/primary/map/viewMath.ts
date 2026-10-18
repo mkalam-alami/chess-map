@@ -32,6 +32,9 @@ export function maxZoomToFit(offsets: { dx: number; dy: number }[], halfW: numbe
   return z;
 }
 
+/** Mercator y of a latitude, in world units (1 = whole world), clamped short of the poles. */
+export const mercY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360)) / (2 * Math.PI);
+
 /** A marker to keep in view, as a signed Mercator offset (1 = whole world) from the board, plus the room it needs around it in px. */
 export interface FitPoint { dx: number; dy: number; mx: number; my: number }
 
