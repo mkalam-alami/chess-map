@@ -11,12 +11,12 @@ async function newMap(app: ChessMapPage, name: string, playAs: 'white' | 'black'
 test('create, switch, rename, duplicate, flip and delete maps; the library is saved', async ({ page, app }) => {
   const { topBar, board, map, menu, dialog } = app;
   await app.open();
-  expect(await topBar.mapNames()).toEqual(['My repertoire']);
+  await expect.poll(() => topBar.mapNames()).toEqual(['My repertoire']);
   await topBar.edit();
   await app.spawn('e2', 'e4');
 
   await newMap(app, 'Sicilian', 'black');
-  expect(await topBar.mapNames()).toEqual(['My repertoire', 'Sicilian']);
+  await expect.poll(() => topBar.mapNames()).toEqual(['My repertoire', 'Sicilian']);
   expect(await topBar.activeMapName()).toBe('Sicilian');
   await expect(map.pins).toHaveCount(0);
   expect(await board.orientation()).toBe('black');
@@ -24,7 +24,7 @@ test('create, switch, rename, duplicate, flip and delete maps; the library is sa
   await menu.choose('rename-map');
   await dialog.field('name').fill('Najdorf');
   await page.keyboard.press('Enter');
-  expect(await topBar.mapNames()).toEqual(['My repertoire', 'Najdorf']);
+  await expect.poll(() => topBar.mapNames()).toEqual(['My repertoire', 'Najdorf']);
 
   await topBar.selectMap('My repertoire');
   await expect(map.pin()).toHaveAttribute('data-label', '1.e4'); // each map keeps its own repertoire
@@ -43,8 +43,8 @@ test('create, switch, rename, duplicate, flip and delete maps; the library is sa
 
   await menu.choose('delete-map');
   await dialog.cancel.click();
-  expect(await topBar.mapNames()).toHaveLength(3);
+  await expect.poll(() => topBar.mapNames()).toHaveLength(3);
   await menu.choose('delete-map');
   await dialog.confirm();
-  expect(await topBar.mapNames()).toEqual(['My repertoire', 'Najdorf']);
+  await expect.poll(() => topBar.mapNames()).toEqual(['My repertoire', 'Najdorf']);
 });

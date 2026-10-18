@@ -11,19 +11,19 @@ test('export and import maps as JSON and PGN; invalid files change nothing', asy
   expect(json.suggestedFilename()).toContain('.chessmap.json');
   await menu.importJson((await json.path())!);
   await expect(map.toast).toHaveText('Map imported');
-  expect(await topBar.mapNames()).toHaveLength(2);
+  await expect.poll(() => topBar.mapNames()).toHaveLength(2);
 
   const pgn = await menu.download('export-pgn');
   expect(pgn.suggestedFilename()).toMatch(/\.pgn$/);
   await menu.importPgn((await pgn.path())!);
-  expect(await topBar.mapNames()).toHaveLength(3);
+  await expect.poll(() => topBar.mapNames()).toHaveLength(3);
   await expect(map.pin()).toHaveAttribute('data-label', '1.e4');
 
   await menu.importJson(asFile('broken.json', '{ not json'));
   await expect(map.toast).toContainText(/not valid JSON/i);
   await menu.importPgn(asFile('empty.pgn', '   '));
   await expect(map.toast).toHaveText('No PGN data found');
-  expect(await topBar.mapNames()).toHaveLength(3);
+  await expect.poll(() => topBar.mapNames()).toHaveLength(3);
 });
 
 test('open the current line in the Lichess analysis board', async ({ page, app }) => {
