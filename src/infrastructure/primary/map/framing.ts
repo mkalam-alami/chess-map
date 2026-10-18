@@ -3,8 +3,8 @@ import { mercY, type FitPoint } from './viewMath';
 
 // Which markers a "frame the board and what is around it" action must keep in view, and how much room each one needs.
 
-/** Room (px) a marker needs around its anchor. */
-const PIN_ROOM = { mx: 16, my: 16 };
+/** No room is reserved around a marker's anchor: the edge margin in `focusOnBoardWithMarkers` is the only spacing. */
+const PIN_ROOM = { mx: 0, my: 0 };
 
 /**
  * The markers to frame around the board at `nodeId` / `played`: its direct children (only when the cursor is at the end of its

@@ -208,9 +208,6 @@ export function focusOnBoard(map: maplibregl.Map, app: ChessMapApp): void {
   focusView(map, app, targetZoom(map, app, { mobile: true, fitChildren: false }));
 }
 
-/** Room (px) the board's nav buttons (sides) and its opening / place labels (above, below) take around the card. */
-const BOARD_SIDE_PX = 42;
-const BOARD_LABELS_PX = 36;
 /** Margin (px) kept between the framed group and the edges of the visible area. */
 const EDGE_PX = 20;
 
@@ -231,7 +228,7 @@ export function focusOnBoardWithMarkers(map: maplibregl.Map, app: ChessMapApp, o
     points: framingPoints(m, node.id, cursor.played, opts),
     boardHalf: (zoom) => {
       const half = boardPx(zoom, bz, view, minBoardPx()) / 2;
-      return { x: half + BOARD_SIDE_PX, y: half + BOARD_LABELS_PX };
+      return { x: half, y: half };
     },
     width: view.width - 2 * EDGE_PX,
     height: view.height - 2 * EDGE_PX,

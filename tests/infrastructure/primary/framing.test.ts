@@ -21,7 +21,7 @@ describe('framingPoints', () => {
     expect(framingPoints(far, rep.rootId, 0, { pinnedNotes: false })).toHaveLength(2);
     const withNotes = framingPoints(far, rep.rootId, 0, { pinnedNotes: true });
     expect(withNotes).toHaveLength(3);
-    expect(withNotes.every((p) => p.mx <= 20)).toBe(true); // note boxes are ignored: a noted marker needs no more room than any other
+    expect(withNotes.every((p) => p.mx === 0 && p.my === 0)).toBe(true); // only the anchors are framed, notes and pin size included
   });
 
   it('measures offsets from the board, the short way round the globe', () => {
