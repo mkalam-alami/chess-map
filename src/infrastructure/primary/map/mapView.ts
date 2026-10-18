@@ -216,26 +216,28 @@ const BOARD_SIDE_PX = 46;
 const BOARD_LABELS_PX = 56;
 
 /**
- * Frames the starting position: the root board at the standard zoom, zoomed out only as far as needed to also show every child
- * marker and every marker with a note pinned to the map. The camera centres on that whole group, not on the board.
+ * Frames the cursor's board with its surroundings: the board at the standard zoom, zoomed out only as far as needed to also show
+ * every immediate child marker and every marker with a note pinned to the map. The camera centres on that whole group, not on
+ * the board. Used for the starting position and for "Show next moves", so both frame exactly the same way.
  * Returns true when the group is centred on the board anyway (nothing else to show), i.e. the map is still "centered".
  */
-export function focusOnStart(map: maplibregl.Map, app: ChessMapApp): boolean {
+export function focusOnBoardWithMarkers(map: maplibregl.Map, app: ChessMapApp): boolean {
   const m = app.session.repertoire;
-  const root = m.node(m.rootId);
-  const ids = new Set<string>(root.children);
+  const { cursor } = app.session;
+  const node = m.node(cursor.nodeId);
+  const ids = new Set<string>(cursor.played === node.moves.length ? node.children : []);
   for (const n of m.nodes()) if (n.noteShown && n.note) ids.add(n.id);
-  ids.delete(root.id);
+  ids.delete(node.id);
   const points = [...ids].map((id) => {
     const n = m.node(id);
     return {
-      dx: (wrapNear(n.lngLat[0], root.lngLat[0]) - root.lngLat[0]) / 360,
-      dy: mercY(n.lngLat[1]) - mercY(root.lngLat[1]),
+      dx: (wrapNear(n.lngLat[0], node.lngLat[0]) - node.lngLat[0]) / 360,
+      dy: mercY(n.lngLat[1]) - mercY(node.lngLat[1]),
       ...(n.noteShown && n.note ? NOTE_ROOM : PIN_ROOM),
     };
   });
   const view = visibleSize(map);
-  const bz = m.effectiveBoardZoom(root.id);
+  const bz = m.effectiveBoardZoom(node.id);
   const comfort = comfortPx({ width: window.innerWidth, height: window.innerHeight }, true);
   const fit = fitAround({
     points,
@@ -248,9 +250,9 @@ export function focusOnStart(map: maplibregl.Map, app: ChessMapApp): boolean {
     minZoom: map.getMinZoom(),
     maxZoom: Math.min(map.getMaxZoom(), focusZoom({ boardZoom: bz, comfort, fit: Infinity, minZoom: map.getMinZoom(), maxZoom: map.getMaxZoom() })),
   });
-  const lat = Math.atan(Math.exp(2 * Math.PI * (mercY(root.lngLat[1]) + fit.dy)));
+  const lat = Math.atan(Math.exp(2 * Math.PI * (mercY(node.lngLat[1]) + fit.dy)));
   map.easeTo({
-    center: [root.lngLat[0] + fit.dx * 360, Math.max(-85, Math.min(85, (2 * lat - Math.PI / 2) * (180 / Math.PI)))],
+    center: [node.lngLat[0] + fit.dx * 360, Math.max(-85, Math.min(85, (2 * lat - Math.PI / 2) * (180 / Math.PI)))],
     zoom: fit.zoom,
     padding: padding(),
     duration: 400,

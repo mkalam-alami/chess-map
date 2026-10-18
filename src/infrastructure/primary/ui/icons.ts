@@ -16,6 +16,7 @@ const PATHS = {
   note: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
   crosshair: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  expand: '<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/>',
   // Same artwork as public/favicon.svg (100x100 source, scaled to the 24 grid).
   logo: `<g transform="scale(0.24)" stroke="none"><rect width="100" height="100" rx="20" fill="#b58863"/><g fill="#f0d9b5"><path d="M50 49C43 40 33 33 33 23a17 17 0 0 1 34 0c0 10-10 17-17 26z"/><rect x="37" y="51" width="26" height="5" rx="2.5"/><path d="M43 56h14l6 21h-26z"/><path d="M25 90h50v-4q0-8-9-8h-32q-9 0-9 8z"/></g><circle cx="50" cy="23" r="6.5" fill="#b58863"/></g>`,
 } as const;
