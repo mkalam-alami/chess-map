@@ -29,7 +29,8 @@ export default defineConfig({
     ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    // CI builds once (the same dist is then deployed), so it only serves; locally the build comes first.
+    command: `${process.env.CI ? '' : 'npm run build && '}npm run preview -- --port 4173 --strictPort`,
     url: 'http://localhost:4173/chess-map/',
     reuseExistingServer: true,
     timeout: 120_000,

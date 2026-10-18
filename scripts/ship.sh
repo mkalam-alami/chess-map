@@ -98,6 +98,13 @@ else
 fi
 
 # ---- 5. follow the pipeline ----
+# deploy.yml ignores pushes that only touch docs / markdown (paths-ignore), so no run is to be expected for them.
+DOCS_ONLY=0
+if [[ "$HEAD_SHA" != "$MAIN_SHA" ]] && ! git diff --name-only "$MAIN_SHA" "$HEAD_SHA" | grep -qvE '^docs/|\.md$'; then DOCS_ONLY=1; fi
+
+if [[ "$DOCS_ONLY" == 1 ]]; then
+  say "Only docs changed: the pipeline does not run for this push"
+else
 say "Looking for the pipeline run of ${HEAD_SHA:0:7}"
 RUN_ID=""
 deadline=$((SECONDS + RUN_WAIT))
@@ -120,6 +127,7 @@ if [[ "$CONCLUSION" != "success" ]]; then
   gh run view "$RUN_ID" --repo "$REPO" --log-failed 2>/dev/null | tail -60 || true
   die "pipeline $CONCLUSION: https://github.com/$REPO/actions/runs/$RUN_ID (fix it and re-run ship.sh)"
 fi
+fi
 
 # ---- 6. clean up: main is the only branch that stays ----
 if [[ "$BRANCH" != "main" && "$CLEANUP" == 1 ]]; then
@@ -132,4 +140,4 @@ if [[ "$BRANCH" != "main" && "$CLEANUP" == 1 ]]; then
   fi
 fi
 
-say "Shipped ${HEAD_SHA:0:7}: pipeline succeeded (https://github.com/$REPO/actions/runs/$RUN_ID)"
+if [[ "$DOCS_ONLY" == 1 ]]; then say "Shipped ${HEAD_SHA:0:7} (docs only, no pipeline)"; else say "Shipped ${HEAD_SHA:0:7}: pipeline succeeded (https://github.com/$REPO/actions/runs/$RUN_ID)"; fi

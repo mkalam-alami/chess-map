@@ -3,6 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**'] # nothing deployable changed: spare the run (scripts/ship.sh knows)
   workflow_dispatch:
 
 permissions:
@@ -10,11 +11,13 @@ permissions:
   pages: write
   id-token: write
 
+# A newer push supersedes a run still testing. The deploy job has its own group below: it is never cancelled half way.
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # One build per run: the e2e tests run against the very dist that is deployed afterwards.
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -26,29 +29,25 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npx playwright install --with-deps chromium
-      - run: npm run e2e
-
-  build:
-    needs: test
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
       - run: npm run build
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium # downloads the browser only when the cache missed
+      - run: npm run e2e # CI=true: serves the dist built above instead of rebuilding it
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
-    needs: build
+    needs: test
     runs-on: ubuntu-24.04
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
