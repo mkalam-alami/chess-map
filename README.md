@@ -17,7 +17,7 @@ An opening "mind map": chess positions are pins on a world map (MapLibre). Play 
 - Each position can have a note, a location (`L`) and right-click arrows and circles.
 - **Overview** shows the whole tree faded; the top bar shows the current line and transpositions.
 - **Keys:** `←` / `→` step through the line, `E`, `P`, `L`, `Ctrl+Z` or `Backspace` / `Ctrl+Shift+Z` (undo / redo), `Delete`, `Esc`.
-- **Menu (⋮):** JSON and PGN import/export, open the current line in Lichess, several maps, optional Google Drive sync (needs `VITE_GOOGLE_CLIENT_ID` at build time).
+- **Menu (⋮):** JSON and PGN import/export, open the current line in Lichess, several maps, library statistics, optional Google Drive sync (needs `VITE_GOOGLE_CLIENT_ID` at build time).
 
 ## Deploy
 

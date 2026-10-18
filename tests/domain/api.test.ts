@@ -5,7 +5,7 @@ describe('public API of the domain', () => {
   it('exports models and pure helpers, and no tree surgery', () => {
     expect(Object.keys(domain).sort()).toEqual([
       'DEFAULT_BOARD_ZOOM', 'DEFAULT_CENTER', 'LIBRARY_VERSION', 'Library', 'NOMINAL_PX', 'Repertoire', 'SHAPE_BRUSHES', 'START_FEN', 'Session',
-      'epd', 'formatLine', 'inCheck', 'legalDests', 'moveLabel', 'moveSquares', 'newId', 'openingAt', 'openingText',
+      'epd', 'formatLine', 'inCheck', 'legalDests', 'libraryStats', 'moveLabel', 'moveSquares', 'newId', 'openingAt', 'openingText',
       'promotionColor', 'sameCursor', 'sameLngLat', 'tryMove', 'turnColor', 'wrapLng', 'wrapNear',
     ]);
   });

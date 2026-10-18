@@ -1,6 +1,6 @@
 import {
-  Library, Session, openingAt as findOpening,
-  type BoardShape, type Cursor, type DomainEvent, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place,
+  Library, Session, libraryStats, openingAt as findOpening,
+  type BoardShape, type Cursor, type DomainEvent, type LibraryStats, type LngLat, type MapId, type Mode, type NodeId, type OpeningInfo, type Orientation, type Place,
   type SavedView,
 } from '../domain';
 import { CloudSync, type CloudSyncPorts } from './CloudSync';
@@ -267,6 +267,11 @@ export class ChessMapApp {
   /** The deepest named opening on the line to `cursor` (default: the current one); null until the book has loaded. */
   openingAt(cursor: Cursor = this.current.cursor): OpeningInfo | null {
     return findOpening(this.current.repertoire.fenPath(cursor), (epd) => this.ports.openings.lookup(epd));
+  }
+
+  /** Numbers about every map; opening names appear once the book has loaded. */
+  stats(): LibraryStats {
+    return libraryStats(this.current.library, (epd) => this.ports.openings.lookup(epd));
   }
 
   /** Place suggestions for a search box. */

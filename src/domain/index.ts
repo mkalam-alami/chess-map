@@ -11,5 +11,6 @@ export { sameCursor } from './repertoire/cursor';
 export { DEFAULT_BOARD_ZOOM, NOMINAL_PX } from './repertoire/scale';
 export { Repertoire } from './repertoire/Repertoire';
 export { Library } from './library/Library';
+export { libraryStats, type LibraryStats, type RankedCount } from './stats/libraryStats';
 export { Session, type Placing, type Relocating } from './session/Session';
 export type { DomainEvent } from './session/events';

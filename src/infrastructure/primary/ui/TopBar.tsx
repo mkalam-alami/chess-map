@@ -7,6 +7,7 @@ import { SyncIndicator } from './SyncIndicator';
 import { SyncMenuSection } from './SyncMenuSection';
 import { useApp, useViewState } from './hooks';
 import { confirmDialog, formDialog, openPopover } from './overlay';
+import { showStats } from './StatsDialog';
 import { toast } from './toast';
 
 function MenuItem({ label, testid, close, run }: { label: string; testid: string; close: () => void; run: () => void | Promise<void> }) {
@@ -21,6 +22,7 @@ function Menu({ app, close, getCenter, pickJson, pickPgn }: { app: ChessMapApp; 
     <div class="menu">
       <div class="menu-label">View</div>
       {item('Go to place…', 'menu-goto', () => app.startRelocating(null))}
+      {item('Statistics…', 'menu-stats', () => showStats(app))}
       <div class="menu-label">Import / export</div>
       {item('Export JSON', 'menu-export-json', () => app.exportMap('json'))}
       {item('Import JSON…', 'menu-import-json', pickJson)}

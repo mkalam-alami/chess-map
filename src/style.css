@@ -296,6 +296,22 @@ button.danger { color: var(--danger); border-color: #e3aaa3 !important; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ---- statistics dialog ---- */
+.dialog-body.stats { max-height: calc(100dvh - 64px); }
+.dialog-scroll { overflow-y: auto; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.stats-section h4 { margin: 0 0 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stats-section h5 { margin: 6px 0 2px; font-size: 0.85rem; }
+.stats-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0; }
+.stats-figures > div { background: var(--cream-2); border-radius: 8px; padding: 8px 10px; }
+.stats-figures dt { font-size: 0.78rem; color: var(--muted); }
+.stats-figures dd { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.stats-top ol { list-style: none; margin: 0; padding: 0; }
+.stats-top li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.stats-name { min-width: 0; overflow-wrap: anywhere; }
+.stats-count { font-variant-numeric: tabular-nums; color: var(--muted); }
+.stats-none { margin: 0; color: var(--muted); font-size: 0.9em; }
+@media (min-width: 560px) { .dialog:has(.stats) { width: 460px; } }
+
 /* ---- promotion chooser ---- */
 .promo { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; gap: 4px; background: rgba(46, 33, 24, 0.6); }
 .promo-choice { width: 22%; aspect-ratio: 1; padding: 0; border: 2px solid var(--cream); border-radius: 8px; background: var(--wood-light); }
