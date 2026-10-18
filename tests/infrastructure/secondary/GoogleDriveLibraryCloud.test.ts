@@ -33,9 +33,12 @@ const urlOf = (c: unknown[]): string => String(c[0]);
 const headerOf = (c: unknown[], name: string): string | null => new Headers((c[1] as RequestInit).headers).get(name);
 
 describe('sign-in', () => {
-  it('connect asks without forcing a prompt; resume never shows a window', async () => {
+  it('connect asks without forcing a prompt; resume reuses a valid token, else never shows a window', async () => {
     const t = setup();
     await t.cloud.connect();
+    expect(await t.cloud.resume()).toBe(true);
+    expect(t.prompts).toEqual(['']);
+    t.tick(3600_000);
     expect(await t.cloud.resume()).toBe(true);
     expect(t.prompts).toEqual(['', 'none']);
   });
@@ -62,6 +65,39 @@ describe('sign-in', () => {
     await t.cloud.connect();
     await t.cloud.disconnect();
     expect(t.revoked).toEqual(['tok']);
+  });
+});
+
+describe('token kept for the browser session', () => {
+  const store = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+  };
+  const identity = (prompts: string[]): GoogleIdentity => ({
+    initTokenClient: ({ callback }) => ({ requestAccessToken: (o) => { prompts.push(o?.prompt ?? ''); callback({ access_token: 'tok', expires_in: 3600 }); } }),
+    revoke: () => {},
+  });
+  const make = (storage: ReturnType<typeof store>, prompts: string[], now = 0) =>
+    new GoogleDriveLibraryCloud({ clientId: 'cid', loadIdentity: async () => identity(prompts), storage, now: () => now });
+
+  it('a reload resumes from the stored token without asking Google', async () => {
+    const storage = store();
+    const first: string[] = [];
+    await make(storage, first).connect();
+    const second: string[] = [];
+    expect(await make(storage, second, 1000).resume()).toBe(true);
+    expect(second).toEqual([]);
+  });
+
+  it('an expired stored token is renewed silently, and disconnect forgets it', async () => {
+    const storage = store();
+    await make(storage, []).connect();
+    const prompts: string[] = [];
+    const later = make(storage, prompts, 3600_000);
+    expect(await later.resume()).toBe(true);
+    expect(prompts).toEqual(['none']);
+    await later.disconnect();
+    expect(storage.getItem('chess-map:google-token')).toBeNull();
   });
 });
 

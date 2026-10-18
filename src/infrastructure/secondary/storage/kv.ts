@@ -9,3 +9,12 @@ export function browserStorage(): KV | undefined {
     return undefined;
   }
 }
+
+/** `sessionStorage` (lives as long as the tab), or undefined where it is unavailable. */
+export function sessionStorageOrUndefined(): KV | undefined {
+  try {
+    return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}

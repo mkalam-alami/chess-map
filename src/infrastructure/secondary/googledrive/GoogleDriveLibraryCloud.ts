@@ -1,6 +1,7 @@
 import { CloudAuthError, type LibraryCloud, type RemoteLibrary } from '../../../application';
 import type { Library } from '../../../domain';
 import { deserializeLibrary, serializeLibrary } from '../storage/jsonCodec';
+import type { KV } from '../storage/kv';
 
 /** `drive.appdata`: a hidden folder only this app can see. Non-sensitive, so no Google security review is needed. */
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -24,17 +25,22 @@ export interface GoogleDriveDeps {
   clientId: string;
   /** Loads the Google Identity Services script (once) and returns its `google.accounts.oauth2`. */
   loadIdentity: () => Promise<GoogleIdentity>;
+  /** Where the access token survives a reload (`sessionStorage`: it goes away with the tab). Without it the token stays in memory. */
+  storage?: KV;
   fetch?: typeof fetch;
   now?: () => number;
 }
+
+export const TOKEN_KEY = 'chess-map:google-token';
 
 /** Tokens are renewed this long before they expire. */
 const EXPIRY_MARGIN_MS = 60_000;
 
 /**
  * Keeps the library as one JSON file in the user's Google Drive app-data folder, using Google Identity Services' token
- * flow (no backend, no secret, no refresh token): the access token lives in memory only and is renewed silently
- * while the user's Google session and consent last. The cloud version is the file's `modifiedTime`.
+ * flow (no backend, no secret, no refresh token): the access token is kept for the browser session (`deps.storage`, so a
+ * reload does not open Google's window again) and renewed silently while the user's Google session and consent last.
+ * The cloud version is the file's `modifiedTime`.
  */
 export class GoogleDriveLibraryCloud implements LibraryCloud {
   private token: { value: string; expiresAt: number } | null = null;
@@ -54,6 +60,7 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
   }
 
   async resume(): Promise<boolean> {
+    if (this.validToken()) return true;
     try {
       await this.request('none');
       return true;
@@ -63,8 +70,8 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
   }
 
   async disconnect(): Promise<void> {
-    const token = this.token?.value;
-    this.token = null;
+    const token = this.validToken() ?? this.token?.value;
+    this.forgetToken();
     this.fileId = null;
     if (!token) return;
     try {
@@ -115,7 +122,7 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
     const token = await this.accessToken();
     const res = await this.doFetch(`${API}${path}`, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } });
     if (res.status === 401) {
-      this.token = null;
+      this.forgetToken();
       throw new CloudAuthError('Google Drive refused the sign-in');
     }
     if (!res.ok) throw new Error(`Google Drive answered ${res.status}`);
@@ -124,8 +131,28 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
 
   /** The cached token, or a new one requested without any window (rejects with `CloudAuthError` when that needs the user). */
   private async accessToken(): Promise<string> {
-    if (this.token && this.token.expiresAt - EXPIRY_MARGIN_MS > this.now()) return this.token.value;
-    return this.request('none');
+    return this.validToken() ?? this.request('none');
+  }
+
+  /** The in-memory token, else the one the previous page load stored; null when there is none or it is about to expire. */
+  private validToken(): string | null {
+    this.token ??= this.loadToken();
+    return this.token && this.token.expiresAt - EXPIRY_MARGIN_MS > this.now() ? this.token.value : null;
+  }
+
+  private loadToken(): { value: string; expiresAt: number } | null {
+    try {
+      const raw = this.deps.storage?.getItem(TOKEN_KEY);
+      const v = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+      return v && typeof v.value === 'string' && typeof v.expiresAt === 'number' ? { value: v.value, expiresAt: v.expiresAt } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private forgetToken(): void {
+    this.token = null;
+    try { this.deps.storage?.removeItem?.(TOKEN_KEY); } catch { /* storage blocked */ }
   }
 
   /** One token request at a time; `prompt` '' may open the consent window, 'none' never does. */
@@ -149,6 +176,7 @@ export class GoogleDriveLibraryCloud implements LibraryCloud {
   private onToken(r: TokenResponse): void {
     if (!r.access_token) return this.settle(new CloudAuthError(r.error ?? 'No access token'));
     this.token = { value: r.access_token, expiresAt: this.now() + Number(r.expires_in ?? 3600) * 1000 };
+    try { this.deps.storage?.setItem(TOKEN_KEY, JSON.stringify(this.token)); } catch { /* storage blocked: memory only */ }
     this.settle(r.access_token);
   }
 

@@ -12,7 +12,7 @@ import { LichessAnalysisBoard } from './infrastructure/secondary/lichess/Lichess
 import { LichessOpeningBook } from './infrastructure/secondary/openings/LichessOpeningBook';
 import { LocalStorageLibraryRepository } from './infrastructure/secondary/storage/LocalStorageLibraryRepository';
 import { LocalStoragePreferences } from './infrastructure/secondary/storage/LocalStoragePreferences';
-import { browserStorage } from './infrastructure/secondary/storage/kv';
+import { browserStorage, sessionStorageOrUndefined } from './infrastructure/secondary/storage/kv';
 
 // Composition root: the only place that knows both the primary and the secondary adapters.
 const storage = browserStorage();
@@ -37,7 +37,7 @@ const app = new ChessMapApp({
     writePgn: (map) => pgn.write(map),
   }),
   ...(googleClientId && {
-    cloud: { cloud: new GoogleDriveLibraryCloud({ clientId: googleClientId, loadIdentity: loadGoogleIdentity() }), state: new LocalStorageSyncState(storage) },
+    cloud: { cloud: new GoogleDriveLibraryCloud({ clientId: googleClientId, loadIdentity: loadGoogleIdentity(), storage: sessionStorageOrUndefined() }), state: new LocalStorageSyncState(storage) },
   }),
 });
 
