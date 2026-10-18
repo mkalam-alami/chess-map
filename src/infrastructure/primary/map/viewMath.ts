@@ -32,6 +32,46 @@ export function maxZoomToFit(offsets: { dx: number; dy: number }[], halfW: numbe
   return z;
 }
 
+/** A marker to keep in view, as a signed Mercator offset (1 = whole world) from the board, plus the room it needs around it in px. */
+export interface FitPoint { dx: number; dy: number; mx: number; my: number }
+
+/**
+ * Highest zoom in [minZoom, maxZoom] at which the board (`boardHalf(zoom)` px each side of its centre, in px) and every point fit
+ * in a `width` x `height` px area, with the camera free to centre on all of them rather than on the board. Also returns the
+ * Mercator offset from the board of the centre of that group. Falls back to `minZoom` when nothing fits.
+ */
+export function fitAround(o: {
+  points: FitPoint[]; boardHalf: (zoom: number) => { x: number; y: number };
+  width: number; height: number; minZoom: number; maxZoom: number;
+}): { zoom: number; dx: number; dy: number } {
+  const extent = (zoom: number): { loX: number; hiX: number; loY: number; hiY: number; scale: number } => {
+    const scale = 512 * 2 ** zoom;
+    const b = o.boardHalf(zoom);
+    let loX = -b.x, hiX = b.x, loY = -b.y, hiY = b.y;
+    for (const p of o.points) {
+      loX = Math.min(loX, p.dx * scale - p.mx); hiX = Math.max(hiX, p.dx * scale + p.mx);
+      loY = Math.min(loY, p.dy * scale - p.my); hiY = Math.max(hiY, p.dy * scale + p.my);
+    }
+    return { loX, hiX, loY, hiY, scale };
+  };
+  const fits = (zoom: number): boolean => {
+    const e = extent(zoom);
+    return e.hiX - e.loX <= o.width && e.hiY - e.loY <= o.height;
+  };
+  let zoom = o.maxZoom;
+  if (!fits(zoom)) {
+    let lo = o.minZoom;
+    let hi = o.maxZoom;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid; else hi = mid;
+    }
+    zoom = lo;
+  }
+  const e = extent(zoom);
+  return { zoom, dx: (e.loX + e.hiX) / 2 / e.scale, dy: (e.loY + e.hiY) / 2 / e.scale };
+}
+
 /** Zoom to use on focus: the board at its comfortable size, zoomed out if the children would not fit. */
 export function focusZoom(o: { boardZoom: number; comfort: number; fit: number; minZoom: number; maxZoom: number }): number {
   const target = o.boardZoom + Math.log2(o.comfort / NOMINAL_PX);

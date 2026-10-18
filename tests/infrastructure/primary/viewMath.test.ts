@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOMINAL_PX } from '../../../src/domain';
-import { boardPx, comfortPx, focusZoom, gripResize, maxZoomToFit } from '../../../src/infrastructure/primary/map/viewMath';
+import { boardPx, comfortPx, fitAround, focusZoom, gripResize, maxZoomToFit } from '../../../src/infrastructure/primary/map/viewMath';
 
 describe('boardPx', () => {
   const view = { width: 1280, height: 630 };
@@ -64,5 +64,31 @@ describe('gripResize', () => {
     expect(a.mapZoom).toBeCloseTo(2);
     expect(b.mapZoom).toBe(2);
     expect(b.extra).toBeCloseTo(a.extra, 5); // same limit => same extra
+  });
+});
+
+describe('fitAround', () => {
+  const base = { boardHalf: () => ({ x: 100, y: 100 }), width: 400, height: 800, minZoom: 0, maxZoom: 5 };
+  it('keeps the max zoom when everything already fits, centred on the board when alone', () => {
+    expect(fitAround({ ...base, points: [] })).toEqual({ zoom: 5, dx: 0, dy: 0 });
+  });
+  it('zooms out just enough, and centres the group instead of the board', () => {
+    // a marker 1 / 2 ** 5 of the world to the right: at zoom z it sits 512 * 2 ** z / 32 px away
+    const dx = 1 / 2 ** 5;
+    const r = fitAround({ ...base, points: [{ dx, dy: 0, mx: 20, my: 20 }] });
+    const scale = 512 * 2 ** r.zoom;
+    expect(r.zoom).toBeLessThan(5);
+    expect(dx * scale + 20 + 100).toBeCloseTo(400, 3); // board left edge to marker right edge fills the width
+    expect(r.dx).toBeCloseTo(((dx * scale + 20 - 100) / 2) / scale, 6); // the group's centre, on the marker side
+    expect(r.dy).toBe(0);
+  });
+  it('needs half the zoom-out of a symmetric fit around the board', () => {
+    const o = { ...base, height: 4000 };
+    const one = fitAround({ ...o, points: [{ dx: 0.02, dy: 0, mx: 0, my: 0 }] }).zoom;
+    const both = fitAround({ ...o, points: [{ dx: 0.02, dy: 0, mx: 0, my: 0 }, { dx: -0.02, dy: 0, mx: 0, my: 0 }] }).zoom;
+    expect(one).toBeGreaterThan(both);
+  });
+  it('never goes below the min zoom', () => {
+    expect(fitAround({ ...base, minZoom: 2, points: [{ dx: 0.5, dy: 0, mx: 0, my: 0 }] }).zoom).toBe(2);
   });
 });
