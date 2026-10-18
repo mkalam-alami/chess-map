@@ -170,8 +170,8 @@ export interface ZoomOptions {
   /** Use the mobile comfort size (board fills the width, nav buttons visible) whatever the screen. Default: the current screen. */
   mobile?: boolean;
   /**
-   * Zoom out until all child markers are in view. Default: yes, except on the root board: fitting the root's children is
-   * the job of the "Start position" button, and doing it when merely opening the root marker shrinks its board (badly on mobile).
+   * Zoom out until all child markers are in view. Default: yes on desktop, except on the root board (fitting the root's children
+   * is the job of the "Start position" button); never on mobile, where every focus (pin click, recording) gets the standard zoom.
    */
   fitChildren?: boolean;
 }
@@ -179,7 +179,7 @@ export interface ZoomOptions {
 /** Zoom that shows the cursor's board at its comfortable size (zooming in or out), unless its children would not fit. */
 function targetZoom(map: maplibregl.Map, app: ChessMapApp, { mobile = isMobile(), fitChildren }: ZoomOptions = {}): number {
   const { cursor, repertoire } = app.session;
-  const fit = fitChildren ?? cursor.nodeId !== repertoire.rootId;
+  const fit = fitChildren ?? (!mobile && cursor.nodeId !== repertoire.rootId);
   return focusZoom({
     boardZoom: repertoire.effectiveBoardZoom(cursor.nodeId),
     comfort: comfortPx({ width: window.innerWidth, height: window.innerHeight }, mobile),
