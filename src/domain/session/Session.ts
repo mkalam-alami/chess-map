@@ -149,6 +149,13 @@ export class Session {
     return this.future[0] ?? (played < node.moves.length ? { nodeId, played: played + 1 } : onlyChild);
   }
 
+  /** True when the cursor is at the end of a repertoire line: no move left to explore from here (no children after the segment). */
+  atLineEnd(): boolean {
+    const { nodeId, played } = this.cursor;
+    const node = this.repertoire.node(nodeId);
+    return played >= node.moves.length && node.children.length === 0;
+  }
+
   forward(): Session {
     if (this.busy) return this;
     const c = this.forwardTarget();

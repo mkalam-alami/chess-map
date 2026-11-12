@@ -184,7 +184,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
       update();
     } else if (!app.play(san, mode === 'edit' ? spawnSpots(2) : [])) {
       update(); // snap back
-      toast('Not in repertoire');
+      toast(mode === 'explore' && app.session.atLineEnd() ? 'End of the line reached' : 'Not in repertoire');
     }
   }
 

@@ -180,6 +180,7 @@ export function TopBar({ getCenter }: { getCenter: () => LngLat }) {
               </>
             ))}
             </span>
+            {s.mode === 'explore' && s.atLineEnd() && sans.length > 0 && <span class="line-end" data-testid="line-end" title="End of the line: no move left to explore">∎</span>}
           </div>
           <button type="button" class="chip" data-testid="transposition" hidden={!chipTarget} onClick={() => chipTarget && app.goTo(chipTarget, { keepSize: true })}>
             {chipTarget && `⇄ also reached via ${formatLine(rep.sanPath(chipTarget))}${others.length > 1 ? ` (+${others.length - 1})` : ''}`}

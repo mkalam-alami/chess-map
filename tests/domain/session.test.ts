@@ -99,6 +99,12 @@ describe('navigating', () => {
     expect(s.events).toEqual([{ type: 'deadEnd' }]);
   });
 
+  it('atLineEnd is true only past the last move of a line', () => {
+    const { session, ids } = e4e5();
+    expect(session.atLineEnd()).toBe(false);
+    expect(session.goTo({ nodeId: ids[2] as string, played: 1 }).atLineEnd()).toBe(true);
+  });
+
   it('forward does nothing by default: no future line is picked', () => {
     const t = treeOf({ e4: { e5: {} }, d4: {} });
     const s = exploreSession(t.session.repertoire).forward();

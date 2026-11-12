@@ -114,6 +114,7 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
 .line .move { font: inherit; padding: 1px 5px; border: 0; background: none; border-radius: 5px; color: var(--walnut); }
 .line .move:hover { background: var(--wood-light); }
 .line .move.current { background: var(--walnut); color: var(--cream); }
+.line .line-end { margin-left: 6px; color: var(--muted); font-weight: 600; }
 .line .move.future { color: var(--walnut-2); opacity: 0.55; }
 .opening {
   flex: 0 1 auto; min-width: 0; max-width: 100%; display: inline-flex; align-items: center; gap: 6px;
