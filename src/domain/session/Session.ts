@@ -280,8 +280,9 @@ export class Session {
     return this.commit(edit.namePlace(rep, nodeId, place));
   }
 
-  /** A blank note removes it. */
+  /** A blank note removes it. Returns `this` when the note does not change. */
   annotate(nodeId: NodeId, note: string): Session {
+    if (this.repertoire.hasNode(nodeId) && this.repertoire.node(nodeId).note === (note.trim() ? note : undefined)) return this;
     return this.commit(edit.annotate(this.repertoire, nodeId, note));
   }
 

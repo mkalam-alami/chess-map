@@ -26,7 +26,8 @@ function started(local: Library | null = withMoves()) {
   return t;
 }
 const rootKids = (t: ReturnType<typeof makeApp>): NodeId[] => t.app.session.repertoire.node(t.app.session.repertoire.rootId).children;
-const edit = (t: ReturnType<typeof makeApp>): void => void t.app.annotate(rootKids(t)[0] as NodeId, 'note');
+let edits = 0;
+const edit = (t: ReturnType<typeof makeApp>): void => void t.app.annotate(rootKids(t)[0] as NodeId, `note ${++edits}`);
 
 beforeEach(() => void vi.useFakeTimers());
 afterEach(() => void vi.useRealTimers());

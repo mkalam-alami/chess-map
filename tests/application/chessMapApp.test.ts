@@ -769,6 +769,34 @@ describe('undo / redo', () => {
     expect(t.app.canRedo).toBe(false);
   });
 
+  it('records a typed note as one step when the edit ends', () => {
+    const t = started('edit');
+    const before = t.app.session.library;
+    for (const note of ['O', 'Op', 'Ope']) t.app.annotate(root(t), note, { draft: true });
+    expect(t.app.session.repertoire.node(root(t)).note).toBe('Ope');
+    expect(t.library.saved.at(-1)).toBe(t.app.session.library);
+    expect(t.app.canUndo).toBe(false);
+    t.app.annotate(root(t), 'Ope');
+    t.app.undo();
+    expect(t.app.session.library).toBe(before);
+    expect(t.app.canUndo).toBe(false);
+    t.app.redo();
+    expect(t.app.session.repertoire.node(root(t)).note).toBe('Ope');
+  });
+
+  it('ends a note draft before an undo or another change', () => {
+    const t = started('edit');
+    const before = t.app.session.library;
+    t.app.annotate(root(t), 'a', { draft: true });
+    t.app.undo();
+    expect(t.app.session.library).toBe(before);
+    t.app.annotate(root(t), 'b', { draft: true });
+    spawn(t, 'c4');
+    t.app.undo();
+    t.app.undo();
+    expect(t.app.session.repertoire.node(root(t)).note).toBeUndefined();
+  });
+
   it('does not record geocoded names as steps', async () => {
     const t = started('edit');
     spawn(t, 'c4');

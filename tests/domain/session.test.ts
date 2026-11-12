@@ -703,6 +703,7 @@ describe('notes and board size', () => {
     expect(n.repertoire.node(ids[1] as string).note).toBe('Best by test');
     expect('note' in n.annotate(ids[1] as string, '   ').repertoire.node(ids[1] as string)).toBe(false);
     expect(n.events).toEqual([]);
+    expect(n.annotate(ids[1] as string, 'Best by test')).toBe(n); // unchanged: same session, no undo step
   });
 
   it('showNote keeps a note visible on its marker; it needs a note and goes away with it', () => {

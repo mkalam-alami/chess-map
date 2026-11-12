@@ -43,6 +43,8 @@ export function createNoteEditor(app: ChessMapApp): NoteEditor {
   }
 
   const setEditing = (on: boolean): void => {
+    // Closing ends the edit: the keystrokes saved as drafts become a single undo step.
+    if (editing && !on && nodeId) app.annotate(nodeId, input.value);
     editing = on && editable;
     render();
     if (editing) input.focus();
@@ -69,7 +71,7 @@ export function createNoteEditor(app: ChessMapApp): NoteEditor {
   // Written to the board this editor is showing, never to the live cursor: a late input event (e.g. a composition committed on
   // blur after the cursor jumped, as when a board is deleted or merged) must not put this text on another board such as the root.
   input.addEventListener('input', () => {
-    if (editing && nodeId) app.annotate(nodeId, input.value);
+    if (editing && nodeId) app.annotate(nodeId, input.value, { draft: true });
   });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey && !e.isComposing)) {

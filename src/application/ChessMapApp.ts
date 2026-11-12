@@ -46,6 +46,8 @@ export class ChessMapApp {
   /** Libraries before / after the current one, for undo / redo. Kept for this page session only (never persisted). */
   private undoStack: Library[] = [];
   private redoStack: Library[] = [];
+  /** Library before the note being typed (see `annotate`'s draft): recorded as one undo step when the edit ends. */
+  private draftBase: Library | undefined;
   /** Latest reverse-geocoding lookup per node. */
   private readonly lookups = new Map<NodeId, AbortController>();
 
@@ -171,6 +173,7 @@ export class ChessMapApp {
 
   /** Reverts the last change to the library (a move, a relocation, a deleted position…). */
   undo(): void {
+    this.commitDraft();
     const previous = this.undoStack.at(-1);
     if (!previous || this.current.busy) return;
     this.undoStack.pop();
@@ -179,6 +182,7 @@ export class ChessMapApp {
   }
 
   redo(): void {
+    this.commitDraft();
     const next = this.redoStack.at(-1);
     if (!next || this.current.busy) return;
     this.redoStack.pop();
@@ -193,8 +197,17 @@ export class ChessMapApp {
     this.apply(this.current.relocate(nodeId, at, opts));
   }
 
-  annotate(nodeId: NodeId, note: string): void {
-    this.apply(this.current.annotate(nodeId, note));
+  /**
+   * Sets a position's note. A `draft` (each keystroke) is saved but is not an undo step: the whole edit becomes one step
+   * when it ends, i.e. on the next non-draft change (the editor's final `annotate` on blur) or undo / redo.
+   */
+  annotate(nodeId: NodeId, note: string, opts: { draft?: boolean } = {}): void {
+    if (!opts.draft) {
+      this.apply(this.current.annotate(nodeId, note));
+      return;
+    }
+    const before = this.current.library;
+    if (this.apply(this.current.annotate(nodeId, note), { history: false }).library !== before) this.draftBase ??= before;
   }
 
   /** Saves the annotations of the board at `cursor` (see `Session.drawShapes`). */
@@ -312,14 +325,11 @@ export class ChessMapApp {
    * updates (geocoded names, the remembered viewport; the latter is not synced either) and undo / redo themselves are not undoable steps.
    */
   private apply(next: Session, opts: { notify?: boolean; remember?: boolean; history?: boolean; sync?: boolean } = {}): Session {
+    if (opts.history !== false) this.commitDraft();
     const prev = this.current;
     if (next === prev) return next;
     this.current = next;
-    if (opts.history !== false && next.library !== prev.library) {
-      this.undoStack.push(prev.library);
-      if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
-      this.redoStack = [];
-    }
+    if (opts.history !== false && next.library !== prev.library) this.record(prev.library);
     if (next.library !== prev.library) {
       this.ports.library.save(next.library);
       if (opts.sync !== false) this.cloudSync?.localChanged();
@@ -330,9 +340,23 @@ export class ChessMapApp {
     return next;
   }
 
+  private record(previous: Library): void {
+    this.undoStack.push(previous);
+    if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
+    this.redoStack = [];
+  }
+
+  /** Ends a note draft: one undo step back to the library before it, if the draft changed anything. */
+  private commitDraft(): void {
+    const base = this.draftBase;
+    this.draftBase = undefined;
+    if (base && base !== this.current.library) this.record(base);
+  }
+
   /** The cloud's library replaces ours (not a user action: it is not sent back to the cloud). Back to the first board of the active map. */
   private replaceLibrary(library: Library): void {
     this.current = Session.start(library, this.current.mode);
+    this.draftBase = undefined;
     this.undoStack = [];
     this.redoStack = [];
     this.ports.library.save(library);
