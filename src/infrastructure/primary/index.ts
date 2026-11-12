@@ -8,6 +8,7 @@ import { createPinMarkers } from './map/pinMarker';
 import { createPlacing } from './map/placing';
 import { createRelocateGhost } from './map/relocating';
 import { mountUi } from './ui/App';
+import { installBlockedNotices } from './ui/blockedNotice';
 import { closePopover } from './ui/overlay';
 import { installKeyboard } from './keyboard';
 import { ViewState } from './viewState';
@@ -44,6 +45,7 @@ export function startPrimary(appElement: HTMLElement, app: ChessMapApp): void {
     lastCursor = app.session.cursor;
   });
 
+  installBlockedNotices(app);
   installKeyboard(app, vs);
 
   // Test/debug handle (typed in tests/e2e/helpers.ts).

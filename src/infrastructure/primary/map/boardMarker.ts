@@ -12,7 +12,6 @@ import { confirmDialog } from '../ui/overlay';
 import { openBoardMenu } from '../ui/BoardMenu';
 import { button, el, iconButton, shieldFromMap } from '../ui/dom';
 import { askPromotion } from '../ui/promotion';
-import { toast } from '../ui/toast';
 import { createBoardSizer } from './boardSize';
 import { makeDraggable } from './drag';
 import type { DragPreview } from './dragPreview';
@@ -183,8 +182,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     if (!san) {
       update();
     } else if (!app.play(san, mode === 'edit' ? spawnSpots(2) : [])) {
-      update(); // snap back
-      toast(mode === 'explore' && app.session.atLineEnd() ? 'End of the line reached' : 'Not in repertoire');
+      update(); // snap back; the notice comes from `installBlockedNotices`
     }
   }
 

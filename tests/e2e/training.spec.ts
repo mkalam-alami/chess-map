@@ -15,6 +15,9 @@ test('Explore follows the repertoire, snaps back out-of-book moves and offers no
   await board.playMove('e2', 'e4');
   await expect(topBar.line).toHaveText('1. e4');
 
+  await page.keyboard.press('ArrowRight'); // the end of the line: same notice as a move past it
+  await expect(map.toast).toHaveText('End of the line reached');
+
   await page.keyboard.press('p'); // edit shortcuts do nothing
   await expect(topBar.pinToggle).toBeHidden();
   await page.keyboard.press('Delete');
