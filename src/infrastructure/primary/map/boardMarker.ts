@@ -94,9 +94,10 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     premovable: { enabled: false },
     movable: { free: false, showDests: true, events: { after: (orig, dest) => onUserMove(orig, dest) } },
     draggable: { showGhost: true },
-    // Right-click arrows and circles belong to the position: saved as they are drawn, and only the eraser button removes them.
+    // Right-click arrows and circles belong to the position in Edit: saved as they are drawn, and only the eraser button
+    // removes them. In Explore they are scratch annotations, never saved (see `scratchAt`).
     disableContextMenu: true, // right-click draws, it must not open the browser menu
-    drawable: { eraseOnClick: false, onChange: (shapes) => app.drawShapes(app.session.cursor, shapes.flatMap(toShape)) },
+    drawable: { eraseOnClick: false, onChange: onDraw },
   });
   // The board moves with the map: chessground caches its bounds, so refresh them before it reads a pointer position.
   // Chessground reports user moves asynchronously (setTimeout 1ms) and has already flipped the turn / dropped the dests by then.
@@ -193,6 +194,16 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     return prev && san ? moveSquares(m.fenAt(prev), san) : undefined;
   }
 
+  // Position where Explore-mode drawings currently live ('' when none). They stay on the board until the position or the
+  // mode changes, then the stored annotations come back.
+  let scratchAt = '';
+  const positionKey = (c: Cursor): string => `${c.nodeId}:${c.played}`;
+  function onDraw(drawn: DrawShape[]): void {
+    const s = app.session;
+    if (s.mode === 'edit') app.drawShapes(s.cursor, drawn.flatMap(toShape));
+    else scratchAt = positionKey(s.cursor);
+  }
+
   let viewOnly = false;
   function update(): void {
     const s = app.session;
@@ -231,10 +242,12 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
       check: inCheck(fen),
       lastMove: lastMoveOf(s.cursor),
       movable: { color: turn, dests: legalDests(fen) as Map<Key, Key[]> },
-      drawable: { enabled: s.mode === 'edit' },
+      drawable: { enabled: true },
     });
-    // The stored annotations of this position replace whatever chessground holds (it keeps them across moves, or loses them on its own).
-    if (JSON.stringify(cg.state.drawable.shapes.flatMap(toShape)) !== JSON.stringify(shapes)) cg.setShapes(shapes as DrawShape[]);
+    // The stored annotations of this position replace whatever chessground holds (it keeps them across moves, or loses them
+    // on its own), unless the user is sketching over this very position in Explore.
+    if (s.mode !== 'explore' || scratchAt !== positionKey(s.cursor)) scratchAt = '';
+    if (!scratchAt && JSON.stringify(cg.state.drawable.shapes.flatMap(toShape)) !== JSON.stringify(shapes)) cg.setShapes(shapes as DrawShape[]);
     // Chessground binds its pointer listeners only when it (re)draws while interactive. A redraw during placing (the camera
     // zooms, the board is resized) leaves a dead board, so redraw once more when placing ends.
     if (viewOnly && !s.placing) cg.redrawAll();

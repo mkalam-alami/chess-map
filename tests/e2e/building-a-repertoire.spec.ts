@@ -58,6 +58,14 @@ test('build a repertoire: place moves, delete a branch, record a pinned line, un
   await expect(board.circles).toHaveCount(0);
   await expect(board.erase).toBeHidden();
 
+  // In Explore they can be drawn too, but only as a scratch: gone when switching modes, never saved.
+  await topBar.explore();
+  await board.circle('d4');
+  await expect(board.circles).toHaveCount(1);
+  await topBar.edit();
+  await expect(board.circles).toHaveCount(0);
+  expect(Object.values((await app.snapshot()).nodes).some((n) => n.shapes)).toBe(false);
+
   // Recording a move that already exists as the next board pulls it into this one, after a confirmation.
   await page.keyboard.press('p');
   await app.spawn('g1', 'f3');
