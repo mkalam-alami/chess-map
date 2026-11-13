@@ -1,4 +1,4 @@
-import type { LngLat, Place } from '../../../domain';
+import { isWikidataId, type LngLat, type Place } from '../../../domain';
 import type { ReverseGeocoder } from '../../../application';
 
 /** Nominatim's usage policy allows about one request per second. */
@@ -22,7 +22,9 @@ const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
 
 interface NominatimResponse {
   error?: unknown;
+  name?: string;
   address?: Record<string, string | undefined>;
+  extratags?: Record<string, string | undefined> | null;
 }
 
 const PLACE_KEYS = ['city', 'town', 'village', 'municipality', 'hamlet', 'suburb', 'county', 'state_district', 'state', 'region'] as const;
@@ -34,7 +36,11 @@ export function parseNominatim(data: NominatimResponse): Place | null {
   const place = PLACE_KEYS.map((k) => a[k]).find((v) => !!v);
   if (!place && !country) return null;
   const label = place && country && place !== country ? `${place}, ${country}` : (place ?? (country as string));
-  return country ? { label, country } : { label };
+  const result: Place = country ? { label, country } : { label };
+  // The tags describe the object Nominatim returned, which is not always the one named in the label (e.g. a suburb).
+  const wikidata = data.extratags?.wikidata;
+  if (wikidata && isWikidataId(wikidata) && data.name && data.name === (place ?? country)) result.wikidata = wikidata;
+  return result;
 }
 
 const cacheKey = (p: LngLat): string => `${p[1].toFixed(2)},${p[0].toFixed(2)}`;
@@ -58,7 +64,7 @@ export class NominatimReverseGeocoder implements ReverseGeocoder {
   async placeAt(at: LngLat, signal: AbortSignal): Promise<Place | null> {
     const key = cacheKey(at);
     if (this.cache.has(key)) return this.cache.get(key) ?? null;
-    const url = `${this.baseUrl}/reverse?format=jsonv2&lat=${at[1].toFixed(5)}&lon=${at[0].toFixed(5)}&zoom=10&accept-language=en`;
+    const url = `${this.baseUrl}/reverse?format=jsonv2&lat=${at[1].toFixed(5)}&lon=${at[0].toFixed(5)}&zoom=10&accept-language=en&extratags=1`;
     const result = await this.throttled(async () => {
       const res = await this.fetchFn(url, { signal });
       if (!res.ok) throw new Error(`Reverse geocoding failed (HTTP ${res.status})`);

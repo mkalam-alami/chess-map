@@ -20,6 +20,13 @@ describe('parseNominatim', () => {
   it('keeps a place without a country', () => {
     expect(parseNominatim({ address: { city: 'Atlantis' } })).toEqual({ label: 'Atlantis' });
   });
+  it('keeps the Wikidata id of the returned object only when it is the place named in the label', () => {
+    const city = { name: 'Portland', address: { city: 'Portland', country: 'United States' }, extratags: { wikidata: 'Q6106' } };
+    expect(parseNominatim(city)?.wikidata).toBe('Q6106');
+    expect(parseNominatim({ ...city, name: 'Pearl District' })?.wikidata).toBeUndefined(); // a suburb's id, not Portland's
+    expect(parseNominatim({ ...city, extratags: { wikidata: 'junk' } })?.wikidata).toBeUndefined();
+    expect(parseNominatim({ ...city, extratags: null })).toEqual({ label: 'Portland, United States', country: 'United States' });
+  });
   it('returns null for errors / open sea', () => {
     expect(parseNominatim({ error: 'Unable to geocode' })).toBeNull();
     expect(parseNominatim({})).toBeNull();

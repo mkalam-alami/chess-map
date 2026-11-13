@@ -1,5 +1,5 @@
 // Public API of the domain layer. Everything not exported here (tree surgery, cursor helpers, caches) is private.
-export { DEFAULT_CENTER, sameLngLat, wrapLng, wrapNear, type LngLat, type Place } from './geo';
+export { DEFAULT_CENTER, isWikidataId, sameLngLat, wrapLng, wrapNear, type LngLat, type Place } from './geo';
 export { newId } from './id';
 export { START_FEN, epd, formatLine, inCheck, legalDests, moveLabel, moveSquares, promotionColor, tryMove, turnColor, type MoveInput } from './chess/rules';
 export { openingAt, openingText, type OpeningInfo, type OpeningLookup } from './chess/openings';

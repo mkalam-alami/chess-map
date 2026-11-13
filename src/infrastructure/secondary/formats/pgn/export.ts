@@ -34,6 +34,7 @@ function headCommands(node: MapNodeData): string[] {
   if (node.place) {
     cmds.push(`[%place "${escapeArg(node.place.label)}"]`);
     if (node.place.country) cmds.push(`[%country "${escapeArg(node.place.country)}"]`);
+    if (node.place.wikidata) cmds.push(`[%wikidata ${node.place.wikidata}]`);
   }
   return cmds;
 }

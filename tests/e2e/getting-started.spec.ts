@@ -11,7 +11,7 @@ test('first visit opens in Edit; the repertoire and the Explore / Edit choice su
   await page.keyboard.press('e');
   await topBar.expectMode('explore');
   await topBar.placeLabel.click(); // in Explore the place links to pages about it
-  await expect(topBar.placeWikipedia).toHaveAttribute('href', 'https://en.wikipedia.org/wiki/Special:Search?search=Testville');
+  await expect(topBar.placeWikipedia).toHaveAttribute('href', 'https://www.wikidata.org/wiki/Special:GoToLinkedPage/enwiki/Q1');
   await page.keyboard.press('Escape');
   await page.keyboard.press('e');
   await topBar.expectMode('edit');

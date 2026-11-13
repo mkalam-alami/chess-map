@@ -14,7 +14,7 @@ export type ServiceMode = 'ok' | 'http-500' | 'offline';
 
 const STYLE = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#9bbbe8' } }] };
 
-const NOMINATIM = { address: { city: 'Testville', country: 'Testland' } };
+const NOMINATIM = { name: 'Testville', address: { city: 'Testville', country: 'Testland' }, extratags: { wikidata: 'Q1' } };
 const PHOTON = {
   features: [
     {

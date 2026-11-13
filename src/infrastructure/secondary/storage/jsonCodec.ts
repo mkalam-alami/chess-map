@@ -1,5 +1,5 @@
 import {
-  LIBRARY_VERSION, Library, SHAPE_BRUSHES, Repertoire, START_FEN, newId, tryMove,
+  LIBRARY_VERSION, Library, SHAPE_BRUSHES, Repertoire, START_FEN, isWikidataId, newId, tryMove,
   type BoardShape, type ChessMapData, type LngLat, type MapNodeData, type NodeId,
 } from '../../../domain';
 import { ImportError } from '../../../application';
@@ -146,6 +146,10 @@ function validateMap(raw: unknown, path: string): ChessMapData {
       if (!isObj(rn.place)) throw new ValidationError(`${p}.place`, 'expected an object');
       node.place = { label: str(rn.place.label, `${p}.place.label`) };
       if (rn.place.country !== undefined) node.place.country = str(rn.place.country, `${p}.place.country`);
+      if (rn.place.wikidata !== undefined) {
+        node.place.wikidata = str(rn.place.wikidata, `${p}.place.wikidata`);
+        if (!isWikidataId(node.place.wikidata)) throw new ValidationError(`${p}.place.wikidata`, 'expected a Wikidata id (Q…)');
+      }
     }
     nodes[key] = node;
   }

@@ -1,5 +1,5 @@
 import { parseGames, type ParseTree } from '@mliebelt/pgn-parser';
-import { DEFAULT_CENTER, SHAPE_BRUSHES, START_FEN, newId, tryMove, turnColor, wrapLng, type BoardShape, type ChessMapData, type LngLat, type MapNodeData, type NodeId } from '../../../../domain';
+import { DEFAULT_CENTER, SHAPE_BRUSHES, START_FEN, isWikidataId, newId, tryMove, turnColor, wrapLng, type BoardShape, type ChessMapData, type LngLat, type MapNodeData, type NodeId, type Place } from '../../../../domain';
 import { ImportError } from '../../../../application';
 import { BRUSH_LETTER, unescapeArg } from './export';
 
@@ -22,6 +22,7 @@ interface Meta {
   merge: boolean;
   place?: string;
   country?: string;
+  wikidata?: string;
   note?: string;
   shapes: BoardShape[];
 }
@@ -80,6 +81,8 @@ function metaOf(diag: Record<string, unknown> | null | undefined): Meta {
   if (place) meta.place = unquote(place);
   const country = str(d.country);
   if (country) meta.country = unquote(country);
+  const wikidata = str(d.wikidata)?.trim();
+  if (wikidata && isWikidataId(wikidata)) meta.wikidata = wikidata;
   const note = str(d.comment)?.trim();
   if (note) meta.note = note;
   return meta;
@@ -97,7 +100,9 @@ function fail(game: number, san: string, fen: string): never {
 
 function placeOf(meta: Meta): MapNodeData['place'] | undefined {
   if (!meta.place) return undefined;
-  return meta.country ? { label: meta.place, country: meta.country } : { label: meta.place };
+  const place: Place = meta.country ? { label: meta.place, country: meta.country } : { label: meta.place };
+  if (meta.wikidata) place.wikidata = meta.wikidata;
+  return place;
 }
 
 function importGame(tree: ParseTree, index: number, opts: { name?: string; origin?: LngLat }, total: number): ChessMapData {

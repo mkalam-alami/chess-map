@@ -1,7 +1,10 @@
 export type LngLat = [lng: number, lat: number];
 
-/** A named place (reverse-geocoded or picked from a search). */
-export interface Place { label: string; country?: string }
+/** A named place (reverse-geocoded or picked from a search). `wikidata` (e.g. `Q456`) identifies it exactly, when known. */
+export interface Place { label: string; country?: string; wikidata?: string }
+
+/** Wikidata item ids: `Q` and digits. */
+export const isWikidataId = (s: string): boolean => /^Q[1-9]\d*$/.test(s);
 
 /** Where new maps and PGN imports start when no position is given (Paris). */
 export const DEFAULT_CENTER: LngLat = [2.35, 48.85];

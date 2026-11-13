@@ -10,7 +10,7 @@ import { libraryOf, pinnedOf } from '../../domain/fixtures';
 function sample(): Library {
   const { session, id } = pinnedOf(['e4', 'e5', 'Nf3', 'Nc6']);
   let s = session.goTo({ nodeId: id, played: 2 }).play('f4', [[4, 50]]).confirmPlacing();
-  s = s.annotate(id, 'King pawn').showNote(id, true).nameLocation(id, { label: 'Paris', country: 'France' }).resizeBoard(id, 0.75);
+  s = s.annotate(id, 'King pawn').showNote(id, true).nameLocation(id, { label: 'Paris', country: 'France', wikidata: 'Q90' }).resizeBoard(id, 0.75);
   const map = { ...s.repertoire.data, name: 'Test', view: { center: [1, 2] as [number, number], zoom: 3 }, boardZoom: 2 };
   return libraryOf(Repertoire.fromData(map));
 }
@@ -42,6 +42,13 @@ describe('library codec', () => {
     expect(lib.active.name).toBe('Saved earlier');
     expect(lib.active.node('r').place?.label).toBe('Paris, France');
     expect(lib.active.node('a').note).toBe('Queen pawn');
+  });
+
+  it('keeps the Wikidata id of a place and rejects one that is not an id', () => {
+    const { json, nonRoot } = raw();
+    expect(deserializeLibrary(json).active.node(nonRoot.id).place?.wikidata).toBe('Q90');
+    nonRoot.place.wikidata = 'Paris';
+    expect(() => deserializeLibrary(json)).toThrow(/place\.wikidata/);
   });
 
   it('keeps the board annotations of a position', () => {

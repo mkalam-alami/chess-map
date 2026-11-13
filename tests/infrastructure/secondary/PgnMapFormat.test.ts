@@ -33,7 +33,7 @@ function sample(): ChessMap {
   s = s.toggleRecording();
   const ba4 = spawn(s, nf3, 'Ba4', [0.5, 0.5]);
   s = ba4.session.annotate(ba4.id, 'Ruy "Lopez" line').showNote(ba4.id, true);
-  s = s.nameLocation(nf3, { label: 'Porto, Portugal', country: 'Portugal' }).nameLocation(id('d4'), { label: 'Odd {name} "x" [%y]' });
+  s = s.nameLocation(nf3, { label: 'Porto, Portugal', country: 'Portugal', wikidata: 'Q36433' }).nameLocation(id('d4'), { label: 'Odd {name} "x" [%y]' });
   s = s.annotate(s.repertoire.rootId, 'Start here').resizeBoard(id('e4'), 0.5).resizeBoard(id('e4 c5'), -1.25);
   return { ...s.repertoire.data, boardZoom: 2.5 };
 }
@@ -58,7 +58,7 @@ describe('exportPgn', () => {
     expect(pgn).toContain('{[%geo 20,10] Start here}');
     expect(pgn).toContain('[%geo 21.25,11.5]');
     expect(pgn).toContain('[%noteshown 1]'); // on the Ba4 marker, whose note is pinned to the map
-    expect(pgn).toContain('[%geo 40.1,-5.12346] [%pinned 1] [%place "Porto, Portugal"] [%country "Portugal"]');
+    expect(pgn).toContain('[%geo 40.1,-5.12346] [%pinned 1] [%place "Porto, Portugal"] [%country "Portugal"] [%wikidata Q36433]');
     expect(pgn).toContain('Ruy "Lopez" line}');
     expect(pgn).not.toMatch(/Odd \{/);
     expect(pgn).toContain('%7Bname%7D');
