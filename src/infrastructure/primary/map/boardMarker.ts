@@ -10,6 +10,7 @@ import { openInAnalysis } from '../ui/actions';
 import { confirmDeleteNode } from '../ui/confirmDelete';
 import { confirmDialog } from '../ui/overlay';
 import { openBoardMenu } from '../ui/BoardMenu';
+import { openPlaceMenu } from '../ui/PlaceMenu';
 import { button, el, iconButton, shieldFromMap } from '../ui/dom';
 import { askPromotion } from '../ui/promotion';
 import { createBoardSizer } from './boardSize';
@@ -76,7 +77,12 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
   const place = el('button', 'place', '', { type: 'button', 'data-testid': 'place-label' });
   const placeSpan = el('span', 'place-text', '', { dir: 'auto' });
   place.append(placeSpan);
-  place.addEventListener('click', () => app.session.mode === 'edit' && app.startRelocating(cursorId()));
+  // Edit: set the location. Explore: links about the place (Wikipedia, Tripadvisor).
+  place.addEventListener('click', () => {
+    const pl = app.session.repertoire.node(cursorId()).place;
+    if (app.session.mode === 'edit') app.startRelocating(cursorId());
+    else if (pl) openPlaceMenu(place, pl);
+  });
   const above = el('div', 'board-above board-info');
   above.append(opening, place);
   const below = el('div', 'board-below');
@@ -223,8 +229,7 @@ export function createBoardMarker(map: maplibregl.Map, app: ChessMapApp, vs: Vie
     const pl = node.place;
     placeSpan.textContent = pl ? placeText(pl.label, pl.country) : '';
     place.classList.toggle('empty', !pl);
-    place.disabled = s.mode !== 'edit';
-    place.title = s.mode === 'edit' ? 'Set location by city (L)' : placeSpan.textContent;
+    place.title = s.mode === 'edit' ? 'Set location by city (L)' : `${placeSpan.textContent} — Wikipedia, Tripadvisor`;
     prev.hidden = !m.back(s.cursor);
     next.hidden = !s.forwardTarget();
     const shapes = shapesNow();

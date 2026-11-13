@@ -134,7 +134,8 @@ html[data-mode='edit'] .topbar { padding-top: 12px; border-bottom: 3px solid var
   border: 0; background: none; color: var(--muted); font-size: 0.9rem; padding: 2px 6px; border-radius: 8px;
 }
 .place.empty { display: none; }
-.place:disabled { cursor: default; color: var(--muted); }
+.place { cursor: pointer; }
+html:not([data-mode='edit']) .place:hover .place-text { text-decoration: underline; }
 html[data-mode='edit'] .place { color: var(--edit-strong); font-weight: 600; background: var(--edit-soft); }
 html[data-mode='edit'] .place.empty { display: inline-flex; }
 html[data-mode='edit'] .place.empty::after { content: 'Set location…'; }
@@ -280,6 +281,7 @@ html[data-mode='edit'] .board-handle { background: var(--grain), linear-gradient
   min-height: 34px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--cream); color: var(--walnut);
 }
 .popover .menu-item { text-align: left; border: 0; background: none; }
+.popover a.menu-item { display: block; padding: 8px 12px; border-radius: 8px; color: var(--walnut); text-decoration: none; }
 .popover .menu-item:hover { background: var(--wood-light); }
 button.primary { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; font-weight: 600; }
 button.primary:disabled { opacity: 0.45; cursor: default; }

@@ -7,6 +7,8 @@ export class TopBar {
   readonly modeToggle: Locator;
   readonly mapSelect: Locator;
   readonly placeLabel: Locator;
+  /** Links about the place, in the popover the place label opens in Explore. */
+  readonly placeWikipedia: Locator;
   readonly line: Locator;
   readonly lineFuture: Locator;
   readonly lineMove: Locator;
@@ -20,6 +22,7 @@ export class TopBar {
     this.modeToggle = id('mode-toggle');
     this.mapSelect = id('map-select');
     this.placeLabel = id('place-label');
+    this.placeWikipedia = id('place-wikipedia');
     this.line = id('line');
     this.lineFuture = id('line-future');
     this.lineMove = id('line-move');
